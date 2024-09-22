@@ -1,0 +1,17 @@
+# バイナリファイルを除外
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 画像ファイルを除外
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# 機密情報を含むファイルを除外
+config/settings.py
+.venv
+static/
+MySFA.git/

@@ -1,0 +1,62 @@
+{% extends 'base.html' %} 
+{% load static %}
+
+{% block title %}ユーザー検索 | MySFA{% endblock %}
+{% block content %}
+<div class="search-users-container">
+    <h1>ユーザーを検索</h1>
+    <form method="get" action="{% url 'snsapp:search_users' %}" class="search-users-form">
+        <input type="text" name="q" value="{{ query }}" placeholder="ユーザー名またはユーザーIDで検索" class="search-users-input">
+        <button type="submit" class="search-users-button">検索</button>
+    </form>
+
+    {% if query %}
+        <div class="search-users-section">
+            {% if object_list %}
+                <ul class="search-users-list">
+                {% for user in object_list %}
+                    <li>
+                        <a href="{% url 'snsapp:mypost' user.custom_user_id %}">
+                            {% if user.profile_image %}
+                                <img class="user-profile-image" src="{{ user.profile_image.url }}" alt="{{ user.username }}のアイコン">
+                            {% else %}
+                                <img class="user-profile-image" src="{{ MEDIA_URL }}default_images/default_user_icon.png" alt="{{ user.username }}のアイコン">
+                            {% endif %}
+                            <span class="username">{{ user.username }}</span>
+                            <span class="user-id">#{{ user.custom_user_id }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+                </ul>
+                <div class="pagination">
+                    <span class="step-links">
+                        {% if object_list.has_previous %}
+                            <a href="{% url 'snsapp:search_users' %}?page=1&q={{ query }}">&laquo; 最初</a>
+                            <a href="{% url 'snsapp:search_users' %}?page={{ object_list.previous_page_number }}&q={{ query }}">前</a>
+                        {% endif %}
+
+                        {% for page_num in object_list.paginator.page_range %}
+                            {% if page_num == object_list.number %}
+                                <span class="page-number current">{{ page_num }}</span>
+                            {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                                <a href="{% url 'snsapp:search_users' %}?page={{ page_num }}&q={{ query }}" class="page-number">{{ page_num }}</a>
+                            {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                                <a href="{% url 'snsapp:search_users' %}?page={{ page_num }}&q={{ query }}" class="page-number">{{ page_num }}</a>
+                            {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                                <span class="page-ellipsis">...</span>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if object_list.has_next %}
+                            <a href="{% url 'snsapp:search_users' %}?page={{ object_list.next_page_number }}&q={{ query }}">次</a>
+                            <a href="{% url 'snsapp:search_users' %}?page={{ object_list.paginator.num_pages }}&q={{ query }}">最後 &raquo;</a>
+                        {% endif %}
+                    </span>
+                </div>
+            {% else %}
+                <p class="no-results">該当するユーザーが見つかりませんでした。</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

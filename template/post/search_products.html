@@ -1,0 +1,92 @@
+{% extends 'base.html' %} 
+{% load static %}
+
+{% block title %}商品検索 | MySFA{% endblock %}
+{% block content %}
+<div class="search-products-container">
+    <h1>商品を検索</h1>
+    <form method="get" action="{% url 'snsapp:search_products' %}" class="search-products-form">
+        <input type="text" name="q" value="{{ query }}" placeholder="商品名で検索" class="search-products-input">
+        <button type="submit" class="search-products-button">検索</button>
+    </form>
+
+    {% if query %}
+        <div class="filter-form" id="filter-form-products">
+            <form method="get" action="{% url 'snsapp:search_products' %}">
+                <input type="hidden" name="q" value="{{ query }}">
+                <label for="group">グループで絞り込む:</label>
+                <select name="custom_id" id="group" onchange="this.form.submit()">
+                    <option value="">全てのグループ</option>
+                    {% for group in user_groups %}
+                        <option value="{{ group.id }}" {% if group.id|stringformat:"s" == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="timeline-container" style="margin-top: 20px;">
+            {% if object_list %}
+                {% for post in object_list %}
+                    <div class="timeline-item" id="timeline-item-in-products">
+                        <div class="timeline-item-header">
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                            </a>
+                            <div class="timeline-user-info">
+                                <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                    <span class="timeline-username">{{ post.user.username }}</span>
+                                </a>
+                                <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                    <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                                </a>
+                            </div>
+                            <span class="timeline-team-name">{{ post.group.name }}</span>
+                        </div>
+                        <div class="timeline-item-content">
+                            <p class="timeline-product-name">商品: <strong class="highlight highlight-strong">{{ post.product_name }}</strong></p>
+                            <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
+                            <p class="timeline-description">{{ post.contents }}</p>
+                            <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                            {% if request.user == post.user %}
+                                <form method="post" action="{% url 'snsapp:search_products' %}" onsubmit="return confirm('本当に削除しますか？');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                    <button type="submit" class="delete-button">
+                                        <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+                <div class="pagination">
+                    <span class="step-links">
+                        {% if object_list.has_previous %}
+                            <a href="{% url 'snsapp:search_products' %}?page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
+                            <a href="{% url 'snsapp:search_products' %}?page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+                        {% endif %}
+                
+                        {% for page_num in object_list.paginator.page_range %}
+                            {% if page_num == object_list.number %}
+                                <span class="page-number current">{{ page_num }}</span>
+                            {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                                <a href="{% url 'snsapp:search_products' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                            {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                                <a href="{% url 'snsapp:search_products' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                            {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                                <span class="page-ellipsis">...</span>
+                            {% endif %}
+                        {% endfor %}
+                
+                        {% if object_list.has_next %}
+                            <a href="{% url 'snsapp:search_products' %}?page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
+                            <a href="{% url 'snsapp:search_products' %}?page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+                        {% endif %}
+                    </span>
+                </div>
+            {% else %}
+                <p id="no-post">該当する商品はありません。</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

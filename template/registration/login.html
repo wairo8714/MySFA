@@ -1,0 +1,25 @@
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}login / MySFA{% endblock %}
+{% block content %}
+<div id="form-area">
+    <div id="form-area-inner">
+        <h2 id="form-login-top">ログイン</h2>
+        <form method="post" class="input-area">
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">
+              {{ error }}
+            </div>
+            {% endfor %}
+            <input type="text" id="inputUserName" name="username" class="form-control" placeholder="ユーザー名" required autofocus>
+            <input type="password" id="inputPassword" name="password" class="form-control" placeholder="パスワード" required>
+            <button type="submit" id="login-button">Login</button>
+        </form>
+    <p id="register"><a href="{% url 'accounts:signup' %}">初めての方はこちら</a></p>
+    <p id="reset-pass-or-id"><a href="{% url 'accounts:forgot_password' %}">ID/パスワードを忘れた方はこちら</a></p>
+    </div>
+</div>
+{% endblock %}

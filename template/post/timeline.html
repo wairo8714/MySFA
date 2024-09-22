@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ホーム | MySFA{% endblock %}
+
+{% block content %}
+
+    <div class="post-form-container">
+        <div class="post-form">
+            <form method="post" enctype="multipart/form-data" action="{% url 'snsapp:create_post' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_product_name">商品名</label>
+                    {{ form.product_name }}
+                </div>
+                <div class="form-group">
+                    <label for="id_customer_category">業態</label>
+                    {{ form.customer_category }}
+                </div>
+                <div class="form-group">
+                    <label for="id_contents">内容</label>
+                    {{ form.contents }}
+                    <div class="char-counter" id="char-counter">0/100</div>
+                </div>
+                <div class="form-group">
+                    <label for="id_group">グループ</label>
+                    {{ form.group }}
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">投稿</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="filter-form">
+        <form method="get" action="{% url 'snsapp:timeline' %}">
+            <label for="group">グループで絞り込む:</label>
+            <select name="custom_id" id="group" onchange="this.form.submit()">
+                <option value="">全てのグループ</option>
+                {% for group in user_groups %}
+                    <option value="{{ group.custom_id }}" {% if group.custom_id|stringformat:"s" == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="timeline-container" style="margin-top: 20px;">
+        {% if object_list %}
+            {% for post in object_list %}
+                <div class="timeline-item">
+                    <div class="timeline-item-header">
+                        <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                            <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                        </a>
+                        <div class="timeline-user-info">
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-username">{{ post.user.username }}</span>
+                            </a>
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                            </a>
+                        </div>
+                        <span class="timeline-team-name">{{ post.group.name }}</span>
+                    </div>
+                    <div class="timeline-item-content">
+                        <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
+                        <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
+                        <p class="timeline-description">{{ post.contents }}</p>
+                        <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                        {% if request.user == post.user %}
+                            <form method="post" action="{% url 'snsapp:timeline' %}" onsubmit="return confirm('本当に削除しますか？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                <button type="submit" class="delete-button">
+                                    <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p id="no-post">まだ投稿がありません。</p>
+        {% endif %}
+    </div>
+    <div class="pagination">
+        <span class="step-links">
+            {% if object_list.has_previous %}
+                <a href="{% url 'snsapp:timeline' %}?page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
+                <a href="{% url 'snsapp:timeline' %}?page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+            {% endif %}
+
+            {% for page_num in object_list.paginator.page_range %}
+                {% if page_num == object_list.number %}
+                    <span class="page-number current">{{ page_num }}</span>
+                {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                    <a href="{% url 'snsapp:timeline' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                    <a href="{% url 'snsapp:timeline' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                    <span class="page-ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if object_list.has_next %}
+                <a href="{% url 'snsapp:timeline' %}?page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
+                <a href="{% url 'snsapp:timeline' %}?page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+</div>
+<style>
+    .delete-button {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        position: relative;
+        width: 24px;
+        height: 24px;
+    }
+    
+    .delete-icon {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    
+    .delete-button:hover .delete-icon {
+        display: none;
+    }
+    
+    .delete-button:hover {
+        background-image: url("{% static 'images/trash-solid-black.svg' %}");
+        background-size: cover; 
+        background-repeat: no-repeat;
+    }
+</style>    
+{% endblock %}
