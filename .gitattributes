@@ -1,4 +1,7 @@
 static/images/iphone15promockup-done.psd filter=lfs diff=lfs merge=lfs -text
 static/images/iphone15promockup-md.psd filter=lfs diff=lfs merge=lfs -text
 *.psd filter=lfs diff=lfs merge=lfs -text
+<<<<<<< HEAD
 static/videos/background6.mov filter=lfs diff=lfs merge=lfs -text
+=======
+>>>>>>> 0979aa2d7656722cb30e65fe3b3540331445ee16
