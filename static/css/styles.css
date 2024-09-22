@@ -1174,7 +1174,9 @@
     }
 
     .delete-button:hover {
-        background-image: url("images/trash-solid-black.svg");
+        background-image: url("/static/images/trash-solid-black.svg");
+        background-size: cover; 
+        background-repeat: no-repeat;
     }
 
     .btn-update-username {
