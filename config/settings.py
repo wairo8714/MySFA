@@ -29,7 +29,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['mysfa.net', 'mysfa-4b2c4b1604fb.herokuapp.com']
+ALLOWED_HOSTS = ['mysfa.net', 'www.mysfa.net', 'mysfa-4b2c4b1604fb.herokuapp.com']
 
 # デバッグ用の出力
 print(f"SECRET_KEY: {SECRET_KEY}")
