@@ -31,10 +31,6 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['mysfa.net', 'www.mysfa.net', 'mysfa-4b2c4b1604fb.herokuapp.com']
 
-# デバッグ用の出力
-print(f"SECRET_KEY: {SECRET_KEY}")
-print(f"DEBUG: {DEBUG}")
-print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
 
 # Application definition
 
@@ -158,3 +154,14 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 CSRF_COOKIE_SECURE = False  # 開発環境では False に設定
 SESSION_COOKIE_SECURE = False  # 開発環境では False に設定
+
+# Heroku用の設定
+if 'DYNO' in os.environ:
+    # Ensure the app is served over HTTPS
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    ALLOWED_HOSTS = ['*']
+    DEBUG = False
+
+# 静的ファイルの圧縮とキャッシュ
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
