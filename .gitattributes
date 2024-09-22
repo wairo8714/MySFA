@@ -1,3 +1,4 @@
 static/images/iphone15promockup-done.psd filter=lfs diff=lfs merge=lfs -text
 static/images/iphone15promockup-md.psd filter=lfs diff=lfs merge=lfs -text
 *.psd filter=lfs diff=lfs merge=lfs -text
+static/videos/background6.mov filter=lfs diff=lfs merge=lfs -text
