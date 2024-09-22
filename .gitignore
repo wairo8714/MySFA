@@ -4,13 +4,8 @@
 *.so
 *.dylib
 
-# 画像ファイルを除外
-*.png
-*.jpg
-*.jpeg
-*.gif
+
 
 # 機密情報を含むファイルを除外
 .venv
-static/
 MySFA.git/
