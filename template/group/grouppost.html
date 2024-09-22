@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ group.name }} | MySFA{% endblock %}
+{% block content %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('fileInput');
+        const profileImage = document.querySelector('.group-info-profile-image');
+        const form = document.getElementById('uploadForm');
+
+        fileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    profileImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+
+                // フォームを自動的に送信
+                form.submit();
+            }
+        });
+    });
+</script>
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container">
+    <div class="group-info-header">
+        <div class="group-info-icon-container">
+            {% if group.icon %}
+                <img class="group-info-profile-image" src="{{ group.icon.url }}" alt="{{ group.name }}のアイコン">
+            {% else %}
+                <img class="group-info-profile-image" src="{{ MEDIA_URL }}default_images/702.png" alt="{{ group.name }}のアイコン">
+            {% endif %}
+            {% if user in group.users.all %}
+                <form id="uploadForm" method="post" action="{% url 'snsapp:upload_group_icon' group.custom_id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="file" name="icon" accept="image/*" required id="fileInput" style="display: none;">
+                    <button type="button" onclick="document.getElementById('fileInput').click();" class="btn-change-icon">写真を変更</button>
+                </form>
+            {% endif %}
+        </div>
+        <div class="group-info-header-text">
+            <h1>{{ group.name }}</h1>
+        </div>
+        <div class="group-actions">
+            {% if user in group.users.all and user != group.creator %}
+                <form method="post" action="{% url 'snsapp:leave_group' group.custom_id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="group-function-button leave-group">グループを退会</button>
+                </form>
+            {% elif user not in group.users.all %}
+                {% if not group.is_locked %}
+                <form method="post" action="{% url 'snsapp:join_group' group.custom_id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="group-function-button join-group">グループに参加</button>
+                </form>
+                {% else %}
+                    {% if not user_has_requested %}
+                    <form method="post" action="{% url 'snsapp:request_join_group' group.custom_id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="group-function-button request-join">参加依頼をする</button>
+                    </form>
+                    {% else %}
+                    <button type="button" class="group-function-button request-join-waiting" disabled>承認待ちです</button>
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+            {% if user == group.creator %}
+                <form method="post" action="{% url 'snsapp:delete_group' group.custom_id %}" onsubmit="return confirm('本当に削除しますか？');">
+                    {% csrf_token %}
+                    <button type="submit" class="group-function-button delete-group">グループを削除</button>
+                </form>
+            {% endif %}
+            {% if user in group.users.all %}
+                <form method="post" action="{% url 'snsapp:toggle_group_lock' group.custom_id %}" class="lock-group-form">
+                    {% csrf_token %}
+                    {% if group.is_locked %}
+                    <button type="submit" class="lock-group tooltip">
+                        <img src="{% static 'images/team/locked.png' %}" alt="アンロック" id="unlock-icon">
+                        <span class="tooltiptext">ロックを解除する</span>
+                    </button>
+                    {% else %}
+                    <button type="submit" class="lock-group tooltip">
+                        <img src="{% static 'images/team/unlock.png' %}" alt="ロック" id="lock-icon">
+                        <span class="tooltiptext">グループをロックする</span>
+                    </button>
+                    {% endif %}
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% if not group.is_locked or user in group.users.all %}
+<div class="group-members-section">
+    <h2>所属メンバー</h2>
+    <ul class="group-members-list">
+        {% for member in members %}
+            <li>
+                <a href="{% url 'snsapp:mypost' member.custom_user_id %}">
+                    <img class="member-profile-image" src="{{ member.profile_image.url }}" alt="{{ member.username }}のアイコン">
+                    <span class="member-username">{{ member.username }}
+                    {% if user == group.creator and member != group.creator %}
+                        <form method="post" action="{% url 'snsapp:remove_member' group.custom_id member.custom_user_id %}" class="remove-member-form" onsubmit="return confirm('本当にこのメンバーを退会させますか？');">
+                            {% csrf_token %}
+                            <button type="submit" class="remove-member-button">退会</button>
+                        </form>
+                    {% endif %}
+                        {% if member == group.creator %}
+                            <img class="creator-flag" src="{% static 'images/flag-regular.svg' %}" alt="グループ作成者">
+                        {% endif %}
+                    </span>
+                    <span class="member-id">#{{ member.custom_user_id }}</span>
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+{% if join_requests %}
+<div id="group-request-section">
+    <h2 id="group-request-title">グループへの承認待ちユーザー</h2>
+    <ul id="group-request-list">
+        {% for join_request in join_requests %}
+            <li class="group-request-item">
+                <a href="{% url 'snsapp:mypost' join_request.user.custom_user_id %}" class="group-request-link">
+                    <img class="group-request-profile-image" src="{{ join_request.user.profile_image.url }}" alt="{{ join_request.user.username }}のアイコン">
+                    <span class="group-request-username">{{ join_request.user.username }}</span>
+                    <span class="group-request-id">#{{ join_request.user.custom_user_id }}</span>
+                </a>
+                <div class="group-request-actions">
+                    <form method="post" action="{% url 'snsapp:approve_join_request' group.custom_id join_request.user.custom_user_id %}" onsubmit="return confirm('承認して、ユーザーをグループに参加させますか？');">
+                        {% csrf_token %}
+                        <button type="submit" class="group-function-button approve-join">承認</button>
+                    </form>
+                    <form method="post" action="{% url 'snsapp:reject_join_request' group.custom_id join_request.user.custom_user_id %}" onsubmit="return confirm('参加依頼を拒否しますか？');">
+                        {% csrf_token %}
+                        <button type="submit" class="group-function-button reject-join">拒否</button>
+                    </form>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+<div class="group-posts-section">
+    <h2>グループ内の投稿一覧</h2>
+    <div class="timeline-container" style="margin-top: 20px;">
+        {% if posts %}
+            {% for post in posts %}
+                <div class="timeline-item" id="timeline-item-in-grouppost">
+                    <div class="timeline-item-header">
+                        <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                            <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                        </a>
+                        <div class="timeline-user-info">
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-username">{{ post.user.username }}</span>
+                            </a>
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                            </a>
+                        </div>
+                        <span class="timeline-team-name">{{ post.group.name }}</span>
+                    </div>
+                    <div class="timeline-item-content">
+                        <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
+                        <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
+                        <p class="timeline-description">{{ post.contents }}</p>
+                        <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                        {% if request.user == post.user %}
+                            <form method="post" action="{% url 'snsapp:group_posts' group.custom_id %}" onsubmit="return confirm('投稿を削除しますか？');">
+                                {% csrf_token %}
+                            <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                            <button type="submit" class="delete-button">
+                                <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                            </button>
+                        </form>
+                    {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p id="no-post">まだ投稿がありません。</p>
+        {% endif %}
+    </div>
+</div>
+<div class="pagination">
+    <span class="step-links">
+        {% if object_list.has_previous %}
+            <a href="{% url 'snsapp:grouppost' %}?page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
+            <a href="{% url 'snsapp:grouppost' %}?page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+        {% endif %}
+
+        {% for page_num in object_list.paginator.page_range %}
+            {% if page_num == object_list.number %}
+                <span class="page-number current">{{ page_num }}</span>
+            {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                <a href="{% url 'snsapp:grouppost' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+            {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                <a href="{% url 'snsapp:grouppost' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+            {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% empty %}
+            <p>ページがありません。</p>
+        {% endfor %}
+
+        {% if object_list.has_next %}
+            <a href="{% url 'snsapp:grouppost' %}?page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
+            <a href="{% url 'snsapp:grouppost' %}?page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+        {% endif %}
+    </span>
+</div>
+{% else %}
+<p id="group-is-locked">このグループはロックされています。</p>
+{% endif %}
+{% endblock %}

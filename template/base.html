@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta property="og:url" content="ページのURL" />
+    <meta property="og:title" content="ページのタイトル" />
+    <meta property="og:type" content="ページのタイプ">
+    <meta property="og:description" content="記事の抜粋" />
+    <meta property="og:site_name" content="サイト名" />
+    <meta property="og:locale" content="ja_JP" />
+    <!-- リセットCSS-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/destyle.css@1.0.15/destyle.css"/>
+    <!-- font area-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300&display=swap" rel="stylesheet">
+    <!-- font area end-->
+    <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+     <!-- ファビコンの設定 -->
+     <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+    <title>{% block title%}MySFA{% endblock %}</title>
+    <script>
+        (function(d) {
+            var config = {
+                kitId: 'xwd5hrc',
+                scriptTimeout: 3000,
+                async: true
+            },
+            h = d.documentElement,
+            t = setTimeout(function() {
+                h.className = h.className.replace(/\bwf-loading\b/g, "") + " wf-inactive";
+            }, config.scriptTimeout),
+            tk = d.createElement("script"),
+            f = false,
+            s = d.getElementsByTagName("script")[0];
+
+            h.className += " wf-loading";
+            tk.src = 'https://use.typekit.net/' + config.kitId + '.js';
+            tk.async = true;
+            tk.onload = tk.onreadystatechange = function() {
+                var a = this.readyState;
+                if (f || a && a != "complete" && a != "loaded") return;
+                f = true;
+                clearTimeout(t);
+                try {
+                    Typekit.load(config)
+                } catch (e) {
+                    console.error("Typekit load error:", e);
+                }
+            };
+            s.parentNode.insertBefore(tk, s);
+        })(document);
+    </script>
+    <script>
+        (function(d) {
+          var config = {
+            kitId: 'xwd5hrc',
+            scriptTimeout: 3000,
+            async: true
+          },
+          h=d.documentElement,t=setTimeout(function(){h.className=h.className.replace(/\bwf-loading\b/g,"")+" wf-inactive";},config.scriptTimeout),tk=d.createElement("script"),f=false,s=d.getElementsByTagName("script")[0],a;h.className+=" wf-loading";tk.src='https://use.typekit.net/'+config.kitId+'.js';tk.async=true;tk.onload=tk.onreadystatechange=function(){a=this.readyState;if(f||a&&a!="complete"&&a!="loaded")return;f=true;clearTimeout(t);try{Typekit.load(config)}catch(e){}};s.parentNode.insertBefore(tk,s)
+        })(document);
+    </script>
+</head>
+<body>
+    <header>
+        <div class="header-contents">
+            <div class="header-left">
+                <div class="logo-area">
+                    <h1 class="logo"><a href="{% url 'home' %}">MySFA</a></h1>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="humburger-menu">
+                    <button id="humburger-icon">
+                        <img src="{% static 'images/base/bars-solid.svg' %}" alt="menu" id="humburger-icon">
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="overlay"></div>
+        <nav class="sidebar">
+            <div class="sidebar-inner">
+                <ul>
+                    <div class="sidebar-contents">
+                        {% if request.user.is_authenticated %}
+                            <li id="account">
+                                <a href="{% url 'snsapp:mypost' request.user.custom_user_id %}">
+                                    <img src="{% if request.user.profile_image %}{{ request.user.profile_image.url }}{% else %}{{ MEDIA_URL }}default_images/ic013.png{% endif %}" alt="User Icon">
+                                    <p class="user-id">@{{ request.user.custom_user_id }}</p>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li id="account">
+                                <a href="{% url 'login' %}">
+                                    <p>ログイン</p>
+                                </a></li>
+                        {% endif %}
+                        <p id="search-for-category">カテゴリ別で探す</p>
+                        <li id="search-for-products"><a href="{% url 'snsapp:search_products' %}">商品</a></li>
+                        <li id="search-for-customer-category"><a href="{% url 'snsapp:search_customers' %}">業態</a></li>
+                        <li id="team"><a href="{% url 'snsapp:search_group' %}">グループ</a></li>
+                        <li id="search-for-users"><a href="{% url 'snsapp:search_users' %}">ユーザー</a></li>
+                        <p id="other-contents">その他</p>
+                        <li id="privacy-policy-in-sidebar"><a href="{% url 'privacy-policy' %}">プライバシーポリシー</a></li>
+                        <li id="terms-of-service-in-sidebar"><a href="{% url 'terms-of-service' %}">利用規約</a></li>
+                        <li id="logout-in-sidebar">
+                            <p id="logout-in-sidebar-chara"><a href="{% url 'logout'%}">ログアウト</a></p>
+                        </li>
+                    </div>
+                </ul>
+            </div>
+        </nav>
+    </header>
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+    <footer>
+        <div class="footer-inner">
+            <div class="footer-contents">
+                <ul class="footer-top">
+                    <li id="terms-of-service-in-footer"><a href="{% url 'terms-of-service' %}">利用規約</a></li>
+                    <li id="privacy-policy-in-footer"><a href="{% url 'privacy-policy' %}">プライバシーポリシー</a></li>
+                </ul>
+                <p class="footer-bottom"><small>&copy; 2024 MySFA.All Rights Reserved.</small></p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/script.js' %}"></script>
+</body>  
+</html>

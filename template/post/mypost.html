@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ displayed_user.username }}の投稿 | MySFA{% endblock %}
+
+{% block content %}
+<div class="user-info-container">
+    <div class="icon-container">
+        {% if displayed_user.profile_image %}
+            <img id="profile-image" src="{{ displayed_user.profile_image.url }}" alt="User Icon" class="profile-image" />
+        {% else %}
+            <img id="profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="Default Icon" class="profile-image" />
+        {% endif %}
+        {% if current_user == displayed_user %}
+        <form action="{% url 'snsapp:upload_icon' %}" method="post" enctype="multipart/form-data" id="uploadForm" class="upload-form">
+            {% csrf_token %}
+            <input type="file" name="profile_image" accept="image/*" required id="fileInput" style="display: none;">
+            <button type="button" onclick="document.getElementById('fileInput').click();" class="btn-change-icon">写真を変更</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="user-info">
+        {% if current_user == displayed_user %}
+        <form action="{% url 'snsapp:update_username' custom_user_id=current_user.custom_user_id %}" method="post" class="username-form">
+            {% csrf_token %}
+            <label for="username" class="username-label">ユーザー名</label>
+            <input type="text" name="username" id="username" value="{{ displayed_user.username }}" class="username-input">
+            <button type="submit" class="btn-update-username">更新</button>
+        </form>
+        {% else %}
+        <p class="username">{{ displayed_user.username }}</p>
+        {% endif %}
+        <p class="user-id">@{{ displayed_user.custom_user_id }}</p>
+    </div>
+</div>
+
+<div class="group-list">
+    <h3>所属グループ一覧</h3>
+    <ul class="group-list-layout">
+        {% for group in displayed_user.groups.all %}
+            <li class="search-group-item">
+                <div class="group-icon">
+                    <img src="{{ group.icon.url }}" alt="Group Icon" class="group-icon-image">
+                </div>
+                <div class="group-info">
+                    <a href="{% url 'snsapp:group_posts' group.custom_id %}" class="group-link">{{ group.name }}</a>
+                    {% if group.is_locked %}
+                        <img src="{% static 'images/team/locked.png' %}" alt="ロックされたグループ" class="locked-group-icon">
+                    {% endif %}
+                </div>
+            </li>
+        {% empty %}
+            <li id="no-group">グループに所属していません。</li>
+        {% endfor %}
+    </ul>
+    <div class="user-actions">
+        <a href="{% url 'snsapp:search_group' %}" class="btn-search-group">グループを検索する</a>
+        <a href="{% url 'snsapp:create_group' %}" class="btn-create-group">グループを作成する</a>
+    </div>
+</div>
+
+<div class="post-list">
+    <h2>{{ displayed_user.username }}さんの投稿一覧</h2>
+    {% if current_user == displayed_user %}
+    <div class="filter-form" id="filter-form-in-mypost">
+        <form method="get" action="{% url 'snsapp:mypost' displayed_user.custom_user_id %}">
+            <label for="group">グループで絞り込む:</label>
+            <select name="custom_id" id="group" onchange="this.form.submit()">
+                <option value="">全てのグループ</option>
+                {% for group in displayed_user.groups.all %}
+                    <option value="{{ group.id }}" {% if group.id|stringformat:"s" == request.GET.custom_id %}selected{% endif %}>{{ group.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    {% endif %}
+    <div class="timeline-container" style="margin-top: 20px;">
+        {% if object_list %}
+            {% for post in object_list %}
+                <div class="timeline-item" id="timeline-item-in-mypost">
+                    <div class="timeline-item-header">
+                        <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                            <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                        </a>
+                        <div class="timeline-user-info">
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-username">{{ post.user.username }}</span>
+                            </a>
+                            <a href="{% url 'snsapp:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                            </a>
+                        </div>
+                        <span class="timeline-team-name">{{ post.group.name }}</span>
+                    </div>
+                    <div class="timeline-item-content">
+                        <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
+                        <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
+                        <p class="timeline-description">{{ post.contents }}</p>
+                        <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                        {% if current_user == post.user %}
+                            <form method="post" action="{% url 'snsapp:mypost' post.user.custom_user_id %}" onsubmit="return confirm('投稿を削除しますか？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                <button type="submit" class="delete-button">
+                                    <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p id="no-post">まだ投稿がありません。</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if object_list %}
+<div class="pagination">
+    <span class="step-links">
+        {% if object_list.has_previous %}
+            <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page=1">&laquo; 最初</a>
+            <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page={{ object_list.previous_page_number }}">前</a>
+        {% endif %}
+
+        {% for page_num in object_list.paginator.page_range %}
+            {% if page_num == object_list.number %}
+                <span class="page-number current">{{ page_num }}</span>
+            {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
+            {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
+            {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                <span class="page-ellipsis">...</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if object_list.has_next %}
+            <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page={{ object_list.next_page_number }}">次</a>
+            <a href="{% url 'snsapp:mypost' displayed_user.custom_user_id %}?page={{ object_list.paginator.num_pages }}">最後 &raquo;</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+
+{% if current_user == displayed_user %}
+<div class="user-actions">
+    <a href="{% url 'logout' %}" class="btn-logout">ログアウト</a>
+</div>
+{% endif %}
+
+<style>
+.delete-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    position: relative;
+    width: 24px;
+    height: 24px;
+}
+
+.delete-icon {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.delete-button:hover .delete-icon {
+    display: none;
+}
+
+.delete-button:hover {
+    background-image: url("{% static 'images/trash-solid-black.svg' %}");
+    background-size: cover; /* 画像をボタンのサイズに合わせる */
+    background-repeat: no-repeat; /* 画像を繰り返さない */
+}
+</style>
+
+<script>
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('profile-image').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            // フォームを送信
+            document.getElementById('uploadForm').submit();
+        }
+    });
+</script>
+{% endblock %}

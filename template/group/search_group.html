@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}グループを検索する | MySFA{% endblock %}
+{% block content %}
+    <div class="search-group-container">
+        <h1>グループを検索</h1>
+        <form method="get" action="{% url 'snsapp:search_group' %}" class="search-group-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="グループ名で検索" class="search-group-input">
+            <button type="submit" class="search-group-button">検索</button>
+        </form>
+
+        {% if query %}
+            <h2>検索結果</h2>
+            <ul class="search-group-results">
+                {% for group in groups %}
+                    <li class="search-group-item">
+                        {% if group.icon %}
+                            <img src="{{ group.icon.url }}" alt="{{ group.name }}のサムネイル" class="group-thumbnail">
+                        {% else %}
+                            <img src="{{ MEDIA_URL }}default_images/702.png" alt="{{ group.name }}のサムネイル" class="group-thumbnail">
+                        {% endif %}
+                        <div class="group-info">
+                            <a href="{% url 'snsapp:group_posts' group.custom_id %}" class="group-link">{{ group.name }}</a>
+                            {% if group.is_locked %}
+                                <img src="{% static 'images/team/locked.png' %}" alt="ロックされたグループ" class="locked-group-icon">
+                            {% endif %}
+                        </div>
+                        {% if group.is_member %}
+                            <span class="joined-label">参加済み</span>
+                        {% else %}
+                            {% if not group.is_locked %}
+                                <form method="post" action="{% url 'snsapp:search_group_post' group.custom_id %}" class="join-group-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="join-group-button">参加する</button>
+                                </form>
+                            {% else %}
+                                {% if not group.user_has_requested %}
+                                    <form method="post" action="{% url 'snsapp:request_join_group' group.custom_id %}" class="join-group-form">
+                                        {% csrf_token %}
+                                        <button type="submit" class="join-group-button">参加依頼をする</button>
+                                    </form>
+                                {% elif group.user_has_requested %}
+                                    <button type="button" class="join-group-button" disabled>承認待ちです</button>
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    </li>
+                {% empty %}
+                    <li class="no-results">グループが見つかりませんでした。</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+{% endblock %}

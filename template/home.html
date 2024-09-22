@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}MySFA{% endblock %}
+{% block content %}
+    <div class="content">
+        <div class="video-background">
+            <video autoplay muted loop id="bg-video">
+                <source src="{% static 'videos/background7.mp4' %}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        {% if user.is_authenticated %}
+        <div class="home-explanation">
+          <p id="home-explanation-title">ようこそ、{{ user.username }}さん</p>
+          <p>MySFAでは、営業データを投稿したり、閲覧することができます。</p>
+          <p>既存のグループに参加することで、営業データを共有することができます。</p>
+          <p>また、新たにグループを作成することもできます。</p>
+          <p>以下のボタンから、グループに参加するか、新しいグループを作成してください。</p>
+            <a href="{%url 'snsapp:search_group' %}" id="join-group" class="guide-button-in-home">グループに参加する</a>
+            <a href="{%url 'snsapp:create_group' %}" id="create-group" class="guide-button-in-home">グループを作成する</a>
+        </div>
+        {% else %}
+        <main class="main-content-login">
+            <div class="main-content-inner">
+                <div class="reception-container">
+                    <div class="reception-container-inner">
+                        <img src="{% static 'images/login/LPtile.png' %}"
+                             srcset="{% static 'images/login/LPtile.png' %} 1x,
+                                 {% static 'images/login/LPtile@2x.png' %} 2x,
+                                 {% static 'images/login/LPtile@3x.png' %} 3x"
+                             alt="smartphone-mockup"
+                             id="mockup"> 
+                        <div class="introduction-area">
+                            <div class="introduction-area-inner">
+                                <p id="intro-logo">MySFA</p>
+                                <p id="subtitle">- SNS sales assistant -</p>
+                                <a href="{% url 'login' %}" class="guide-button" id="guide-login">ログイン</a>
+                                <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration">新規登録</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="index-feature">
+                    <div class="index-feature-inner">
+                        <h2 id="what-is-MySFA">MySFA<span> でできること</span></h2>
+    
+                        <figure class="features" id="feature1">
+                            <figcaption>タイムラインに営業成果を投稿したり、閲覧することができます。<br>チーム間の営業成果の共有を、もっとかんたんに。もっとみじかに。</figcaption>
+                            <img src="{% static 'images/login/チームイラスト.png' %}"
+                                 srcset="{% static 'images/login/チームイラスト.png' %} 1x,
+                                         {% static 'images/login/チームイラスト@2x.png' %} 2x,
+                                         {% static 'images/login/チームイラスト@3x.png' %} 3x"
+                                 alt="イラスト1">
+                        </figure>
+                        <figure class="features" id="feature2">
+                            <figcaption>商品別、業態別など、詳細検索機能を搭載。<br>いつ、どこで、どんなふうに？MySFAならいつでも照会できます。</figcaption>
+                            <img src="{% static 'images/888.png' %}"
+                                 srcset="{% static 'images/login/888.png' %} 1x,
+                                         {% static 'images/login/888@2x.png' %} 2x,
+                                         {% static 'images/login/888@3x.png' %} 3x"
+                                 alt="イラスト2">
+                        </figure>
+                        <figure class="features" id="feature3">
+                            <figcaption>スマホでも、PCでも場所を選ばず利用可能。<br>お使いのデバイスが営業データベースに早変わりします。</figcaption>
+                            <img src="{% static 'images/login/0758.png' %}"
+                                 srcset="{% static 'images/login/0758.png' %} 1x,
+                                         {% static 'images/login/0758@2x.png' %} 2x,
+                                         {% static 'images/login/0758@3x.png' %} 3x"
+                                 alt="イラスト3">
+                        </figure>
+                    </div>
+                </div>
+                <div class="form-guide">
+                    <div class="form-guide-inner">
+                        <a href="{% url 'login' %}" class="guide-button" id="guide-login2">ログイン</a>
+                        <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration2">新規登録</a>
+                    </div>
+                </div>
+            </div>
+        </main>
+        {% endif %}
+    </div>
+{% endblock %}
