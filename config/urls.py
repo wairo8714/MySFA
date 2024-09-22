@@ -17,4 +17,6 @@ urlpatterns = [
     path('', HomeView.as_view(), name='home'),
 ]
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)#MEDIA_URL に対するリクエストを処理するために必要な設定
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -146,7 +146,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 AUTH_GROUP_MODEL = 'snsapp.Group'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # セキュリティ設定
 SECURE_BROWSER_XSS_FILTER = True
@@ -165,3 +165,6 @@ if 'DYNO' in os.environ:
 
 # 静的ファイルの圧縮とキャッシュ
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Whitenoise settings for serving media files
+WHITENOISE_USE_FINDERS = True
