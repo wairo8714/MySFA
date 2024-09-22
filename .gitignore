@@ -9,4 +9,3 @@
 # 機密情報を含むファイルを除外
 .env
 .venv
-MySFA.git/
