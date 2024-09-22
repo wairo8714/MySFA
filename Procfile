@@ -1,0 +1,1 @@
+web: gunicorn mysfa.wsgi --log-file -
