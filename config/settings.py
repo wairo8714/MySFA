@@ -169,8 +169,8 @@ AWS_S3_OBJECT_PARAMETERS = {
 }
 
 # メディアファイルの設定
-MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
-MEDIAFILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # 静的ファイルの設定
 STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
