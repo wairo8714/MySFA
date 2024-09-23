@@ -155,6 +155,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # セキュリティ設定
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'no-referrer-when-downgrade'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 CSRF_COOKIE_SECURE = False   
 SESSION_COOKIE_SECURE = False  
