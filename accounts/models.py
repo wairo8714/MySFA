@@ -7,12 +7,6 @@ import os
 import uuid
 from django.core.files.storage import default_storage
 
-class MyModel(models.Model):
-    file = models.FileField(upload_to='uploads/')
-
-    def __str__(self):
-        return self.file.name
-
 class CustomUser(AbstractUser):
     custom_user_id = models.CharField(
         primary_key=True,

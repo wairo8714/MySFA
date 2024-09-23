@@ -5,6 +5,12 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import Group as AuthGroup
 
+class MyModel(models.Model):
+    file = models.FileField(upload_to='uploads/')
+
+    def __str__(self):
+        return self.file.name
+
 class Post(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name='投稿者',on_delete=models.CASCADE)
     product_name = models.CharField(max_length=50, blank=False, verbose_name='商品名', error_messages={'blank':'商品名を入力してください'})
