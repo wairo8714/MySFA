@@ -2493,6 +2493,14 @@
         }
 
     /* mypost */
+        .username-input {
+            max-width: 100%;
+        }
+
+        .btn-update-username {
+            width: 100%;
+        }
+
         .username-label {
             display: none;
         }
