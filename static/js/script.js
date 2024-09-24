@@ -167,3 +167,33 @@ document.addEventListener('DOMContentLoaded', function() {
         videoContainer.classList.add('video-loaded');
     });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    var element1 = document.getElementById('element1');
+    if (element1) {
+        element1.addEventListener('click', function() {
+            // クリック時の処理
+        });
+    }
+
+    var element2 = document.getElementById('element2');
+    if (element2) {
+        element2.addEventListener('click', function() {
+            // クリック時の処理
+        });
+    }
+});
+
+fetch('/check_user_id/?custom_user_id=' + customUserId)
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log(data);
+    })
+    .catch(error => {
+        console.error('There was a problem with the fetch operation:', error);
+    });
