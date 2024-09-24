@@ -58,6 +58,7 @@
 
     .sidebar-inner {
         position: fixed;
+        top: 0;
         right: 0px;
         width: 288px;
         background-color: #ffffff;
