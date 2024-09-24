@@ -869,6 +869,10 @@
         background-color: #ffffff; 
     }
 
+    .post-form .form-group select{
+        height:50px;
+    }
+
     .post-form .form-group textarea {
         resize: vertical;
         height: 100px;
