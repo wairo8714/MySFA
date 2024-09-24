@@ -756,6 +756,7 @@
         border-width: 1px;
         border-style: solid;
         border-color: rgba(0,0,0,0.15);
+        z-index: 1000;
     }
 
     .footer-contents {
