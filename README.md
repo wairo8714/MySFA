@@ -2,7 +2,7 @@
 
 MySFAは、シンプルで使いやすいSFA（営業支援システム）です。Webアプリケーションとして提供されており、以下のURLでアクセスできます。
 
-[MySFA - mysfa.net](https://mysfa.net)
+[MySFA - mysfa.net](https://www.mysfa.net)
 
 ## 特徴
 
