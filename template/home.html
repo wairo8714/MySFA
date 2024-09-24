@@ -7,10 +7,6 @@
         {% if user.is_authenticated %}
         <div class="home-explanation">
           <p id="home-explanation-title">ようこそ、{{ user.username }}さん</p>
-          <p>MySFAでは、営業データを投稿したり、閲覧することができます。</p>
-          <p>既存のグループに参加することで、営業データを共有することができます。</p>
-          <p>また、新たにグループを作成することもできます。</p>
-          <p>以下のボタンから、グループに参加するか、新しいグループを作成してください。</p>
             <a href="{%url 'snsapp:search_group' %}" id="join-group" class="guide-button-in-home">グループに参加する</a>
             <a href="{%url 'snsapp:create_group' %}" id="create-group" class="guide-button-in-home">グループを作成する</a>
         </div>

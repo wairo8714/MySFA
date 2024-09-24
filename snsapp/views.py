@@ -356,7 +356,7 @@ class CreateGroupView(View):
             return redirect('snsapp:group_posts', custom_id=group.custom_id)
         return render(request, 'group/create_group.html', {'form': form})
 
-class SearchGroupView(View):
+class SearchGroupView(LoginRequiredMixin,View):
     def get(self, request):
         query = request.GET.get('q', '')
         groups = Group.objects.filter(name__icontains=query)
