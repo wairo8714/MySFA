@@ -18,7 +18,7 @@
     <meta name="twitter:site" content="@karumuwairo" />
     <meta name="twitter:title" content="Mysfa - SNS sales assistant" />
     <meta name="twitter:description" content="Mysfaは、営業成果を共有できるSNSサポートツールです。" />
-    <meta name="twitter:image" content="{% static 'images/TwitterCard.png' %}" />
+    <meta name="twitter:image" content="{{ request.build_absolute_uri(static('images/TwitterCard.png')) }}" />
     <!-- リセットCSS-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/destyle.css@1.0.15/destyle.css"/>
     <!-- font area-->
