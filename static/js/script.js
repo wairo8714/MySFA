@@ -158,3 +158,12 @@ document.addEventListener('DOMContentLoaded', function() {
     adjustHeight();
     window.addEventListener('resize', adjustHeight);
 });
+
+// ビデオフェードイン
+document.addEventListener('DOMContentLoaded', function() {
+    var video = document.getElementById('background-video');
+    video.addEventListener('canplaythrough', function() {
+        var videoContainer = document.querySelector('.video-container');
+        videoContainer.classList.add('video-loaded');
+    });
+});

@@ -2184,6 +2184,8 @@
         height: 100%;
         overflow: hidden;
         z-index: -1; 
+        opacity: 0;
+        transition: opacity 1s ease-in-out;
     }
 
     #bg-video {
