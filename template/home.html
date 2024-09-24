@@ -4,13 +4,6 @@
 {% block title %}MySFA{% endblock %}
 {% block content %}
     <div class="content">
-        <div class="video-background">
-            <video autoplay muted loop id="bg-video">
-                <source src="{% static 'videos/background7.mp4' %}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-        </div>
-        <script src="{% static 'js/script.js' %}"></script>
         {% if user.is_authenticated %}
         <div class="home-explanation">
           <p id="home-explanation-title">ようこそ、{{ user.username }}さん</p>
