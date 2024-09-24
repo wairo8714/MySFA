@@ -2209,6 +2209,7 @@
         .sidebar-inner {
             overflow-y: auto;
             max-height: 100vh;
+            position: fixed;
         }
 
         .sidebar-contents {
