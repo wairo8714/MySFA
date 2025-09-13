@@ -1,0 +1,28 @@
+# MySFA Terraform設定ファイルの例
+# このファイルをコピーして terraform.tfvars として使用してください
+
+# AWS設定
+aws_region = "ap-northeast-1"
+
+# プロジェクト設定
+project_name = "mysfa"
+instance_type = "t3.micro"
+
+# セキュリティ設定（重要！）
+# 本番環境では必ず特定のIPアドレスに変更してください
+allowed_ssh_cidrs = [
+  "203.0.113.0/24",  # 例: 会社のIPアドレス範囲
+  "198.51.100.0/24"  # 例: 自宅のIPアドレス範囲
+]
+
+# アプリケーション設定
+dockerhub_username = "your-dockerhub-username"
+domain_name = "mysfa.net"
+
+# データベース設定（機密情報）
+mysql_host = "your-mysql-host"
+mysql_password = "your-secure-mysql-password"
+secret_key = "your-django-secret-key"
+
+# Django設定
+allowed_hosts = "mysfa.net,*.mysfa.net"

@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ホーム | MySFA{% endblock %}
+
+{% block content %}
+
+    <div class="post-form-container">
+        <div class="post-form">
+            <form method="post" enctype="multipart/form-data" action="{% url 'mysfa:timeline' %}{% if selected_group_id %}?custom_id={{ selected_group_id }}{% endif %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_product_name">商品名</label>
+                    {{ form.product_name }}
+                </div>
+                <div class="form-group">
+                    <label for="id_customer_category">業態</label>
+                    {{ form.customer_category }}
+                </div>
+                <div class="form-group">
+                    <label for="id_contents">内容</label>
+                    {{ form.contents }}
+                    <div class="char-counter" id="char-counter">0/100</div>
+                </div>
+                <div class="form-group">
+                    <label for="id_group">グループ</label>
+                    {{ form.group }}
+                </div>
+                <div class="form-group">
+                    <label for="id_image">画像</label>
+                    {{ form.image }}
+                    {% if form.image.errors %}
+                        <div class="error-message">
+                            {% for error in form.image.errors %}
+                            <p class="error-text">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">投稿</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="filter-form">
+        <form method="get" action="{% url 'mysfa:timeline' %}">
+            <label for="group">グループで絞り込む:</label>
+            <select name="custom_id" id="group" onchange="this.form.submit()">
+                <option value="">全てのグループ</option>
+                {% for group in user_groups %}
+                    <option value="{{ group.custom_id }}" {% if group.custom_id == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="timeline-container" style="margin-top: 20px;">
+        {% if object_list %}
+            {% for post in object_list %}
+                <div class="timeline-item">
+                    <div class="timeline-item-header">
+                        <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                            <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                        </a>
+                        <div class="timeline-user-info">
+                            <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-username">{{ post.user.username }}</span>
+                            </a>
+                            <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                            </a>
+                        </div>
+                        <span class="timeline-team-name">{{ post.group.name }}</span>
+                    </div>
+                    <div class="timeline-item-content">
+                        <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
+                        <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
+                        <p class="timeline-description">{{ post.contents }}</p>
+                        {% if post.image %}
+                            <div class="post-image-container">
+                                <img src="{{ post.image.url }}" alt="投稿画像" class="post-image">
+                            </div>
+                        {% endif %}
+                        <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                        <div class="like-section">
+                            <button class="like-button {% if request.user in post.liked_users.all %}liked{% endif %}" data-post-id="{{ post.id }}">
+                                <img src="{% static 'images/good.png' %}" alt="いいね" class="like-icon">
+                                <span class="like-count">{{ post.likes_count }}</span>
+                            </button>
+                        </div>
+                        {% if request.user == post.user %}
+                            <form method="post" action="{% url 'mysfa:timeline' %}" onsubmit="return confirm('本当に削除しますか？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                <button type="submit" class="delete-button">
+                                    <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p id="no-post">まだ投稿がありません。</p>
+        {% endif %}
+    </div>
+    <div class="pagination">
+        <span class="step-links">
+            {% if object_list.has_previous %}
+                <a href="{% url 'mysfa:timeline' %}?page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
+                <a href="{% url 'mysfa:timeline' %}?page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+            {% endif %}
+
+            {% for page_num in object_list.paginator.page_range %}
+                {% if page_num == object_list.number %}
+                    <span class="page-number current">{{ page_num }}</span>
+                {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                    <a href="{% url 'mysfa:timeline' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                    <a href="{% url 'mysfa:timeline' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                    <span class="page-ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if object_list.has_next %}
+                <a href="{% url 'mysfa:timeline' %}?page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
+                <a href="{% url 'mysfa:timeline' %}?page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+{% endblock %}

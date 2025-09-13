@@ -1,0 +1,117 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev]
+
+      - name: Run linters
+        run: |
+          flake8 src/ --max-line-length=88 --ignore=E203,W503
+          black --check src/ --line-length 88
+          isort --check-only src/ --profile black
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in {30..0}; do
+            if mysqladmin ping -h127.0.0.1 -ptest_pass --silent; then
+              echo "MySQL is up!"
+              break
+            fi
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+      - name: Show Python and Django versions
+        run: |
+          python --version
+          which python
+          pip --version
+          pip freeze
+          cd src
+          python -m django --version || echo "Django未インストール"
+
+      - name: Show requirements.txt
+        run: cat requirements.txt || echo "requirements.txtがありません"
+
+      - name: Check MySQL server status
+        run: |
+          sudo netstat -tlnp | grep 3306 || echo "3306番ポートが開いていません"
+          ps aux | grep mysql
+
+      - name: List src directory files
+        run: ls -l src || echo "srcディレクトリがありません"
+
+      - name: Show Django migrations status (on failure)
+        if: failure()
+        run: |
+          cd src
+          python manage.py showmigrations || echo "showmigrations失敗"
+
+      - name: Show MySQL error log (on failure)
+        if: failure()
+        run: |
+          docker logs $(docker ps -q --filter "ancestor=mysql:8.0")
+
+      - name: Setup MySQL permissions
+        run: |
+          mysql -h 127.0.0.1 -u root -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Run linters and auto-fix
+        run: |
+          black src/ --line-length 88
+          isort src/ --profile black
+          
+          flake8 src/ --max-line-length=88 --ignore=E203,W503
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            git add .
+            git commit -m "Auto-fix code formatting [skip ci]"
+            git push
+          fi
+
+      - name: Run tests
+        env:
+          SECRET_KEY: test-secret-key
+          DEBUG: True
+          ALLOWED_HOSTS: localhost,127.0.0.1
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+        run: |
+          cd src
+          python manage.py migrate
+          python manage.py test

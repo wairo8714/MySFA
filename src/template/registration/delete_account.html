@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}アカウント削除 | MySFA{% endblock %}
+
+{% block content %}
+<div class="delete-account-container">
+    <div class="delete-account-content">
+        <h1 class="delete-account-title">アカウント削除</h1>
+        
+        <div class="warning-message">
+            <p><strong>⚠️ 注意</strong></p>
+            <p>アカウントを削除すると、以下のデータが完全に削除され、復元することはできません：</p>
+            <ul>
+                <li>プロフィール情報</li>
+                <li>投稿データ</li>
+                <li>グループ参加履歴</li>
+                <li>その他すべてのアカウント関連データ</li>
+            </ul>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                {% if message.tags == 'error' or message.tags == 'success' %}
+                    <div class="message {% if message.tags %}{{ message.tags }}{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" class="delete-account-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="password" class="form-label">確認のため、現在のパスワードを入力してください</label>
+                <input type="password" name="password" id="password" required class="form-input">
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn-delete-account" onclick="return confirm('本当にアカウントを削除しますか？この操作は取り消すことができません。')">
+                    アカウントを削除する
+                </button>
+                {% if user and user.custom_user_id %}
+                    <a href="{% url 'mysfa:mypost' user.custom_user_id %}" class="btn-cancel">キャンセル</a>
+                {% else %}
+                    <a href="{% url 'home' %}" class="btn-cancel">ホームに戻る</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

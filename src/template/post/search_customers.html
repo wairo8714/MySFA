@@ -1,0 +1,124 @@
+{% extends 'base.html' %} 
+{% load static %}
+
+{% block title %}業態検索 | MySFA{% endblock %}
+{% block content %}
+<div class="search-customers-container">
+    <h1>業態を検索</h1>
+    <form method="get" action="{% url 'mysfa:search_customers' %}" class="search-customers-form">
+        <input type="text" name="q" id="search-input" value="{{ query }}" placeholder="業態名で検索" class="search-customers-input">
+        <button type="submit" class="search-customers-button">検索</button>
+    </form>
+
+    {% if query %}
+        <div class="filter-form" id="filter-form-customers">
+            <form method="get" action="{% url 'mysfa:search_customers' %}">
+                <input type="hidden" name="q" value="{{ query }}">
+                <label for="group">グループで絞り込む:</label>
+                <select name="custom_id" id="group" onchange="this.form.submit()">
+                    <option value="">全てのグループ</option>
+                    {% for group in user_groups %}
+                        <option value="{{ group.id }}" {% if group.id|stringformat:"s" == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="timeline-container" style="margin-top: 20px;">
+            {% if object_list %}
+                {% for post in object_list %}
+                    <div class="timeline-item" id="timeline-item-in-customers">
+                        <div class="timeline-item-header">
+                            <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                            </a>
+                            <div class="timeline-user-info">
+                                <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                    <span class="timeline-username">{{ post.user.username }}</span>
+                                </a>
+                                <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                    <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
+                                </a>
+                            </div>
+                            <span class="timeline-team-name">{{ post.group.name }}</span>
+                        </div>
+                        <div class="timeline-item-content">
+                            <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
+                            <p class="timeline-industry">業態: <strong class="highlight highlight-strong">{{ post.customer_category }}</strong></p>
+                            <p class="timeline-description">{{ post.contents }}</p>
+                            {% if post.image %}
+                                <div class="post-image-container">
+                                    <img src="{{ post.image.url }}" alt="投稿画像" class="post-image">
+                                </div>
+                            {% endif %}
+                            <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
+                            <div class="like-section">
+                                <button class="like-button {% if request.user in post.liked_users.all %}liked{% endif %}" data-post-id="{{ post.id }}">
+                                    <img src="{% static 'images/good.png' %}" alt="いいね" class="like-icon">
+                                    <span class="like-count">{{ post.likes_count }}</span>
+                                </button>
+                            </div>
+                            {% if request.user == post.user %}
+                                <form method="post" action="{% url 'mysfa:search_customers' %}" onsubmit="return confirm('本当に削除しますか？');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                    <button type="submit" class="delete-button">
+                                        <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p id="no-post">該当する業態はありません。</p>
+            {% endif %}
+        </div>
+        
+        {% if object_list %}
+            <div class="pagination">
+                <span class="step-links">
+                    {% if object_list.has_previous %}
+                        <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
+                        <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+                    {% endif %}
+
+                    {% for page_num in object_list.paginator.page_range %}
+                        {% if page_num == object_list.number %}
+                            <span class="page-number current">{{ page_num }}</span>
+                        {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
+                            <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                        {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
+                            <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                        {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
+                            <span class="page-number">...</span>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if object_list.has_next %}
+                        <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
+                        <a href="{% url 'mysfa:search_customers' %}?q={{ query }}&page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+                    {% endif %}
+                </span>
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get('search');
+    
+    if (searchParam) {
+        const searchInput = document.getElementById('search-input');
+        searchInput.value = searchParam;
+        
+        const form = searchInput.closest('form');
+        if (form) {
+            form.submit();
+        }
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,41 @@
+[project]
+name = "mysfa"
+version = "1.0.0"
+description = "営業成果共有に特化したWebアプリケーション"
+requires-python = ">=3.12"
+dependencies = [
+    "Pillow",
+    "Django>=5.0,<5.1",
+    "mysqlclient>=2.0",
+    "whitenoise",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8>=6.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "pytest>=7.0.0",
+    "pytest-django>=4.5.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  migrations
+  | staticfiles
+  | media
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_django = "django"
+known_first_party = ["accounts", "mysfa", "config"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
