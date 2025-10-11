@@ -77,15 +77,51 @@ jobs:
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
           echo "Django application container started"
 
+
+          echo "Setting up SSL certificate..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            sudo yum install -y certbot || echo 'Certbot already installed'
+            sudo docker stop nginx 2>/dev/null || true
+            sudo docker rm nginx 2>/dev/null || true
+            if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
+              echo 'Obtaining SSL certificate...'
+              sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
+            else
+              echo 'SSL certificate already exists'
+            fi
+          "
+
           echo "Uploading Nginx configuration..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-simple.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf || { echo "Nginx config upload failed"; exit 1; }
-          echo "Nginx configuration uploaded"
+          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "test -d /etc/letsencrypt/live/mysfa.net"; then
+            echo "SSL certificate found, using HTTPS configuration"
+            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+          else
+            echo "No SSL certificate, using HTTP configuration"
+            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-simple.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+          fi
 
           echo "Starting Nginx container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop nginx || true && sudo docker rm nginx || true && sudo docker run -d --name nginx --network host -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro nginx:alpine" || { echo "Nginx container start failed"; exit 1; }
-          echo "Nginx container started"
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            if [ -d /etc/letsencrypt/live/mysfa.net ]; then
+              sudo docker run -d --name nginx --network host \
+                -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+                -v /etc/letsencrypt:/etc/letsencrypt:ro \
+                nginx:alpine
+            else
+              sudo docker run -d --name nginx --network host \
+                -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+                nginx:alpine
+            fi
+          "
 
           echo "Performing health check..."
           sleep 10
-          curl -f http://mysfa.net || curl -f http://${{ secrets.EC2_HOST }} || { echo "Deployment completed but health check failed"; exit 1; }
+          if curl -f -k https://mysfa.net 2>/dev/null; then
+            echo "HTTPS health check passed"
+          elif curl -f http://mysfa.net 2>/dev/null; then
+            echo "HTTP health check passed (HTTPS not available)"
+          else
+            echo "Health check failed"
+            exit 1
+          fi
           echo "Deployment completed successfully!"
