@@ -80,7 +80,8 @@ jobs:
 
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-            sudo yum install -y certbot || echo 'Certbot already installed'
+            sudo amazon-linux-extras install -y epel
+            sudo yum install -y certbot
             sudo docker stop nginx 2>/dev/null || true
             sudo docker rm nginx 2>/dev/null || true
             if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
