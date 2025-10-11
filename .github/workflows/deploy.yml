@@ -74,7 +74,7 @@ jobs:
           echo "Migrations completed"
 
           echo "Starting Django application container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app -p 8000:8000 -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
           echo "Django application container started"
 
           echo "Uploading Nginx configuration..."
