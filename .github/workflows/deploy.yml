@@ -86,6 +86,10 @@ jobs:
           set -x
           echo "Starting deployment to EC2..."
 
+          echo "Creating directory structure..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/src /home/ec2-user/docker" || { echo "ディレクトリ作成失敗"; exit 1; }
+          echo "Directory structure created"
+
           echo "Uploading files..."
           scp -v -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP失敗"; exit 1; }
           echo "File upload completed"
