@@ -107,7 +107,7 @@ jobs:
           echo "MySQL container started"
 
           echo "Waiting for MySQL to be ready..."
-          sleep 30
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} 'for i in {1..30}; do if sudo docker exec mysfa-db mysqladmin ping -h localhost -u root -pic8DNPgaIV9_drROsdUzsKxejTI --silent 2>/dev/null; then echo "MySQL is ready!"; break; fi; echo "Waiting for MySQL... ($i/30)"; sleep 2; done'
 
           echo "Running Django migrations..."
           ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker run --rm --network host -e MYSQL_HOST=localhost -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app python manage.py migrate" || { echo "Migration失敗"; exit 1; }
