@@ -93,7 +93,7 @@ jobs:
           "
 
           echo "Uploading Nginx configuration..."
-          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "test -d /etc/letsencrypt/live/mysfa.net"; then
+          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
             scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
