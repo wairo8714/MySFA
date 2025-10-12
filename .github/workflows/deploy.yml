@@ -103,6 +103,7 @@ jobs:
 
           echo "Starting Nginx container..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+              sudo chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
             if [ -d /etc/letsencrypt/live/mysfa.net ]; then
               sudo docker run -d --name nginx --network host \
                 -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
