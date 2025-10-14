@@ -89,14 +89,11 @@ jobs:
 
       - name: Run linters and auto-fix
         run: |
-          # 自動フォーマット適用
           black src/ --line-length 88
           isort src/ --profile black
           
-          # チェック
           flake8 src/ --max-line-length=88 --ignore=E203,W503
           
-          # 変更があればコミット
           if [ -n "$(git status --porcelain)" ]; then
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
