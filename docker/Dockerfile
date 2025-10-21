@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY pyproject.toml .
-RUN pip install -e .[dev]
-
 COPY src/ .
+
+RUN pip install -e .[dev]
 
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
