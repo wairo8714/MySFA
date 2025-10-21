@@ -8,10 +8,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -44,16 +44,14 @@ jobs:
           echo "Starting deployment to EC2..."
 
           echo "Cleaning up old files..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile" || { echo "Cleanup failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile /home/ec2-user/pyproject.toml" || { echo "Cleanup failed"; exit 1; }
           echo "Old files removed"
 
           echo "Uploading files..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP failed"; exit 1; }
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP src failed"; exit 1; }
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP Dockerfile failed"; exit 1; }
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa pyproject.toml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP pyproject.toml failed"; exit 1; }
           echo "File upload completed"
-
-          echo "Uploading Dockerfile..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Dockerfile upload failed"; exit 1; }
-          echo "Dockerfile upload completed"
 
           echo "Building Docker image..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker build -t mysfa-app ." || { echo "Docker build failed"; exit 1; }
@@ -76,7 +74,6 @@ jobs:
           echo "Starting Django application container..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
           echo "Django application container started"
-
 
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
@@ -103,7 +100,7 @@ jobs:
 
           echo "Starting Nginx container..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-              sudo chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
+            sudo chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
             if [ -d /etc/letsencrypt/live/mysfa.net ]; then
               sudo docker run -d --name nginx --network host \
                 -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
