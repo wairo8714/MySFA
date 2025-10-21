@@ -60,9 +60,6 @@ jobs:
           cd src
           python -m django --version || echo "Django未インストール"
 
-      - name: Show requirements.txt
-        run: cat requirements.txt || echo "requirements.txtがありません"
-
       - name: Check MySQL server status
         run: |
           sudo netstat -tlnp | grep 3306 || echo "3306番ポートが開いていません"
