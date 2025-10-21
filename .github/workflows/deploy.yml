@@ -112,4 +112,10 @@ jobs:
           sleep 10
           if curl -f -k https://mysfa.net 2>/dev/null; then
             echo "HTTPS health check passed"
-          elif curl -f http://mysfa.net
+          elif curl -f http://mysfa.net 2>/dev/null; then
+            echo "HTTP health check passed"
+          else
+            echo "Health check failed"
+            exit 1
+          fi
+
