@@ -39,3 +39,10 @@ line_length = 88
 known_django = "django"
 known_first_party = ["accounts", "mysfa", "config"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mysfa", "config", "accounts"]
