@@ -44,24 +44,20 @@ jobs:
           echo "Starting deployment to EC2..."
 
           echo "Cleaning up old files..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile /home/ec2-user/requirements.txt" || { echo "Cleanup failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile /home/ec2-user/pyproject.toml" || { echo "Cleanup failed"; exit 1; }
           echo "Old files removed"
 
-          echo "Uploading files..."
+          echo "Uploading source code..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP failed"; exit 1; }
-          echo "File upload completed"
 
-          echo "Uploading Dockerfile and requirements.txt..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile requirements.txt ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Dockerfile upload failed"; exit 1; }
-          echo "Dockerfile and requirements.txt upload completed"
+          echo "Uploading Dockerfile and pyproject.toml..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile pyproject.toml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "File upload failed"; exit 1; }
 
           echo "Building Docker image..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker build -t mysfa-app ." || { echo "Docker build failed"; exit 1; }
-          echo "Docker build completed"
 
           echo "Starting MySQL container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-db || true && sudo docker rm mysfa-db || true && sudo docker run -d --name mysfa-db -e MYSQL_ROOT_PASSWORD=ic8DNPgaIV9_drROsdUzsKxejTI -e MYSQL_DATABASE=mysfa_db -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -p 3306:3306 mysql:8.0" || { echo "MySQL container start failed"; exit 1; }
-          echo "MySQL container started"
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-db || true && sudo docker rm mysfa-db || true && sudo docker run -d --name mysfa-db -e MYSQL_ROOT_PASSWORD=ic8DNPgaIV9_drROsdUzsKxejTI -e MYSQL_DATABASE=mysfa_db -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -p 3306:3306 mysql:8.0"
 
           echo "Waiting for MySQL to be ready..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} 'for i in {1..30}; do if sudo docker exec mysfa-db mysqladmin ping -h localhost -u root -pic8DNPgaIV9_drROsdUzsKxejTI --silent 2>/dev/null; then echo "MySQL is ready!"; break; fi; echo "Waiting for MySQL... ($i/30)"; sleep 2; done'
@@ -70,13 +66,10 @@ jobs:
           sleep 5
 
           echo "Running Django migrations..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker run --rm --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app python manage.py migrate" || { echo "Migration failed"; exit 1; }
-          echo "Migrations completed"
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker run --rm --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app python manage.py migrate"
 
           echo "Starting Django application container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
-          echo "Django application container started"
-
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app"
 
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
@@ -120,10 +113,4 @@ jobs:
           sleep 10
           if curl -f -k https://mysfa.net 2>/dev/null; then
             echo "HTTPS health check passed"
-          elif curl -f http://mysfa.net 2>/dev/null; then
-            echo "HTTP health check passed (HTTPS not available)"
-          else
-            echo "Health check failed"
-            exit 1
-          fi
-          echo "Deployment completed successfully!"
+          elif curl -f http://mysfa.net
