@@ -10,8 +10,15 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY pyproject.toml .
-COPY src/ src/
+#pyprojectを使用するならばpip install -e .[dev]ではなくこっち
+RUN pip install --no-cache-dir poetry
+
+COPY pyproject.toml poetry.lock* /app/
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+    
+COPY src/ /app/
 
 RUN pip install -e .[dev]
 
