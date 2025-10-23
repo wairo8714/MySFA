@@ -23,11 +23,11 @@ jobs:
           # プロジェクトの初期化と依存関係の解決
           if [ ! -f poetry.lock ]; then
             echo "poetry.lock not found. Generating..."
-            poetry install --only=main
+            poetry install --only=main --no-root
             poetry lock
           else
             echo "poetry.lock found. Installing dependencies..."
-            poetry install --only=main
+            poetry install --only=main --no-root
           fi
 
       - name: Configure AWS credentials
