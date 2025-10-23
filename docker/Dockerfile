@@ -20,8 +20,6 @@ RUN poetry config virtualenvs.create false \
     
 COPY src/ /app/
 
-RUN pip install -e .[dev]
-
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
 USER app
