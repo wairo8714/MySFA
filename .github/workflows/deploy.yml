@@ -67,9 +67,7 @@ jobs:
 
           # ソースコードはDocker Hubのイメージに含まれているため、アップロード不要
 
-          echo "Uploading .env file..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa .env ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo ".env upload failed"; exit 1; }
-          echo ".env file uploaded"
+          # .envファイルは不要（環境変数はdocker-compose.prod.ymlで管理）
 
           echo "Uploading docker-compose.prod.yml with environment variables..."
           sed -e "s/\${SECRET_KEY}/${{ secrets.SECRET_KEY }}/g" \
