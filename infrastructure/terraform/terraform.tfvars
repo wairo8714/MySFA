@@ -1,6 +1,3 @@
-# MySFA Terraform設定ファイルの例
-# このファイルをコピーして terraform.tfvars として使用してください
-
 # AWS設定
 aws_region = "ap-northeast-1"
 
