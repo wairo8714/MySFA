@@ -65,12 +65,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile /home/ec2-user/poetry.lock" || { echo "Cleanup failed"; exit 1; }
           echo "Old files removed"
 
-          echo "Uploading files..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "SCP failed"; exit 1; }
-
-          echo "Uploading Dockerfile and poetry.lock..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile poetry.lock ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Dockerfile upload failed"; exit 1; }
-          echo "Dockerfile and poetry.lock upload completed"
+          echo "Uploading source code and build files..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ docker/Dockerfile poetry.lock ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Source code upload failed"; exit 1; }
+          echo "Source code and build files uploaded"
 
           echo "Uploading .env file..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa .env ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo ".env upload failed"; exit 1; }
