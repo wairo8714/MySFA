@@ -8,6 +8,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    enviroment:
+      - DEBUG=False
     depends_on:
       - db
     restart: unless-stopped
@@ -17,8 +19,6 @@ services:
     container_name: mysfa-db
     env_file:
       - .env
-    ports:
-      - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
     restart: unless-stopped
