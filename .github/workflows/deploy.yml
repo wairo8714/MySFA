@@ -61,13 +61,11 @@ jobs:
           set -x
           echo "Starting deployment to EC2..."
 
-          echo "Cleaning up old files..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "rm -rf /home/ec2-user/src /home/ec2-user/Dockerfile /home/ec2-user/poetry.lock" || { echo "Cleanup failed"; exit 1; }
-          echo "Old files removed"
+          echo "Cleaning up old containers..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true" || { echo "Cleanup failed"; exit 1; }
+          echo "Old containers removed"
 
-          echo "Uploading source code and build files..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -r src/ docker/Dockerfile poetry.lock ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Source code upload failed"; exit 1; }
-          echo "Source code and build files uploaded"
+          # ソースコードはDocker Hubのイメージに含まれているため、アップロード不要
 
           echo "Uploading .env file..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa .env ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo ".env upload failed"; exit 1; }
@@ -77,8 +75,7 @@ jobs:
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker-compose.prod.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "docker-compose.prod.yml upload failed"; exit 1; }
           echo "docker-compose.prod.yml uploaded"
 
-          echo "Building Docker image..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker build -t mysfa-app ." || { echo "Docker build failed"; exit 1; }
+          # Docker Hubの既存イメージを使用するため、ビルド不要
 
           echo "Starting app and database services..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d" || { echo "Docker-compose failed"; exit 1; }
