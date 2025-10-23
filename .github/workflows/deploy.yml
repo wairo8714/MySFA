@@ -71,9 +71,19 @@ jobs:
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa .env ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo ".env upload failed"; exit 1; }
           echo ".env file uploaded"
 
-          echo "Uploading docker-compose.prod.yml..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker-compose.prod.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "docker-compose.prod.yml upload failed"; exit 1; }
-          echo "docker-compose.prod.yml uploaded"
+          echo "Uploading docker-compose.prod.yml with environment variables..."
+          sed -e "s/\${SECRET_KEY}/${{ secrets.SECRET_KEY }}/g" \
+              -e "s/\${DEBUG}/${{ secrets.DEBUG }}/g" \
+              -e "s/\${ALLOWED_HOSTS}/${{ secrets.ALLOWED_HOSTS }}/g" \
+              -e "s/\${MYSQL_HOST}/${{ secrets.MYSQL_HOST }}/g" \
+              -e "s/\${MYSQL_PORT}/${{ secrets.MYSQL_PORT }}/g" \
+              -e "s/\${MYSQL_DATABASE}/${{ secrets.MYSQL_DATABASE }}/g" \
+              -e "s/\${MYSQL_USER}/${{ secrets.MYSQL_USER }}/g" \
+              -e "s/\${MYSQL_PASSWORD}/${{ secrets.MYSQL_PASSWORD }}/g" \
+              -e "s/\${MYSQL_ROOT_PASSWORD}/${{ secrets.MYSQL_ROOT_PASSWORD }}/g" \
+              -e "s/\${FORCE_HTTPS}/${{ secrets.FORCE_HTTPS }}/g" \
+              docker-compose.prod.yml | scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml || { echo "docker-compose.prod.yml upload failed"; exit 1; }
+          echo "docker-compose.prod.yml uploaded with environment variables"
 
           # Docker Hubの既存イメージを使用するため、ビルド不要
 

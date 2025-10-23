@@ -6,10 +6,17 @@ services:
     container_name: mysfa-app
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     environment:
-      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - FORCE_HTTPS=${FORCE_HTTPS}
     depends_on:
       - db
     restart: unless-stopped
@@ -17,8 +24,11 @@ services:
   db:
     image: mysql:8.0
     container_name: mysfa-db
-    env_file:
-      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
     restart: unless-stopped
