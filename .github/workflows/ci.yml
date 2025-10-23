@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, deploy/* ]
   pull_request:
     branches: [ main ]
 
@@ -59,9 +59,6 @@ jobs:
           pip freeze
           cd src
           python -m django --version || echo "Django未インストール"
-
-      - name: Show requirements.txt
-        run: cat requirements.txt || echo "requirements.txtがありません"
 
       - name: Check MySQL server status
         run: |

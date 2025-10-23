@@ -2,13 +2,12 @@ name: Deploy to AWStest
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, deploy/* ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    
+
     steps:
       - uses: actions/checkout@v3
       
