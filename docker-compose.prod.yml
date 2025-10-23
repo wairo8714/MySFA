@@ -8,7 +8,7 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    enviroment:
+    environment:
       - DEBUG=False
     depends_on:
       - db
@@ -34,7 +34,7 @@ services:
      - ./infrastructure/config/nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
      - ./etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-    - app
+     - app
     restart: unless-stopped
 
 volumes:
