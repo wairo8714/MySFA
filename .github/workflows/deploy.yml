@@ -14,13 +14,20 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      - name: Check and generate poetry.lock if missing
+      - name: Setup Poetry and generate lock file
         run: |
+          # Poetryの設定
+          poetry config virtualenvs.create false
+          poetry config virtualenvs.in-project false
+          
+          # プロジェクトの初期化と依存関係の解決
           if [ ! -f poetry.lock ]; then
             echo "poetry.lock not found. Generating..."
+            poetry install --no-dev
             poetry lock
           else
-            echo "poetry.lock found."
+            echo "poetry.lock found. Installing dependencies..."
+            poetry install --no-dev
           fi
 
       - name: Configure AWS credentials
@@ -65,32 +72,25 @@ jobs:
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker/Dockerfile poetry.lock ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "Dockerfile upload failed"; exit 1; }
           echo "Dockerfile and poetry.lock upload completed"
 
+          echo "Uploading .env file..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa .env ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo ".env upload failed"; exit 1; }
+          echo ".env file uploaded"
+
+          echo "Uploading docker-compose.prod.yml..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker-compose.prod.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/ || { echo "docker-compose.prod.yml upload failed"; exit 1; }
+          echo "docker-compose.prod.yml uploaded"
+
           echo "Building Docker image..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker build -t mysfa-app ." || { echo "Docker build failed"; exit 1; }
 
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-db || true && sudo docker rm mysfa-db || true && sudo docker run -d --name mysfa-db -e MYSQL_ROOT_PASSWORD=ic8DNPgaIV9_drROsdUzsKxejTI -e MYSQL_DATABASE=mysfa_db -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -p 3306:3306 mysql:8.0" || { echo "MySQL container start failed"; exit 1; }
-          echo "MySQL container started"
-
-          echo "Waiting for MySQL to be ready..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} 'for i in {1..30}; do if sudo docker exec mysfa-db mysqladmin ping -h localhost -u root -pic8DNPgaIV9_drROsdUzsKxejTI --silent 2>/dev/null; then echo "MySQL is ready!"; break; fi; echo "Waiting for MySQL... ($i/30)"; sleep 2; done'
-
-          echo "Waiting for MySQL to fully initialize..."
-          sleep 5
-
-          echo "Running Django migrations..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker run --rm --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app python manage.py migrate" || { echo "Migration failed"; exit 1; }
-          echo "Migrations completed"
-
-          echo "Starting Django application container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo docker stop mysfa-app || true && sudo docker rm mysfa-app || true && sudo docker run -d --name mysfa-app --network host -e MYSQL_HOST=127.0.0.1 -e MYSQL_PORT=3306 -e MYSQL_USER=admin -e MYSQL_PASSWORD=0LmJtwp2V5Y3HyJa9y0YGPjJxC0 -e MYSQL_DATABASE=mysfa_db -e SECRET_KEY=django-insecure-key-for-production -e DEBUG=False -e ALLOWED_HOSTS=${{ secrets.EC2_HOST }},mysfa.net mysfa-app" || { echo "Container restart failed"; exit 1; }
-          echo "Django application container started"
+          echo "Starting app and database services..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d" || { echo "Docker-compose failed"; exit 1; }
+          echo "App and database services started"
 
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
             sudo amazon-linux-extras install -y epel
             sudo yum install -y certbot
-            sudo docker stop nginx 2>/dev/null || true
-            sudo docker rm nginx 2>/dev/null || true
             if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
               echo 'Obtaining SSL certificate...'
               sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
@@ -102,26 +102,15 @@ jobs:
           echo "Uploading Nginx configuration..."
           if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
-            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
             echo "No SSL certificate, using HTTP configuration"
-            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa infrastructure/config/nginx-simple.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          echo "Starting Nginx container..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-              sudo chmod 755 /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
-            if [ -d /etc/letsencrypt/live/mysfa.net ]; then
-              sudo docker run -d --name nginx --network host \
-                -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
-                -v /etc/letsencrypt:/etc/letsencrypt:ro \
-                nginx:alpine
-            else
-              sudo docker run -d --name nginx --network host \
-                -v /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
-                nginx:alpine
-            fi
-          "
+          echo "Starting nginx with SSL..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx" || { echo "Nginx start failed"; exit 1; }
+          echo "Nginx started with SSL"
 
           echo "Performing health check..."
           sleep 10
@@ -134,4 +123,3 @@ jobs:
             exit 1
           fi
           echo "Deployment completed successfully!"
-          elif curl -f http://mysfa.net
