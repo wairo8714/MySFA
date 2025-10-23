@@ -82,9 +82,19 @@ jobs:
               -e "s/\${FORCE_HTTPS}/${{ secrets.FORCE_HTTPS }}/g" \
               docker-compose.prod.yml > docker-compose.prod.tmp.yml || { echo "Environment variable substitution failed"; exit 1; }
           
-          echo "Uploading docker-compose.prod.yml..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml || { echo "docker-compose.prod.yml upload failed"; exit 1; }
-          echo "docker-compose.prod.yml uploaded with environment variables"
+          echo "Uploading files to S3..."
+          aws s3 cp docker-compose.prod.tmp.yml s3://${{ secrets.S3_BUCKET_NAME }}/docker-compose.prod.yml || { echo "S3 upload failed"; exit 1; }
+          aws s3 cp infrastructure/config/nginx-https.conf s3://${{ secrets.S3_BUCKET_NAME }}/nginx-https.conf || { echo "S3 upload failed"; exit 1; }
+          aws s3 cp infrastructure/config/nginx-simple.conf s3://${{ secrets.S3_BUCKET_NAME }}/nginx-simple.conf || { echo "S3 upload failed"; exit 1; }
+          echo "Files uploaded to S3"
+          
+          echo "Downloading files from S3 on EC2..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/docker-compose.prod.yml /home/ec2-user/docker-compose.prod.yml
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/nginx-https.conf /home/ec2-user/nginx-https.conf
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/nginx-simple.conf /home/ec2-user/nginx-simple.conf
+          " || { echo "S3 download failed"; exit 1; }
+          echo "Files downloaded from S3"
 
           # Docker Hubの既存イメージを使用するため、ビルド不要
 
