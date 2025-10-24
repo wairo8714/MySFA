@@ -37,8 +37,3 @@ output "elastic_ip" {
   description = "Elastic IP address"
   value       = aws_eip.main.public_ip
 }
-
-output "s3_bucket_name" {
-  description = "S3 bucket name for deploy files"
-  value       = aws_s3_bucket.deploy_files.bucket
-}
