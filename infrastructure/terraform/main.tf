@@ -34,8 +34,7 @@ resource "aws_instance" "main" {
   instance_type          = var.instance_type
   key_name               = aws_key_pair.main.key_name
   vpc_security_group_ids = [aws_security_group.main.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_s3_profile.name
-
+ 
   user_data = templatefile("${path.module}/../config/user_data.sh", {
     dockerhub_username  = var.dockerhub_username
     mysql_host         = var.mysql_host
@@ -129,94 +128,3 @@ resource "aws_route53_record" "main" {
   ttl     = 300
   records = [aws_eip.main.public_ip]
 }
-
-# S3バケット（デプロイファイル用）
-resource "aws_s3_bucket" "deploy_files" {
-  bucket = "${var.project_name}-deploy-files"
-  tags = {
-    Name = "${var.project_name}-deploy-files"
-  }
-}
-
-# S3バケットのバージョニング
-resource "aws_s3_bucket_versioning" "deploy_files" {
-  bucket = aws_s3_bucket.deploy_files.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# S3バケットのパブリックアクセスブロック
-resource "aws_s3_bucket_public_access_block" "deploy_files" {
-  bucket = aws_s3_bucket.deploy_files.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# ランダム文字列（バケット名の重複回避）
-resource "random_string" "bucket_suffix" {
-  length  = 8
-  special = false
-  upper   = false
-}
-
-# IAMロール（EC2用）
-resource "aws_iam_role" "ec2_s3_role" {
-  name = "${var.project_name}-ec2-s3-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# IAMポリシー（S3アクセス用）
-resource "aws_iam_policy" "ec2_s3_policy" {
-  name = "${var.project_name}-ec2-s3-policy"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = "${aws_s3_bucket.deploy_files.arn}/*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = aws_s3_bucket.deploy_files.arn
-      }
-    ]
-  })
-}
-
-# IAMロールにポリシーをアタッチ
-resource "aws_iam_role_policy_attachment" "ec2_s3_policy_attachment" {
-  role       = aws_iam_role.ec2_s3_role.name
-  policy_arn = aws_iam_policy.ec2_s3_policy.arn
-}
-
-# EC2インスタンスプロファイル
-resource "aws_iam_instance_profile" "ec2_s3_profile" {
-  name = "${var.project_name}-ec2-s3-profile"
-  role = aws_iam_role.ec2_s3_role.name
-}
-
