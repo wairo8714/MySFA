@@ -48,79 +48,92 @@ jobs:
       - name: Test SSH connection
         run: |
           echo "Testing SSH connection..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
-            echo "SSH connection failed"
-            exit 1
-          }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
+              echo "SSH connection failed"
+              exit 1
+            }
 
       - name: Deploy to EC2
         run: |
           set -x
           echo "Starting deployment to EC2..."
 
-          # 古いコンテナを削除
+          # 古いコンテナの停止と削除
           echo "Cleaning up old containers..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true" || { echo "Cleanup failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
+             sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true"
           echo "Old containers removed"
 
-          # docker-compose.prod.yml に環境変数を埋め込み
-          echo "Creating docker-compose.prod.tmp.yml with environment variables and removing CRLF..."
+          # docker-compose.prod.tmp.yml を作成（CRLF除去 + 環境変数置換）
+          echo "Creating docker-compose.prod.tmp.yml with environment variables..."
           cat docker-compose.prod.yml | tr -d '\r' | sed \
-            -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
-            -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
-            -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
-            -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
-            -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
-            -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
-            -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
-            -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
-            -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
-            -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
-            > docker-compose.prod.tmp.yml || { echo "Environment variable substitution failed"; exit 1; }
+              -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
+              -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
+              -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
+              -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
+              -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
+              -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
+              -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
+              -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
+              -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
+              -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
+              > docker-compose.prod.tmp.yml
 
-          echo "Uploading docker-compose.prod.tmp.yml to EC2 (user home)..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa docker-compose.prod.tmp.yml \
-            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml.tmp || { echo "SCP failed"; exit 1; }
+          # /tmp 経由で EC2 にアップロード
+          echo "Uploading docker-compose.prod.tmp.yml to EC2 (/tmp)..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/tmp/docker-compose.prod.yml.tmp || { echo "SCP failed"; exit 1; }
 
-          echo "Moving docker-compose.prod.yml to target directory with sudo..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo mv /home/ec2-user/docker-compose.prod.yml.tmp /home/ec2-user/docker-compose.prod.yml && sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml" \
-            || { echo "Move failed"; exit 1; }
+          # EC2 側で sudo mv して配置
+          echo "Moving docker-compose.prod.yml into place with proper permissions..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "sudo mv /tmp/docker-compose.prod.yml.tmp /home/ec2-user/docker-compose.prod.yml && \
+             sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml"
 
-          # Docker起動
+          # Docker Compose で起動
           echo "Starting app and database services..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d" || { echo "Docker-compose failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
           echo "App and database services started"
 
-          # SSLセットアップ
+          # SSL 設定
           echo "Setting up SSL certificate..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-            sudo amazon-linux-extras install -y epel
-            sudo yum install -y certbot
-            if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
-              echo 'Obtaining SSL certificate...'
-              sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
-            else
-              echo 'SSL certificate already exists'
-            fi
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} "
+              sudo amazon-linux-extras install -y epel
+              sudo yum install -y certbot
+              if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
+                echo 'Obtaining SSL certificate...'
+                sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
+              else
+                echo 'SSL certificate already exists'
+              fi
           "
 
-          # Nginx設定アップロード
+          # Nginx 設定アップロード
           echo "Uploading Nginx configuration..."
           if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | \
+              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
+              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
             echo "No SSL certificate, using HTTP configuration"
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | \
+              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
+              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          # Nginx起動
+          # Nginx 起動
           echo "Starting nginx with SSL..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx" || { echo "Nginx start failed"; exit 1; }
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx"
           echo "Nginx started with SSL"
 
           # ヘルスチェック
