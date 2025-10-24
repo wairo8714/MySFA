@@ -132,8 +132,7 @@ resource "aws_route53_record" "main" {
 
 # S3バケット（デプロイファイル用）
 resource "aws_s3_bucket" "deploy_files" {
-  bucket = "${var.project_name}-deploy-files-${random_string.bucket_suffix.result}"
-
+  bucket = "${var.project_name}-deploy-files"
   tags = {
     Name = "${var.project_name}-deploy-files"
   }
