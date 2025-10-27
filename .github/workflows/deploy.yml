@@ -9,24 +9,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Install Poetry
-        run: pip install poetry
-
-      - name: Setup Poetry and generate lock file
-        run: |
-          poetry config virtualenvs.create false
-          poetry config virtualenvs.in-project false
-          
-          if [ ! -f poetry.lock ]; then
-            echo "poetry.lock not found. Generating..."
-            poetry install --only=main --no-root
-            poetry lock
-          else
-            echo "poetry.lock found. Installing dependencies..."
-            poetry install --only=main --no-root
-          fi
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -35,116 +19,104 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      - name: Setup SSH with debugging
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
-
-      - name: Add EC2 to known hosts
-        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: Test SSH connection
         run: |
-          echo "Testing SSH connection..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
               echo "SSH connection failed"
               exit 1
             }
 
-      - name: Deploy to EC2
+      - name: Generate environment file
         run: |
-          set -x
-          echo "Starting deployment to EC2..."
+          cat > .env.prod <<EOF
+SECRET_KEY=${{ secrets.SECRET_KEY }}
+DEBUG=${{ secrets.DEBUG }}
+ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+MYSQL_HOST=${{ secrets.MYSQL_HOST }}
+MYSQL_PORT=${{ secrets.MYSQL_PORT }}
+MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+MYSQL_USER=${{ secrets.MYSQL_USER }}
+MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
+EOF
 
-          # 古いコンテナの停止と削除
-          echo "Cleaning up old containers..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
-             sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true"
-          echo "Old containers removed"
-
-          # docker-compose.prod.tmp.yml を作成（CRLF除去 + 環境変数置換）
-          echo "Creating docker-compose.prod.tmp.yml with environment variables..."
-          cat docker-compose.prod.yml | tr -d '\r' | sed \
-              -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
-              -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
-              -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
-              -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
-              -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
-              -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
-              -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
-              -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
-              -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
-              -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
-              > docker-compose.prod.tmp.yml
-
-          # /tmp 経由で EC2 にアップロード
-          echo "Uploading docker-compose.prod.tmp.yml to EC2 (/tmp)..."
+      - name: Upload environment and compose files to EC2
+        run: |
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/tmp/docker-compose.prod.yml.tmp || { echo "SCP failed"; exit 1; }
+            .env.prod ec2-user@${{ secrets.EC2_HOST }}:/tmp/.env.prod
 
-          # EC2 側で sudo mv して配置
-          echo "Moving docker-compose.prod.yml into place with proper permissions..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo mv /tmp/docker-compose.prod.yml.tmp /home/ec2-user/docker-compose.prod.yml && \
-             sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml"
+          cat docker-compose.prod.yml | tr -d '\r' > docker-compose.prod.tmp.yml
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/tmp/docker-compose.prod.yml
 
-          # Docker Compose で起動
-          echo "Starting app and database services..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
-          echo "App and database services started"
-
-          # SSL 設定
-          echo "Setting up SSL certificate..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} "
-              sudo amazon-linux-extras install -y epel
-              sudo yum install -y certbot
-              if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
-                echo 'Obtaining SSL certificate...'
-                sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
-              else
-                echo 'SSL certificate already exists'
-              fi
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            sudo mv /tmp/docker-compose.prod.yml /home/ec2-user/docker-compose.prod.yml && \
+            sudo mv /tmp/.env.prod /home/ec2-user/.env.prod && \
+            sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml /home/ec2-user/.env.prod
           "
 
-          # Nginx 設定アップロード
-          echo "Uploading Nginx configuration..."
-          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
-            echo "SSL certificate found, using HTTPS configuration"
+      - name: Deploy application to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            set -e
+            sudo docker compose -f /home/ec2-user/docker-compose.prod.yml down || true
+            cd /home/ec2-user && sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+          "
+
+      - name: Setup SSL certificate on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
+            set -e
+            sudo amazon-linux-extras install -y epel
+            sudo yum install -y certbot
+
+            DOMAIN=mysfa.net
+            EMAIL=admin@mysfa.net
+
+            if [ ! -d /etc/letsencrypt/live/\$DOMAIN ]; then
+              sudo certbot certonly --standalone --non-interactive --agree-tos --email \$EMAIL -d \$DOMAIN || echo 'Certificate generation failed'
+            else
+              sudo certbot renew --quiet || echo 'Renewal failed'
+            fi
+          "
+
+      - name: Upload Nginx configuration and start Nginx
+        run: |
+          SSH_CMD="ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }}"
+          SCP_CMD="scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa"
+
+          if $SSH_CMD "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | \
-              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
-              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+              $SCP_CMD - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
-            echo "No SSL certificate, using HTTP configuration"
             sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | \
-              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
-              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+              $SCP_CMD - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          # Nginx 起動
-          echo "Starting nginx with SSL..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx"
-          echo "Nginx started with SSL"
+          $SSH_CMD "
+            cd /home/ec2-user && \
+            sudo docker compose -f docker-compose.prod.yml --profile ssl up -d nginx
+          "
 
-          # ヘルスチェック
-          echo "Performing health check..."
+      - name: Health check
+        run: |
           sleep 10
-          if curl -f -k https://mysfa.net 2>/dev/null; then
+          if curl -fsSL -k https://mysfa.net > /dev/null 2>&1; then
             echo "HTTPS health check passed"
-          elif curl -f http://mysfa.net 2>/dev/null; then
-            echo "HTTP health check passed (HTTPS not available)"
+          elif curl -fsSL http://mysfa.net > /dev/null 2>&1; then
+            echo "HTTP health check passed"
           else
             echo "Health check failed"
             exit 1
           fi
-          echo "Deployment completed successfully!"
+
+          echo "Deployment completed successfully"
