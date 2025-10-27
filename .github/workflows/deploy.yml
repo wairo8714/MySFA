@@ -1,4 +1,4 @@
-name: Deploy to AWS
+  name: Deploy to AWS
 
 on:
   push:
@@ -37,17 +37,17 @@ jobs:
       - name: Generate environment file
         run: |
           cat > .env.prod <<EOF
-SECRET_KEY=${{ secrets.SECRET_KEY }}
-DEBUG=${{ secrets.DEBUG }}
-ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-MYSQL_PORT=${{ secrets.MYSQL_PORT }}
-MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-MYSQL_USER=${{ secrets.MYSQL_USER }}
-MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
-EOF
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DEBUG=${{ secrets.DEBUG }}
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT=${{ secrets.MYSQL_PORT }}
+          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER=${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+          FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
+          EOF
 
       - name: Upload environment and compose files to EC2
         run: |
