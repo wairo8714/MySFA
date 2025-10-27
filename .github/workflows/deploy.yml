@@ -48,19 +48,22 @@ jobs:
           MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
           FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
           EOF
+          # 改行コードをLFに統一（Windows改行が混じるとscpが失敗することがある）
+          sed -i 's/\r$//' .env.prod
 
       - name: Upload environment and compose files to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            .env.prod ec2-user@${{ secrets.EC2_HOST }}:/tmp/.env.prod
-
+          # docker-composeファイルも改行コードを整える
           cat docker-compose.prod.yml | tr -d '\r' > docker-compose.prod.tmp.yml
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/tmp/docker-compose.prod.yml
 
+          # EC2に転送（ホームディレクトリへ）
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            .env.prod ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/.env.prod
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
+
+          # 権限整備
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-            sudo mv /tmp/docker-compose.prod.yml /home/ec2-user/docker-compose.prod.yml && \
-            sudo mv /tmp/.env.prod /home/ec2-user/.env.prod && \
             sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml /home/ec2-user/.env.prod
           "
 
