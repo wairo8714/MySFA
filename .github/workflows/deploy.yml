@@ -59,6 +59,16 @@ jobs:
           set -x
           echo "Starting deployment to EC2..."
 
+          # OS側Nginxを停止してポート443を解放
+          echo "Stopping host OS Nginx to free port 443..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "sudo systemctl stop nginx 2>/dev/null || true && \
+             sudo systemctl disable nginx 2>/dev/null || true && \
+             sudo pkill nginx 2>/dev/null || true && \
+             sudo fuser -k 443/tcp 2>/dev/null || true"
+          echo "Host OS Nginx stopped"
+
           # ディスク容量確保のため Docker のクリーンアップ
           echo "Cleaning up Docker resources..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
