@@ -19,10 +19,16 @@ COPY src/ /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-interaction --no-ansi
 
+# Collect static files before switching to app user
+RUN python manage.py collectstatic --noinput || echo "No static files to collect"
+
+# Create app user and set permissions
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
+
 USER app
 
 EXPOSE 8000
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Use gunicorn for production
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
