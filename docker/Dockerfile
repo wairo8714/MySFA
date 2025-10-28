@@ -14,11 +14,10 @@ WORKDIR /app
 RUN pip install --no-cache-dir poetry
 
 COPY pyproject.toml poetry.lock* /app/
+COPY src/ /app/
 
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
-    
-COPY src/ /app/
+    && poetry install --only=main --no-interaction --no-ansi
 
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
