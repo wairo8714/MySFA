@@ -120,14 +120,14 @@ jobs:
           echo "Uploading Nginx configuration..."
           if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | \
-              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
-              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf > /tmp/nginx.conf && \
+            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+              /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
             echo "No SSL certificate, using HTTP configuration"
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | \
-              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa - \
-              ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf > /tmp/nginx.conf && \
+            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+              /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
           # Nginx を起動
