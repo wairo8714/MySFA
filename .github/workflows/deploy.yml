@@ -8,118 +8,123 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    env:
+      AWS_REGION: ap-northeast-1
+      DOMAIN_NAME: mysfa.net
+      EMAIL: admin@mysfa.net
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: AWS認証情報を設定
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup SSH
+      - name: SSHの設定
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Test SSH connection
+      - name: SSH接続テスト
         run: |
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
-              echo "SSH connection failed"
-              exit 1
-            }
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH接続に成功しました'"
 
-      - name: Generate environment file
+      - name: docker-composeファイルをEC2にアップロード
         run: |
-          cat > .env.prod <<EOF
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=${{ secrets.DEBUG }}
-          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-          MYSQL_PORT=${{ secrets.MYSQL_PORT }}
-          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-          MYSQL_USER=${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-          FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
-          EOF
-          # 改行コードをLFに統一（Windows混入対策）
-          sed -i 's/\r$//' .env.prod
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-      - name: Upload environment and compose files to EC2
-        run: |
-          # docker-compose ファイルも改行コードを整える
-          cat docker-compose.prod.yml | tr -d '\r' > docker-compose.prod.tmp.yml
-
-          # .env.prod を SSH 経由で安全に送信（sudo対応）
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo tee /home/ec2-user/.env.prod > /dev/null" < .env.prod
-
-          # docker-compose.prod.yml も同様に送信
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo tee /home/ec2-user/docker-compose.prod.yml > /dev/null" < docker-compose.prod.tmp.yml
-
-          # 権限整備
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
-            sudo chown ec2-user:ec2-user /home/ec2-user/docker-compose.prod.yml /home/ec2-user/.env.prod
-          "
-
-      - name: Deploy application to EC2
+      - name: アプリケーションをデプロイ（Secrets直渡し）
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: ${{ secrets.DEBUG }}
+          ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          FORCE_HTTPS: ${{ secrets.FORCE_HTTPS }}
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
             set -e
-            sudo docker compose -f /home/ec2-user/docker-compose.prod.yml down || true
-            cd /home/ec2-user && sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+            cd /home/ec2-user
+            echo 'Dockerコンテナを停止しています...'
+            sudo docker compose -f docker-compose.prod.yml down || true
+
+            echo '新しい環境変数を設定し、コンテナを起動します...'
+            export SECRET_KEY='${SECRET_KEY}'
+            export DEBUG='${DEBUG}'
+            export ALLOWED_HOSTS='${ALLOWED_HOSTS}'
+            export MYSQL_HOST='${MYSQL_HOST}'
+            export MYSQL_PORT='${MYSQL_PORT}'
+            export MYSQL_DATABASE='${MYSQL_DATABASE}'
+            export MYSQL_USER='${MYSQL_USER}'
+            export MYSQL_PASSWORD='${MYSQL_PASSWORD}'
+            export MYSQL_ROOT_PASSWORD='${MYSQL_ROOT_PASSWORD}'
+            export FORCE_HTTPS='${FORCE_HTTPS}'
+            sudo -E docker compose -f docker-compose.prod.yml up -d --build
           "
 
-      - name: Setup SSL certificate on EC2
+      - name: SSL証明書をセットアップ
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
             set -e
-            sudo amazon-linux-extras install -y epel
-            sudo yum install -y certbot
+            echo 'SSL証明書の確認・更新を行います...'
 
-            DOMAIN=mysfa.net
-            EMAIL=admin@mysfa.net
+            if command -v amazon-linux-extras >/dev/null 2>&1; then
+              sudo amazon-linux-extras install -y epel
+              sudo yum install -y certbot
+            else
+              sudo apt-get update && sudo apt-get install -y certbot
+            fi
+
+            DOMAIN=${{ env.DOMAIN_NAME }}
+            EMAIL=${{ env.EMAIL }}
 
             if [ ! -d /etc/letsencrypt/live/\$DOMAIN ]; then
-              sudo certbot certonly --standalone --non-interactive --agree-tos --email \$EMAIL -d \$DOMAIN || echo 'Certificate generation failed'
+              sudo certbot certonly --standalone --non-interactive --agree-tos --email \$EMAIL -d \$DOMAIN || echo '証明書の発行に失敗しました'
             else
-              sudo certbot renew --quiet || echo 'Renewal failed'
+              sudo certbot renew --quiet || echo '証明書の更新に失敗しました'
             fi
           "
 
-      - name: Upload Nginx configuration and start Nginx
+      - name: Nginx設定をアップロードして再起動
         run: |
-          SSH_CMD="ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }}"
-          SCP_CMD="scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa"
+          SSH="ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }}"
+          SCP="scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa"
 
-          if $SSH_CMD "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf | \
-              $SCP_CMD - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+          if $SSH "sudo test -d /etc/letsencrypt/live/${{ env.DOMAIN_NAME }}"; then
+            sed 's/${DOMAIN_NAME}/${{ env.DOMAIN_NAME }}/g' infrastructure/config/nginx-https.conf | \
+              $SCP - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           else
-            sed 's/${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf | \
-              $SCP_CMD - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+            sed 's/${DOMAIN_NAME}/${{ env.DOMAIN_NAME }}/g' infrastructure/config/nginx-simple.conf | \
+              $SCP - ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          $SSH_CMD "
-            cd /home/ec2-user && \
-            sudo docker compose -f docker-compose.prod.yml --profile ssl up -d nginx
+          $SSH "
+            cd /home/ec2-user
+            echo 'Nginxを再起動します...'
+            sudo -E docker compose -f docker-compose.prod.yml --profile ssl up -d nginx
           "
 
-      - name: Health check
+      - name: ヘルスチェック
         run: |
-          sleep 10
-          if curl -fsSL -k https://mysfa.net > /dev/null 2>&1; then
-            echo "HTTPS health check passed"
-          elif curl -fsSL http://mysfa.net > /dev/null 2>&1; then
-            echo "HTTP health check passed"
+          echo "サービスの起動を待機中..."
+          sleep 30
+          if curl -fsSL -k https://${{ env.DOMAIN_NAME }} > /dev/null 2>&1; then
+            echo "HTTPS経由でのヘルスチェックに成功しました。"
+          elif curl -fsSL http://${{ env.DOMAIN_NAME }} > /dev/null 2>&1; then
+            echo "HTTP経由でのヘルスチェックに成功しました。"
           else
-            echo "Health check failed"
+            echo "ヘルスチェックに失敗しました。"
             exit 1
           fi
 
-          echo "Deployment completed successfully"
+          echo "デプロイが正常に完了しました。"
