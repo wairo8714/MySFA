@@ -25,80 +25,90 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Pythonのセットアップ
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: 依存関係をインストール
         run: |
           pip install -e .[dev]
 
-      - name: Run linters
+      - name: コード整形・静的解析を実行
         run: |
           flake8 src/ --max-line-length=88 --ignore=E203,W503
           black --check src/ --line-length 88
           isort --check-only src/ --profile black
 
-      - name: Wait for MySQL to be ready
+      - name: MySQLの起動待機
         run: |
           for i in {30..0}; do
             if mysqladmin ping -h127.0.0.1 -ptest_pass --silent; then
-              echo "MySQL is up!"
+              echo "MySQLサーバーが起動しました。"
               break
             fi
-            echo "Waiting for MySQL..."
+            echo "MySQLサーバーの起動を待機中..."
             sleep 2
           done
 
-      - name: Show Python and Django versions
+      - name: PythonとDjangoのバージョンを表示
         run: |
+          echo "PythonおよびDjangoのバージョン情報を表示します。"
           python --version
           which python
           pip --version
           pip freeze
           cd src
-          python -m django --version || echo "Django未インストール"
+          python -m django --version || echo "Djangoがインストールされていません。"
 
-      - name: Check MySQL server status
+      - name: MySQLサーバーの状態確認
         run: |
-          sudo netstat -tlnp | grep 3306 || echo "3306番ポートが開いていません"
+          echo "MySQLサーバーの稼働状況を確認します。"
+          sudo netstat -tlnp | grep 3306 || echo "ポート3306が開いていません。"
           ps aux | grep mysql
 
-      - name: List src directory files
-        run: ls -l src || echo "srcディレクトリがありません"
+      - name: srcディレクトリの内容を一覧表示
+        run: |
+          echo "srcディレクトリの内容を確認します。"
+          ls -l src || echo "srcディレクトリが存在しません。"
 
-      - name: Show Django migrations status (on failure)
+      - name: Djangoマイグレーションの状態を確認（失敗時）
         if: failure()
         run: |
+          echo "テスト失敗時にDjangoのマイグレーション状況を表示します。"
           cd src
-          python manage.py showmigrations || echo "showmigrations失敗"
+          python manage.py showmigrations || echo "showmigrationsコマンドの実行に失敗しました。"
 
-      - name: Show MySQL error log (on failure)
+      - name: MySQLエラーログの出力（失敗時）
         if: failure()
         run: |
+          echo "MySQLのエラーログを出力します。"
           docker logs $(docker ps -q --filter "ancestor=mysql:8.0")
 
-      - name: Setup MySQL permissions
+      - name: MySQLユーザー権限を設定
         run: |
+          echo "MySQLユーザーの権限を設定します。"
           mysql -h 127.0.0.1 -u root -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%'; FLUSH PRIVILEGES;"
 
-      - name: Run linters and auto-fix
+      - name: コード整形と自動修正
         run: |
+          echo "コードの自動整形を実行します。"
           black src/ --line-length 88
           isort src/ --profile black
-          
           flake8 src/ --max-line-length=88 --ignore=E203,W503
           
           if [ -n "$(git status --porcelain)" ]; then
+            echo "変更が検出されたため、自動修正をコミットします。"
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
             git add .
             git commit -m "Auto-fix code formatting [skip ci]"
             git push
+          else
+            echo "修正の必要はありません。"
           fi
 
-      - name: Run tests
+      - name: テストの実行
         env:
           SECRET_KEY: test-secret-key
           DEBUG: True
@@ -109,6 +119,7 @@ jobs:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
         run: |
+          echo "Djangoのマイグレーションおよびテストを実行します。"
           cd src
           python manage.py migrate
           python manage.py test
