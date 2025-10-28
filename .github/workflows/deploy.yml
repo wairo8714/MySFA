@@ -59,16 +59,23 @@ jobs:
           set -x
           echo "Starting deployment to EC2..."
 
+          # ディスク容量確保のため Docker のクリーンアップ
+          echo "Cleaning up Docker resources..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "sudo docker system prune -a --volumes --force || true"
+          echo "Docker cleanup completed"
+
           # 古いコンテナの停止と削除
-          echo "Cleaning up old containers..."
+          echo "Stopping old containers..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
             "sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
              sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true"
           echo "Old containers removed"
 
-          # docker-compose.prod.tmp.yml を作成（CRLF除去 + 環境変数置換）
-          echo "Creating docker-compose.prod.tmp.yml with environment variables..."
+          # 環境変数を置換してdocker-compose.prod.ymlを作成
+          echo "Creating docker-compose.prod.yml with environment variables..."
           cat docker-compose.prod.yml | tr -d '\r' | sed \
               -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
               -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
@@ -82,28 +89,20 @@ jobs:
               -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
               > docker-compose.prod.tmp.yml
 
-          # /home/ec2-user に直接アップロード（/tmp経由を回避）
+          # docker-compose.prod.yml をアップロード
           echo "Uploading docker-compose.prod.yml to EC2..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml || { 
-            echo "Direct SCP failed, trying alternative method..."
-            # 代替案: stdin経由でアップロード
-            cat docker-compose.prod.tmp.yml | ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-              ec2-user@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/docker-compose.prod.yml" || {
-              echo "All upload methods failed"
-              exit 1
-            }
-          }
+            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
           echo "docker-compose.prod.yml uploaded successfully"
 
-          # Docker Compose で起動
-          echo "Starting app and database services..."
+          # Docker Compose でサービス起動
+          echo "Starting services with docker-compose..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
-          echo "App and database services started"
+          echo "Services started successfully"
 
-          # SSL 設定
+          # SSL 証明書の設定
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} "
@@ -117,7 +116,7 @@ jobs:
               fi
           "
 
-          # Nginx 設定アップロード
+          # Nginx 設定をアップロード
           echo "Uploading Nginx configuration..."
           if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
@@ -131,12 +130,12 @@ jobs:
               ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          # Nginx 起動
+          # Nginx を起動
           echo "Starting nginx with SSL..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx"
-          echo "Nginx started with SSL"
+          echo "Nginx started successfully"
 
           # ヘルスチェック
           echo "Performing health check..."
