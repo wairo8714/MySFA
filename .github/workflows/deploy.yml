@@ -19,7 +19,14 @@ jobs:
       - name: Setup Poetry and install dependencies
         run: |
           poetry config virtualenvs.create false
-          poetry install --only=main --no-root
+          if [ ! -f poetry.lock ]; then
+            echo "poetry.lock not found. Generating..."
+            poetry install --only=main --no-root
+            poetry lock
+          else
+            echo "poetry.lock found. Installing dependencies..."
+            poetry install --only=main --no-root
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -42,17 +49,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash -c '
-            set -e
-            sudo systemctl stop nginx 2>/dev/null
-            sudo systemctl disable nginx 2>/dev/null
-            sudo pkill nginx 2>/dev/null || true
-            sudo fuser -k 443/tcp 2>/dev/null || true
-            sudo docker system prune -a --volumes --force
-            sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true
-            sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true
-          '
-
+          # Create docker-compose.prod.yml with secrets
           sed -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
               -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
               -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
@@ -68,8 +65,18 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
+          # Execute deployment on EC2 in a single SSH command
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
+            "set -e; \
+            sudo systemctl stop nginx 2>/dev/null; \
+            sudo systemctl disable nginx 2>/dev/null; \
+            sudo pkill nginx 2>/dev/null || true; \
+            sudo fuser -k 443/tcp 2>/dev/null || true; \
+            sudo docker system prune -a --volumes --force; \
+            sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true; \
+            sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true; \
+            cd /home/ec2-user; \
+            sudo docker-compose -f docker-compose.prod.yml up -d"
 
       - name: Run linters and formatters
         run: |
