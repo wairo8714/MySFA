@@ -3,42 +3,24 @@ name: デプロイ
 on:
   push:
     branches:
-      - main
+      - main  # mainへのpushで本番デプロイを実行
 
 jobs:
-  lint_and_format:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Poetry セットアップ
-        uses: abatilo/actions-poetry@v1
+        uses: abatilo/actions-poetry@v4
         with:
           poetry-version: 1.5.1
 
-      - name: 依存関係インストール（dev 含む）
-        run: poetry install --with dev
-
-      - name: Linter と Formatter チェック
-        run: |
-          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503 || true
-          poetry run black src/ --check --line-length 88 || true
-          poetry run isort src/ --check-only --profile black || true
-
-      - name: 自動フォーマット（必要に応じて）
-        run: |
-          poetry run black src/ --line-length 88
-          poetry run isort src/ --profile black
-
-  deploy:
-    needs: lint_and_format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+      - name: 依存関係インストール（本番用）
+        run: poetry install --without dev
 
       - name: Docker と SCP デプロイ
         run: |
-          # Docker イメージの古いコンテナ停止と削除
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "sudo systemctl stop nginx || true && \
              sudo pkill nginx || true && \
@@ -47,7 +29,6 @@ jobs:
              sudo docker stop mysfa-app mysfa-db mysfa-nginx || true && \
              sudo docker rm mysfa-app mysfa-db mysfa-nginx || true"
 
-          # docker-compose.yml の置換と転送
           sed -e "s|\${SECRET_KEY}|***|g" \
               -e "s|\${DEBUG}|***|g" \
               -e "s|\${ALLOWED_HOSTS}|***|g" \
