@@ -1,56 +1,68 @@
-name: デプロイ
+name: AWS
 
 on:
   push:
     branches:
       - main
+      - deploy/*
 
 jobs:
   deploy:
+    name: EC2へデプロイ
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      # ソースコードを取得
+      - name: コードをチェックアウト
+        uses: actions/checkout@v4
 
-      - name: Python をセットアップ
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Poetry をインストール
+      # SSH秘密鍵をセットアップ
+      - name: SSH鍵を設定
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          export PATH="$HOME/.local/bin:$PATH"
-          poetry --version
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "✅ SSH鍵のセットアップ完了"
 
-      - name: 依存関係インストール（本番用）
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          poetry install --without dev  # 古いPoetryなら → --no-dev に変更
-
-      - name: Docker と SCP デプロイ
+      # EC2上で古いコンテナ停止とDocker環境のクリア
+      - name: EC2上の旧コンテナ停止・削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "sudo systemctl stop nginx || true && \
              sudo pkill nginx || true && \
              sudo fuser -k 443/tcp || true && \
-             sudo docker system prune -a --volumes --force || true && \
              sudo docker stop mysfa-app mysfa-db mysfa-nginx || true && \
-             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true"
+             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true && \
+             sudo docker system prune -a --volumes --force || true"
+          echo "✅ EC2上の旧コンテナを停止・削除しました。"
 
-          sed -e "s|\${SECRET_KEY}|***|g" \
-              -e "s|\${DEBUG}|***|g" \
-              -e "s|\${ALLOWED_HOSTS}|***|g" \
-              -e "s|\${MYSQL_HOST}|***|g" \
-              -e "s|\${MYSQL_PORT}|***|g" \
-              -e "s|\${MYSQL_DATABASE}|***|g" \
-              -e "s|\${MYSQL_USER}|***|g" \
-              -e "s|\${MYSQL_PASSWORD}|***|g" \
-              -e "s|\${MYSQL_ROOT_PASSWORD}|***|g" \
-              -e "s|\${FORCE_HTTPS}|***|g" \
+      # docker-composeファイルをSecretsで置換
+      - name: docker-composeファイルを生成
+        run: |
+          sed -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
+              -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
+              -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
+              -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
+              -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
+              -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
+              -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
+              -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
+              -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
+              -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
               docker-compose.prod.yml > docker-compose.prod.tmp.yml
+          echo "✅ docker-compose.prod.tmp.yml を生成しました。"
 
+      # EC2へファイル転送
+      - name: docker-composeファイルをEC2へ転送
+        run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
+          echo "✅ docker-composeファイルをEC2へ転送しました。"
 
+      # EC2上でdocker-compose実行（新しいコンテナ起動）
+      - name: EC2上でdocker-composeを実行
+        run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
+          echo "🚀 デプロイ完了：コンテナを起動しました。"
