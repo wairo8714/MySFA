@@ -3,7 +3,7 @@ name: デプロイ
 on:
   push:
     branches:
-      - main  # mainへのpushで本番デプロイを実行
+      - main
 
 jobs:
   deploy:
@@ -11,13 +11,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Poetry セットアップ
-        uses: abatilo/actions-poetry@v4
+      - name: Python をセットアップ
+        uses: actions/setup-python@v5
         with:
-          poetry-version: 1.5.1
+          python-version: '3.12'
+
+      - name: Poetry をインストール
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+          poetry --version
 
       - name: 依存関係インストール（本番用）
-        run: poetry install --without dev
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          poetry install --without dev  # 古いPoetryなら → --no-dev に変更
 
       - name: Docker と SCP デプロイ
         run: |
