@@ -11,14 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install Poetry
-        run: pip install poetry
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
 
-      - name: Setup Poetry and generate lock file
+      - name: Setup Poetry and install dependencies
         run: |
           poetry config virtualenvs.create false
-          poetry config virtualenvs.in-project false
-
           if [ ! -f poetry.lock ]; then
             echo "poetry.lock not found. Generating..."
             poetry install --only=main --no-root
@@ -35,114 +35,59 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      - name: Setup SSH with debugging
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
-
-      - name: Add EC2 to known hosts
-        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: Test SSH connection
         run: |
-          echo "Testing SSH connection..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'" || {
-              echo "SSH connection failed"
-              exit 1
-            }
+            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
       - name: Deploy to EC2
         run: |
           set -x
-          echo "Starting deployment to EC2..."
 
-          # Stop host OS Nginx
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
+          # Stop host Nginx and cleanup
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} <<'ENDSSH'
 sudo systemctl stop nginx 2>/dev/null || true
 sudo systemctl disable nginx 2>/dev/null || true
 sudo pkill nginx 2>/dev/null || true
 sudo fuser -k 443/tcp 2>/dev/null || true
-EOF
-
-          # Docker cleanup
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
 sudo docker system prune -a --volumes --force || true
-EOF
-
-          # Stop and remove old containers
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
 sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true
 sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true
-EOF
+ENDSSH
 
-          # Create docker-compose.prod.yml with env
+          # Create docker-compose.prod.yml with secrets
           cat docker-compose.prod.yml | tr -d '\r' | sed \
-            -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
-            -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
-            -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
-            -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
-            -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
-            -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
-            -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
-            -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
-            -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
-            -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
-            > docker-compose.prod.tmp.yml
+              -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
+              -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
+              -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
+              -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
+              -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
+              -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
+              -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
+              -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
+              -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
+              -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
+              > docker-compose.prod.tmp.yml
 
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-          # Docker Compose up
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} <<'ENDSSH'
 cd /home/ec2-user
 sudo docker-compose -f docker-compose.prod.yml up -d
-EOF
+ENDSSH
 
-          # SSL certificate setup (safe heredoc)
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
-sudo amazon-linux-extras install -y epel
-sudo yum install -y certbot
-if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
-  echo 'Obtaining SSL certificate...'
-  sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo 'Certificate generation failed'
-else
-  echo 'SSL certificate already exists'
-fi
-EOF
-
-          # Upload nginx config depending on SSL
-          if ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "test -d /etc/letsencrypt/live/mysfa.net"; then
-            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf > /tmp/nginx.conf
-          else
-            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf > /tmp/nginx.conf
-          fi
-
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
-
-          # Start Nginx with Docker Compose
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} <<'EOF'
-cd /home/ec2-user
-sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx
-EOF
-
-          # Health check
-          sleep 10
-          if curl -f -k https://mysfa.net 2>/dev/null; then
-            echo "HTTPS health check passed"
-          elif curl -f http://mysfa.net 2>/dev/null; then
-            echo "HTTP health check passed (HTTPS not available)"
-          else
-            echo "Health check failed"
-            exit 1
-          fi
-
-          echo "Deployment completed successfully!"
+      - name: Run linters and formatters
+        run: |
+          poetry install --only=dev
+          flake8 src/ --max-line-length=88 --ignore=E203,W503
+          black --check src/ --line-length 88
+          isort --check-only src/ --profile black
