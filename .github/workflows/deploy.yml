@@ -9,31 +9,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --- リポジトリのチェックアウト ---
       - uses: actions/checkout@v3
 
-      # --- 環境セットアップ：pip系の安定化 ---
-      - name: Setup Python environment and dependencies
+      # --- Python環境とPoetryのセットアップ ---
+      - name: Setup Python and Poetry
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install packaging==24.0
           pip install poetry==1.8.3
 
-      # --- Poetry 設定および依存インストール ---
-      - name: Setup Poetry and generate lock file
+      # --- Poetryの設定と依存関係インストール ---
+      - name: Install dependencies with Poetry
         run: |
           poetry config virtualenvs.create false
           poetry config virtualenvs.in-project false
-          
+
           if [ ! -f poetry.lock ]; then
             echo "poetry.lock not found. Generating..."
-            poetry install --only=main --no-root
             poetry lock
-          else
-            echo "poetry.lock found. Installing dependencies..."
-            poetry install --only=main --no-root
           fi
 
-      # --- AWS 認証 ---
+          poetry install --only=main --no-root
+
+      # --- AWS認証設定 ---
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -41,7 +40,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      # --- SSH 設定 ---
+      # --- SSH鍵の設定 ---
       - name: Setup SSH with debugging
         run: |
           mkdir -p ~/.ssh
@@ -49,6 +48,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
 
+      # --- EC2ホストの登録 ---
       - name: Add EC2 to known hosts
         run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
@@ -62,7 +62,7 @@ jobs:
               exit 1
             }
 
-      # --- デプロイ ---
+      # --- デプロイ処理 ---
       - name: Deploy to EC2
         run: |
           set -x
@@ -108,7 +108,7 @@ jobs:
               -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
               > docker-compose.prod.tmp.yml
 
-          # EC2へアップロード
+          # docker-compose.prod.yml をアップロード
           echo "Uploading docker-compose.prod.yml to EC2..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
