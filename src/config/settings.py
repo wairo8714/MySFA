@@ -114,7 +114,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
+# 静的ファイルにも適用されると400エラーになる可能性があるため、Falseに
+SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -136,7 +137,7 @@ if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Static Files
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+STATICFILES_STORAGE = "whitenoise.storage.WhiteNoiseStaticFilesStorage"
 
 # 本番環境でも確実に動くように、常にfindersを使う
 WHITENOISE_USE_FINDERS = True  # 常にTrue = staticディレクトリから直接読む
