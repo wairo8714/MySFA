@@ -25,6 +25,10 @@ RUN useradd --create-home --shell /bin/bash app
 # Collect static files as root (collectstatic needs write permissions)
 RUN python manage.py collectstatic --noinput --clear
 
+# staticfilesディレクトリの内容を確認（デバッグ用）
+RUN ls -la /app/staticfiles/ || echo "staticfiles directory not found"
+RUN ls -la /app/staticfiles/css/ || echo "CSS files not found"
+
 # Set permissions and switch to app user
 RUN chown -R app:app /app
 

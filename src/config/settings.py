@@ -137,12 +137,18 @@ if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Static Files
-STATICFILES_STORAGE = "whitenoise.storage.WhiteNoiseStaticFilesStorage"
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-# 本番環境でも確実に動くように、常にfindersを使う
-WHITENOISE_USE_FINDERS = True  # 常にTrue = staticディレクトリから直接読む
-WHITENOISE_AUTOREFRESH = False  # 本番ではFalse（ファイル変更を監視しない）
-WHITENOISE_MANIFEST_STRICT = False  # マニフェストファイルがなくてもOK
+# WhiteNoise設定
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+
+# 本番環境ではcollectstaticで集めたファイルを使用
+# DEBUG=Falseの場合はSTATIC_ROOTから、Trueの場合はSTATICFILES_DIRSから
+WHITENOISE_USE_FINDERS = DEBUG  # DEBUGがFalseならFalse = collectstaticのファイルを使う
+WHITENOISE_AUTOREFRESH = False
+WHITENOISE_MANIFEST_STRICT = False
 
 # Logging Configuration
 LOGGING = {
