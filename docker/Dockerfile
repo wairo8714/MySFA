@@ -23,10 +23,7 @@ RUN poetry config virtualenvs.create false \
 RUN useradd --create-home --shell /bin/bash app
 
 # Collect static files as root (collectstatic needs write permissions)
-# データベース接続なしでcollectstaticを実行するため、環境変数を設定
-ENV DATABASE_URL=""
-RUN python manage.py collectstatic --noinput --clear || \
-    (echo "Collectstatic warning: Continuing despite errors" && python manage.py collectstatic --noinput --clear --skip-checks)
+RUN python manage.py collectstatic --noinput --clear
 
 # Set permissions and switch to app user
 RUN chown -R app:app /app
