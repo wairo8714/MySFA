@@ -33,9 +33,24 @@ jobs:
              sudo pkill nginx || true && \
              sudo fuser -k 443/tcp || true && \
              sudo docker stop mysfa-app mysfa-db mysfa-nginx || true && \
-             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true && \
-             sudo docker system prune -a --volumes --force || true"
+             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true"
           echo "EC2上の旧コンテナを停止・削除しました。"
+          
+      # ディスク容量をチェックして必要時のみクリーンアップ
+      - name: ディスク容量チェックとクリーンアップ
+        run: |
+          DISK_USAGE=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            ec2-user@${{ secrets.EC2_HOST }} \
+            "df -h / | awk 'NR==2 {print \$5}' | sed 's/%//'")
+          
+          if [ "$DISK_USAGE" -gt 80 ]; then
+            echo "ディスク使用率が${DISK_USAGE}%のため、Dockerクリーンアップを実行します。"
+            ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+              ec2-user@${{ secrets.EC2_HOST }} \
+              "sudo docker system prune -f || true"
+          else
+            echo "ディスク使用率は${DISK_USAGE}%です。クリーンアップはスキップします。"
+          fi
 
       # docker-composeファイルをSecretsで置換
       - name: docker-composeファイルを生成
@@ -60,7 +75,7 @@ jobs:
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
           echo "docker-composeファイルをEC2へ転送しました。"
 
-      # アプリとDBを起動（Nginxはまだ起動しない）
+      # アプリとDBを起動（既存イメージがあれば再利用、なければpull）
       - name: アプリとDBを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
@@ -109,8 +124,8 @@ jobs:
       - name: ヘルスチェック
         run: |
           echo "ヘルスチェックを実行中..."
-          sleep 10
-          for i in {1..5}; do
+          sleep 5
+          for i in {1..6}; do
             if curl -f -k -s https://mysfa.net > /dev/null 2>&1; then
               echo "HTTPS接続に成功しました"
               exit 0
@@ -118,8 +133,10 @@ jobs:
               echo "HTTP接続は成功しましたが、HTTPSは利用できません"
               exit 0
             else
-              echo "ヘルスチェック試行 $i/5 失敗、再試行中..."
-              sleep 3
+              if [ $i -lt 6 ]; then
+                echo "ヘルスチェック試行 $i/6 失敗、再試行中..."
+                sleep 2
+              fi
             fi
           done
           echo "ヘルスチェックに失敗しました"
