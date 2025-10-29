@@ -138,6 +138,11 @@ if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
 # Static Files
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
+# WhiteNoise設定
+WHITENOISE_USE_FINDERS = DEBUG  # 開発環境でのみTrue
+WHITENOISE_AUTOREFRESH = DEBUG  # 開発環境でのみTrue
+WHITENOISE_MANIFEST_STRICT = False  # マニフェストファイルがなくても動作
+
 # Logging Configuration
 LOGGING = {
     "version": 1,
