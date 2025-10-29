@@ -11,9 +11,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install Poetry
-        run: pip install poetry
+      # --- 環境セットアップ：pip系の安定化 ---
+      - name: Setup Python environment and dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install packaging==24.0
+          pip install poetry==1.8.3
 
+      # --- Poetry 設定および依存インストール ---
       - name: Setup Poetry and generate lock file
         run: |
           poetry config virtualenvs.create false
@@ -28,6 +33,7 @@ jobs:
             poetry install --only=main --no-root
           fi
 
+      # --- AWS 認証 ---
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -35,6 +41,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
+      # --- SSH 設定 ---
       - name: Setup SSH with debugging
         run: |
           mkdir -p ~/.ssh
@@ -45,6 +52,7 @@ jobs:
       - name: Add EC2 to known hosts
         run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      # --- SSH接続テスト ---
       - name: Test SSH connection
         run: |
           echo "Testing SSH connection..."
@@ -54,6 +62,7 @@ jobs:
               exit 1
             }
 
+      # --- デプロイ ---
       - name: Deploy to EC2
         run: |
           set -x
@@ -69,7 +78,7 @@ jobs:
              sudo fuser -k 443/tcp 2>/dev/null || true"
           echo "Host OS Nginx stopped"
 
-          # ディスク容量確保のため Docker のクリーンアップ
+          # Dockerのクリーンアップ
           echo "Cleaning up Docker resources..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
@@ -84,7 +93,7 @@ jobs:
              sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true"
           echo "Old containers removed"
 
-          # 環境変数を置換してdocker-compose.prod.ymlを作成
+          # docker-compose.prod.yml を環境変数で置換して生成
           echo "Creating docker-compose.prod.yml with environment variables..."
           cat docker-compose.prod.yml | tr -d '\r' | sed \
               -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
@@ -99,20 +108,20 @@ jobs:
               -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
               > docker-compose.prod.tmp.yml
 
-          # docker-compose.prod.yml をアップロード
+          # EC2へアップロード
           echo "Uploading docker-compose.prod.yml to EC2..."
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
           echo "docker-compose.prod.yml uploaded successfully"
 
-          # Docker Compose でサービス起動
+          # Docker Composeでサービス起動
           echo "Starting services with docker-compose..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
           echo "Services started successfully"
 
-          # SSL 証明書の設定
+          # SSL証明書の設定
           echo "Setting up SSL certificate..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} "
@@ -126,7 +135,7 @@ jobs:
               fi
           "
 
-          # Nginx 設定をアップロード
+          # Nginx設定アップロード
           echo "Uploading Nginx configuration..."
           if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL certificate found, using HTTPS configuration"
@@ -140,7 +149,7 @@ jobs:
               /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
           fi
 
-          # Nginx を起動
+          # Nginx起動
           echo "Starting nginx with SSL..."
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa \
             ec2-user@${{ secrets.EC2_HOST }} \
