@@ -19,12 +19,14 @@ COPY src/ /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-interaction --no-ansi
 
-# Collect static files before switching to app user
-RUN python manage.py collectstatic --noinput || echo "No static files to collect"
+# Create app user before collectstatic
+RUN useradd --create-home --shell /bin/bash app
 
-# Create app user and set permissions
-RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app
+# Collect static files as root (collectstatic needs write permissions)
+RUN python manage.py collectstatic --noinput --clear
+
+# Set permissions and switch to app user
+RUN chown -R app:app /app
 
 USER app
 
