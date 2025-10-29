@@ -1,48 +1,49 @@
-name: AWS へのデプロイ
+name: CI / CD
 
 on:
   push:
-    branches: [ main, deploy/* ]
+    branches:
+      - main
+  pull_request:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      AWS_DEFAULT_REGION: ap-northeast-1
+      AWS_REGION: ap-northeast-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v3
 
-      - name: Python と Poetry のセットアップ
+      - name: Python のセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Poetry のインストール
         run: |
           python -m pip install --upgrade pip
           pip install poetry
 
       - name: Poetry で依存関係をインストール
         run: |
-          poetry config virtualenvs.create false
-          poetry install --no-root
+          # 仮想環境を作って dev パッケージもインストール
+          poetry config virtualenvs.create true
+          poetry install --with dev
 
-      - name: AWS 認証情報の設定
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-1
-
-      - name: SSH のセットアップ
+      - name: Linter と Formatter チェック
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-      - name: EC2 への接続テスト
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH 接続成功'"
+          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503
+          poetry run black --check src/ --line-length 88
+          poetry run isort --check-only src/ --profile black
 
       - name: EC2 にデプロイ
         run: |
-          set -e
+          # Nginx と Docker の停止・クリーンアップ
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
             sudo systemctl stop nginx || true
             sudo pkill nginx || true
@@ -52,30 +53,10 @@ jobs:
             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true
           "
 
-          sed \
-            -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
-            -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
-            -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
-            -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
-            -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
-            -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
-            -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
-            -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
-            -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
-            -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
-            docker-compose.prod.yml > docker-compose.prod.tmp.yml
-
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
-
+      - name: docker-compose を使ってアプリ起動
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user
             sudo docker-compose -f docker-compose.prod.yml up -d
           "
-
-      - name: Linter と Formatter のチェック
-        run: |
-          poetry install --with dev
-          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503
-          poetry run black --check src/ --line-length 88
-          poetry run isort --check-only src/ --profile black
