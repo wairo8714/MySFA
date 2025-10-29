@@ -2,7 +2,7 @@ name: Deploy to AWS
 
 on:
   push:
-    branches: [ main, deploy/* ]
+    branches: [ main, 'deploy/*' ]
 
 jobs:
   deploy:
@@ -11,22 +11,32 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install Python dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
         run: |
-          python -m pip install --upgrade pip
+          sudo apt-get update
+          sudo apt-get install -y libmysqlclient-dev
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip setuptools
           pip install poetry
 
       - name: Setup Poetry and install dependencies
         run: |
-          poetry config virtualenvs.create false
-          if [ ! -f poetry.lock ]; then
-            echo "poetry.lock not found. Generating..."
-            poetry install --only=main --no-root
-            poetry lock
-          else
-            echo "poetry.lock found. Installing dependencies..."
-            poetry install --only=main --no-root
-          fi
+          poetry config virtualenvs.create true
+          poetry install --only=main --no-root
+
+      - name: Run linters and formatters
+        run: |
+          poetry install --only=dev
+          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503
+          poetry run black --check src/ --line-length 88
+          poetry run isort --check-only src/ --profile black
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -49,7 +59,13 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          # Create docker-compose.prod.yml with secrets
+          # Stop old containers and clean up
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash <<'EOF'
+docker-compose -f /home/ec2-user/docker-compose.prod.yml down || true
+docker system prune -a --volumes --force || true
+EOF
+
+          # Generate docker-compose.prod.yml with secrets
           sed -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
               -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
               -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
@@ -65,22 +81,6 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-          # Execute deployment on EC2 in a single SSH command
+          # Start containers
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "set -e; \
-            sudo systemctl stop nginx 2>/dev/null; \
-            sudo systemctl disable nginx 2>/dev/null; \
-            sudo pkill nginx 2>/dev/null || true; \
-            sudo fuser -k 443/tcp 2>/dev/null || true; \
-            sudo docker system prune -a --volumes --force; \
-            sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true; \
-            sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true; \
-            cd /home/ec2-user; \
-            sudo docker-compose -f docker-compose.prod.yml up -d"
-
-      - name: Run linters and formatters
-        run: |
-          poetry install --only=dev
-          flake8 src/ --max-line-length=88 --ignore=E203,W503
-          black --check src/ --line-length 88
-          isort --check-only src/ --profile black
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
