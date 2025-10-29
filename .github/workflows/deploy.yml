@@ -23,7 +23,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          echo "✅ SSH鍵のセットアップ完了"
+          echo "SSH鍵のセットアップ完了"
 
       # EC2上で古いコンテナ停止とDocker環境のクリア
       - name: EC2上の旧コンテナ停止・削除
@@ -35,7 +35,7 @@ jobs:
              sudo docker stop mysfa-app mysfa-db mysfa-nginx || true && \
              sudo docker rm mysfa-app mysfa-db mysfa-nginx || true && \
              sudo docker system prune -a --volumes --force || true"
-          echo "✅ EC2上の旧コンテナを停止・削除しました。"
+          echo "EC2上の旧コンテナを停止・削除しました。"
 
       # docker-composeファイルをSecretsで置換
       - name: docker-composeファイルを生成
@@ -51,18 +51,76 @@ jobs:
               -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
               -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
               docker-compose.prod.yml > docker-compose.prod.tmp.yml
-          echo "✅ docker-compose.prod.tmp.yml を生成しました。"
+          echo "docker-compose.prod.tmp.yml を生成しました。"
 
       # EC2へファイル転送
       - name: docker-composeファイルをEC2へ転送
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
-          echo "✅ docker-composeファイルをEC2へ転送しました。"
+          echo "docker-composeファイルをEC2へ転送しました。"
 
-      # EC2上でdocker-compose実行（新しいコンテナ起動）
-      - name: EC2上でdocker-composeを実行
+      # アプリとDBを起動（Nginxはまだ起動しない）
+      - name: アプリとDBを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
-          echo "🚀 デプロイ完了：コンテナを起動しました。"
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d app db"
+          echo "アプリとDBを起動しました。"
+
+      # SSL証明書の設定
+      - name: SSL証明書の設定
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+            "if ! command -v certbot &> /dev/null; then
+              sudo amazon-linux-extras install -y epel
+              sudo yum install -y certbot
+            fi
+            if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
+              echo 'SSL証明書を取得中...'
+              sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo '証明書取得に失敗しました'
+            else
+              echo 'SSL証明書は既に存在します'
+            fi"
+          echo "SSL証明書の設定完了"
+
+      # Nginx設定ファイルをアップロード
+      - name: Nginx設定ファイルをアップロード
+        run: |
+          # SSL証明書があるか確認して適切な設定を選択
+          if ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
+            echo "SSL証明書が見つかりました。HTTPS設定を使用します。"
+            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf > /tmp/nginx.conf
+          else
+            echo "SSL証明書が見つかりません。HTTP設定を使用します。"
+            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf > /tmp/nginx.conf
+          fi
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
+          echo "Nginx設定ファイルをアップロードしました。"
+
+      # Nginxを起動（profile指定が必要）
+      - name: Nginxを起動
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx"
+          echo "Nginxを起動しました。"
+
+      # ヘルスチェック
+      - name: ヘルスチェック
+        run: |
+          echo "ヘルスチェックを実行中..."
+          sleep 10
+          for i in {1..5}; do
+            if curl -f -k -s https://mysfa.net > /dev/null 2>&1; then
+              echo "HTTPS接続に成功しました"
+              exit 0
+            elif curl -f -s http://mysfa.net > /dev/null 2>&1; then
+              echo "HTTP接続は成功しましたが、HTTPSは利用できません"
+              exit 0
+            else
+              echo "ヘルスチェック試行 $i/5 失敗、再試行中..."
+              sleep 3
+            fi
+          done
+          echo "ヘルスチェックに失敗しました"
+          exit 1
