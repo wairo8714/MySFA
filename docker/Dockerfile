@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     pkg-config \
     default-libmysqlclient-dev \
@@ -19,15 +19,8 @@ COPY src/ /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-interaction --no-ansi
 
-# Create app user before collectstatic
+# Create app user
 RUN useradd --create-home --shell /bin/bash app
-
-# Collect static files as root (collectstatic needs write permissions)
-RUN python manage.py collectstatic --noinput --clear
-
-# staticfilesディレクトリの内容を確認（デバッグ用）
-RUN ls -la /app/staticfiles/ || echo "staticfiles directory not found"
-RUN ls -la /app/staticfiles/css/ || echo "CSS files not found"
 
 # Set permissions and switch to app user
 RUN chown -R app:app /app
@@ -37,4 +30,5 @@ USER app
 EXPOSE 8000
 
 # Use gunicorn for production
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# collectstaticはEC2上でコンテナ起動時に実行（イメージサイズを小さくするため）
+CMD ["sh", "-c", "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"]
