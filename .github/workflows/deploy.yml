@@ -42,10 +42,6 @@ jobs:
             echo \"FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}\" >> /home/ec2-user/.env.prod
             echo \"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}\" >> /home/ec2-user/.env.prod
             if [ -f /home/ec2-user/.env ]; then
-              echo \"# .env の値を補完\" >> /home/ec2-user/.env.prod
-              cat /home/ec2-user/.env >> /home/ec2-user/.env.prod
-            fi
-          '"
 
       - name: 古いコンテナ停止と削除
         run: |
