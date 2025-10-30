@@ -11,9 +11,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key"
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,mysfa.net,app").split(
-    ","
-)
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,mysfa.net,app").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -24,11 +22,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts.apps.AccountsConfig",
     "mysfa.apps.MysfaConfig",
+    "storages",  # django-storages を追加
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -66,9 +64,7 @@ DATABASES = {
         "PASSWORD": os.getenv("MYSQL_PASSWORD", ""),
         "HOST": os.getenv("MYSQL_HOST", "mysql"),
         "PORT": os.getenv("MYSQL_PORT", "3306"),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        },
+        "OPTIONS": {"charset": "utf8mb4"},
     }
 }
 
@@ -90,12 +86,20 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = False
 
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+# 静的ファイルとメディアを S3 管理
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.getenv("AWS_REGION", "ap-northeast-1")
+AWS_QUERYSTRING_AUTH = False  # 公開ファイルは署名不要
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+# Static Files
+STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+
+# Media Files
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
@@ -114,7 +118,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
-# 静的ファイルにも適用されると400エラーになる可能性があるため、Falseに
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = "DENY"
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
@@ -135,20 +138,6 @@ if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
-# Static Files
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-
-# WhiteNoise設定
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
-
-# 本番環境ではcollectstaticで集めたファイルを使用
-# DEBUG=Falseの場合はSTATIC_ROOTから、Trueの場合はSTATICFILES_DIRSから
-WHITENOISE_USE_FINDERS = DEBUG  # DEBUGがFalseならFalse = collectstaticのファイルを使う
-WHITENOISE_AUTOREFRESH = False
-WHITENOISE_MANIFEST_STRICT = False
 
 # Logging Configuration
 LOGGING = {
@@ -177,15 +166,6 @@ LOGGING = {
             "formatter": "simple",
         },
     },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO",
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-    },
+    "root": {"handlers": ["console", "file"], "level": "INFO"},
+    "loggers": {"django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}},
 }
