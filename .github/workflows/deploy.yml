@@ -52,19 +52,32 @@ jobs:
             echo "ディスク使用率は${DISK_USAGE}%です。クリーンアップはスキップします。"
           fi
 
-      # docker-composeファイルをSecretsで置換
+      # docker-composeファイルをSecrets優先・.env fallbackで生成
       - name: docker-composeファイルを生成
         run: |
-          sed -e "s|\${SECRET_KEY}|${{ secrets.SECRET_KEY }}|g" \
-              -e "s|\${DEBUG}|${{ secrets.DEBUG }}|g" \
-              -e "s|\${ALLOWED_HOSTS}|${{ secrets.ALLOWED_HOSTS }}|g" \
-              -e "s|\${MYSQL_HOST}|${{ secrets.MYSQL_HOST }}|g" \
-              -e "s|\${MYSQL_PORT}|${{ secrets.MYSQL_PORT }}|g" \
-              -e "s|\${MYSQL_DATABASE}|${{ secrets.MYSQL_DATABASE }}|g" \
-              -e "s|\${MYSQL_USER}|${{ secrets.MYSQL_USER }}|g" \
-              -e "s|\${MYSQL_PASSWORD}|${{ secrets.MYSQL_PASSWORD }}|g" \
-              -e "s|\${MYSQL_ROOT_PASSWORD}|${{ secrets.MYSQL_ROOT_PASSWORD }}|g" \
-              -e "s|\${FORCE_HTTPS}|${{ secrets.FORCE_HTTPS }}|g" \
+          ENV_FILE=".env"
+          for VAR in SECRET_KEY DEBUG ALLOWED_HOSTS MYSQL_HOST MYSQL_PORT MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD FORCE_HTTPS AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY S3_BUCKET_NAME; do
+            VAL=${{ secrets[VAR] }} || true
+            if [ -z "$VAL" ] && [ -f "$ENV_FILE" ]; then
+              VAL=$(grep "^$VAR=" $ENV_FILE | cut -d '=' -f2-)
+            fi
+            export $VAR="$VAL"
+          done
+
+          # docker-compose.prod.yml に置換して生成
+          sed -e "s|\${SECRET_KEY}|$SECRET_KEY|g" \
+              -e "s|\${DEBUG}|$DEBUG|g" \
+              -e "s|\${ALLOWED_HOSTS}|$ALLOWED_HOSTS|g" \
+              -e "s|\${MYSQL_HOST}|$MYSQL_HOST|g" \
+              -e "s|\${MYSQL_PORT}|$MYSQL_PORT|g" \
+              -e "s|\${MYSQL_DATABASE}|$MYSQL_DATABASE|g" \
+              -e "s|\${MYSQL_USER}|$MYSQL_USER|g" \
+              -e "s|\${MYSQL_PASSWORD}|$MYSQL_PASSWORD|g" \
+              -e "s|\${MYSQL_ROOT_PASSWORD}|$MYSQL_ROOT_PASSWORD|g" \
+              -e "s|\${FORCE_HTTPS}|$FORCE_HTTPS|g" \
+              -e "s|\${AWS_ACCESS_KEY_ID}|$AWS_ACCESS_KEY_ID|g" \
+              -e "s|\${AWS_SECRET_ACCESS_KEY}|$AWS_SECRET_ACCESS_KEY|g" \
+              -e "s|\${S3_BUCKET_NAME}|$S3_BUCKET_NAME|g" \
               docker-compose.prod.yml > docker-compose.prod.tmp.yml
           echo "docker-compose.prod.tmp.yml を生成しました。"
 
@@ -101,7 +114,6 @@ jobs:
       # Nginx設定ファイルをアップロード
       - name: Nginx設定ファイルをアップロード
         run: |
-          # SSL証明書があるか確認して適切な設定を選択
           if ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
             echo "SSL証明書が見つかりました。HTTPS設定を使用します。"
             sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf > /tmp/nginx.conf
