@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   app:
     image: wairo8714/mysfa_ver2:latest
@@ -6,6 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Secrets もしくは .env から取得
       SECRET_KEY: ${SECRET_KEY}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
