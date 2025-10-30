@@ -45,9 +45,8 @@ resource "aws_instance" "main" {
     secret_key         = var.secret_key
     allowed_hosts      = var.allowed_hosts
     domain_name        = var.domain_name
-    aws_access_key_id  = aws_iam_access_key.django.id
-    aws_secret_access_key = aws_iam_access_key.django.secret
-    s3_bucket_name     = aws_s3_bucket.static.bucket
+    s3_bucket_name     = var.s3_bucket_name
+    aws_region         = var.aws_region
   })
 
   tags = {
@@ -66,7 +65,6 @@ resource "aws_security_group" "main" {
   name_prefix = "${var.project_name}-"
   description = "Security group for MySFA application"
 
-  # SSH - 特定IPからのみアクセス許可
   ingress {
     from_port   = 22
     to_port     = 22
@@ -75,7 +73,6 @@ resource "aws_security_group" "main" {
     description = "SSH access from specific IPs only"
   }
 
-  # HTTP
   ingress {
     from_port   = 80
     to_port     = 80
@@ -84,7 +81,6 @@ resource "aws_security_group" "main" {
     description = "HTTP for HTTPS redirect"
   }
 
-  # HTTPS
   ingress {
     from_port   = 443
     to_port     = 443
@@ -131,9 +127,9 @@ resource "aws_route53_record" "main" {
   records = [aws_eip.main.public_ip]
 }
 
-# Django static用 S3バケット
-resource "aws_s3_bucket" "static" {
-  bucket = "${var.project_name}-static"
+# S3バケット（静的・メディア用）
+resource "aws_s3_bucket" "mysfa_bucket" {
+  bucket = var.s3_bucket_name
   acl    = "private"
 
   versioning {
@@ -141,46 +137,27 @@ resource "aws_s3_bucket" "static" {
   }
 
   tags = {
-    Name = "${var.project_name}-static"
+    Name        = "${var.project_name}-bucket"
+    Environment = "production"
   }
 }
 
-# Django用 IAMユーザー
-resource "aws_iam_user" "django" {
-  name = "${var.project_name}-django"
-}
-
-# S3バケットへのアクセス権限ポリシー
-resource "aws_iam_policy" "django_s3_policy" {
-  name        = "${var.project_name}-django-s3-policy"
-  description = "Allow Django to manage static files in S3 bucket"
-  policy      = jsonencode({
+resource "aws_s3_bucket_policy" "mysfa_bucket_policy" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+  policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = [
-          "s3:PutObject",
+        Sid       = "AllowDjangoAccess"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = [
           "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
-        Resource = [
-          aws_s3_bucket.static.arn,
-          "${aws_s3_bucket.static.arn}/*"
-        ]
+        Resource = "${aws_s3_bucket.mysfa_bucket.arn}/*"
       }
     ]
   })
-}
-
-# ポリシーをユーザーにアタッチ
-resource "aws_iam_user_policy_attachment" "django_s3_attach" {
-  user       = aws_iam_user.django.name
-  policy_arn = aws_iam_policy.django_s3_policy.arn
-}
-
-# アクセスキー作成
-resource "aws_iam_access_key" "django" {
-  user = aws_iam_user.django.name
 }
