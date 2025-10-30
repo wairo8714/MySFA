@@ -34,7 +34,7 @@ resource "aws_instance" "main" {
   instance_type          = var.instance_type
   key_name               = aws_key_pair.main.key_name
   vpc_security_group_ids = [aws_security_group.main.id]
- 
+
   user_data = templatefile("${path.module}/../config/user_data.sh", {
     dockerhub_username  = var.dockerhub_username
     mysql_host         = var.mysql_host
@@ -45,6 +45,9 @@ resource "aws_instance" "main" {
     secret_key         = var.secret_key
     allowed_hosts      = var.allowed_hosts
     domain_name        = var.domain_name
+    aws_access_key_id  = aws_iam_access_key.django.id
+    aws_secret_access_key = aws_iam_access_key.django.secret
+    s3_bucket_name     = aws_s3_bucket.static.bucket
   })
 
   tags = {
@@ -58,7 +61,7 @@ resource "aws_key_pair" "main" {
   public_key = file("${path.module}/../keys/mysfa-dev-keypair.pub")
 }
 
-# セキュリティグループ（セキュア構成）
+# セキュリティグループ
 resource "aws_security_group" "main" {
   name_prefix = "${var.project_name}-"
   description = "Security group for MySFA application"
@@ -72,7 +75,7 @@ resource "aws_security_group" "main" {
     description = "SSH access from specific IPs only"
   }
 
-  # HTTP - HTTPSリダイレクト用
+  # HTTP
   ingress {
     from_port   = 80
     to_port     = 80
@@ -81,7 +84,7 @@ resource "aws_security_group" "main" {
     description = "HTTP for HTTPS redirect"
   }
 
-  # HTTPS - Nginxリバースプロキシ経由
+  # HTTPS
   ingress {
     from_port   = 443
     to_port     = 443
@@ -89,7 +92,6 @@ resource "aws_security_group" "main" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "HTTPS access via Nginx reverse proxy"
   }
-
 
   egress {
     from_port   = 0
@@ -127,4 +129,58 @@ resource "aws_route53_record" "main" {
   type    = "A"
   ttl     = 300
   records = [aws_eip.main.public_ip]
+}
+
+# Django static用 S3バケット
+resource "aws_s3_bucket" "static" {
+  bucket = "${var.project_name}-static"
+  acl    = "private"
+
+  versioning {
+    enabled = true
+  }
+
+  tags = {
+    Name = "${var.project_name}-static"
+  }
+}
+
+# Django用 IAMユーザー
+resource "aws_iam_user" "django" {
+  name = "${var.project_name}-django"
+}
+
+# S3バケットへのアクセス権限ポリシー
+resource "aws_iam_policy" "django_s3_policy" {
+  name        = "${var.project_name}-django-s3-policy"
+  description = "Allow Django to manage static files in S3 bucket"
+  policy      = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.static.arn,
+          "${aws_s3_bucket.static.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# ポリシーをユーザーにアタッチ
+resource "aws_iam_user_policy_attachment" "django_s3_attach" {
+  user       = aws_iam_user.django.name
+  policy_arn = aws_iam_policy.django_s3_policy.arn
+}
+
+# アクセスキー作成
+resource "aws_iam_access_key" "django" {
+  user = aws_iam_user.django.name
 }
