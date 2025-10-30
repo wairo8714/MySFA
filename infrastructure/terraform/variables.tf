@@ -35,13 +35,11 @@ variable "mysql_host" {
 variable "mysql_database" {
   description = "MySQL database name"
   type        = string
-  default     = "mysfa_db"
 }
 
 variable "mysql_user" {
   description = "MySQL user"
   type        = string
-  default     = "admin"
 }
 
 variable "mysql_password" {
@@ -63,11 +61,16 @@ variable "secret_key" {
 }
 
 variable "allowed_hosts" {
-  description = "Django ALLOWED_HOSTS setting"
+  description = "Django ALLOWED_HOSTS"
   type        = string
 }
 
 variable "domain_name" {
   description = "Domain name for the application"
+  type        = string
+}
+
+variable "s3_bucket_name" {
+  description = "S3 bucket name for static and media files"
   type        = string
 }
