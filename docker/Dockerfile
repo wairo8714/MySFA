@@ -1,76 +1,38 @@
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "ap-northeast-1"
-}
+# ベースイメージ
+FROM python:3.12-slim
 
-variable "project_name" {
-  description = "Project name"
-  type        = string
-  default     = "mysfa"
-}
+# 環境変数設定
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-variable "instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t3.micro"
-}
+# 作業ディレクトリ作成
+WORKDIR /app
 
-variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed to SSH access"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
+# 必要パッケージインストール
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libmysqlclient-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-variable "dockerhub_username" {
-  description = "Docker Hub username for image pulling"
-  type        = string
-}
+# Poetry インストール
+RUN curl -sSL https://install.python-poetry.org | python3 -
 
-variable "mysql_host" {
-  description = "MySQL host"
-  type        = string
-}
+# PATHに追加
+ENV PATH="/root/.local/bin:$PATH"
 
-variable "mysql_database" {
-  description = "MySQL database name"
-  type        = string
-}
+# 依存関係コピーとインストール
+COPY pyproject.toml poetry.lock* /app/
+RUN poetry install --no-root --only main
 
-variable "mysql_user" {
-  description = "MySQL user"
-  type        = string
-}
+# アプリケーションコピー
+COPY . /app/
 
-variable "mysql_password" {
-  description = "MySQL password"
-  type        = string
-  sensitive   = true
-}
+# Django collectstatic はコンテナ内で行う
+RUN poetry run python manage.py collectstatic --noinput
 
-variable "mysql_root_password" {
-  description = "MySQL root password"
-  type        = string
-  sensitive   = true
-}
+# ポート開放
+EXPOSE 8000
 
-variable "secret_key" {
-  description = "Django secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "allowed_hosts" {
-  description = "Django ALLOWED_HOSTS"
-  type        = string
-}
-
-variable "domain_name" {
-  description = "Domain name for the application"
-  type        = string
-}
-
-variable "s3_bucket_name" {
-  description = "S3 bucket name for static and media files"
-  type        = string
-}
+# 起動コマンド
+CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
