@@ -1,33 +1,76 @@
-FROM python:3.12-slim
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "ap-northeast-1"
+}
 
-# 必要パッケージ
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    pkg-config \
-    default-libmysqlclient-dev \
-    bash \
-    procps \
-    && rm -rf /var/lib/apt/lists/*
+variable "project_name" {
+  description = "Project name"
+  type        = string
+  default     = "mysfa"
+}
 
-WORKDIR /app
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.micro"
+}
 
-# Poetry インストール
-RUN pip install --no-cache-dir poetry
+variable "allowed_ssh_cidrs" {
+  description = "CIDR blocks allowed to SSH access"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
 
-# プロジェクトファイルコピー
-COPY pyproject.toml poetry.lock* /app/
-COPY src/ /app/
+variable "dockerhub_username" {
+  description = "Docker Hub username for image pulling"
+  type        = string
+}
 
-# Poetry 設定（仮想環境は作らない）
-RUN poetry config virtualenvs.create false \
-    && poetry install --only=main --no-interaction --no-ansi
+variable "mysql_host" {
+  description = "MySQL host"
+  type        = string
+}
 
-# アプリ用ユーザー作成
-RUN useradd --create-home --shell /bin/bash app
-RUN chown -R app:app /app
-USER app
+variable "mysql_database" {
+  description = "MySQL database name"
+  type        = string
+}
 
-EXPOSE 8000
+variable "mysql_user" {
+  description = "MySQL user"
+  type        = string
+}
 
-# Gunicorn 起動 (collectstatic は S3 使用前提なら削除可)
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"]
+variable "mysql_password" {
+  description = "MySQL password"
+  type        = string
+  sensitive   = true
+}
+
+variable "mysql_root_password" {
+  description = "MySQL root password"
+  type        = string
+  sensitive   = true
+}
+
+variable "secret_key" {
+  description = "Django secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "allowed_hosts" {
+  description = "Django ALLOWED_HOSTS"
+  type        = string
+}
+
+variable "domain_name" {
+  description = "Domain name for the application"
+  type        = string
+}
+
+variable "s3_bucket_name" {
+  description = "S3 bucket name for static and media files"
+  type        = string
+}
