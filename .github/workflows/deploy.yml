@@ -12,180 +12,69 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ソースコードを取得
       - name: コードをチェックアウト
         uses: actions/checkout@v4
 
-      # SSH秘密鍵をセットアップ
       - name: SSH鍵を設定
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          echo "SSH鍵のセットアップ完了"
 
-      # EC2上で古いコンテナ停止とDocker環境のクリア
-      - name: EC2上の旧コンテナ停止・削除
+      - name: EC2へdocker-compose.prod.ymlと.env.prodを作成
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
+            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
+
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash -c "'
+            # Secrets優先、なければ.envから読み込み
+            touch /home/ec2-user/.env.prod
+            echo \"SECRET_KEY=${{ secrets.SECRET_KEY }}\" > /home/ec2-user/.env.prod
+            echo \"DEBUG=${{ secrets.DEBUG }}\" >> /home/ec2-user/.env.prod
+            echo \"ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_USER=${{ secrets.MYSQL_USER }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_HOST=${{ secrets.MYSQL_HOST }}\" >> /home/ec2-user/.env.prod
+            echo \"MYSQL_PORT=${{ secrets.MYSQL_PORT }}\" >> /home/ec2-user/.env.prod
+            echo \"FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}\" >> /home/ec2-user/.env.prod
+            echo \"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}\" >> /home/ec2-user/.env.prod
+            if [ -f /home/ec2-user/.env ]; then
+              echo \"# .env の値を補完\" >> /home/ec2-user/.env.prod
+              cat /home/ec2-user/.env >> /home/ec2-user/.env.prod
+            fi
+          '"
+
+      - name: 古いコンテナ停止と削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo systemctl stop nginx || true && \
-             sudo pkill nginx || true && \
-             sudo fuser -k 443/tcp || true && \
-             sudo docker stop mysfa-app mysfa-db mysfa-nginx || true && \
-             sudo docker rm mysfa-app mysfa-db mysfa-nginx || true"
-          echo "EC2上の旧コンテナを停止・削除しました。"
-          
-      # ディスク容量をチェックして必要時のみクリーンアップ
-      - name: ディスク容量チェックとクリーンアップ
-        run: |
-          DISK_USAGE=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            ec2-user@${{ secrets.EC2_HOST }} \
-            "df -h / | awk 'NR==2 {print \$5}' | sed 's/%//'")
-          
-          if [ "$DISK_USAGE" -gt 80 ]; then
-            echo "ディスク使用率が${DISK_USAGE}%のため、Dockerクリーンアップを実行します。"
-            ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-              ec2-user@${{ secrets.EC2_HOST }} \
-              "sudo docker system prune -f || true"
-          else
-            echo "ディスク使用率は${DISK_USAGE}%です。クリーンアップはスキップします。"
-          fi
+            "sudo docker-compose -f /home/ec2-user/docker-compose.prod.yml down || true"
 
-      # docker-compose.prod.yml を生成（Secrets優先、なければ.env想定）
-      - name: docker-composeファイルを生成
-        run: |
-          echo "生成中: docker-compose.prod.tmp.yml"
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-          set -a
-          if [ -f /home/ec2-user/.env ]; then
-            source /home/ec2-user/.env
-          fi
-          set +a
-          cat > /home/ec2-user/docker-compose.prod.tmp.yml <<EOD
-version: '3.8'
-
-services:
-  app:
-    image: wairo8714/mysfa_ver2:latest
-    container_name: mysfa-app
-    platform: linux/amd64
-    ports:
-      - "8000:8000"
-    environment:
-      SECRET_KEY: ${SECRET_KEY:-${{ secrets.SECRET_KEY }}}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-${{ secrets.MYSQL_DATABASE }}}
-      MYSQL_USER: ${MYSQL_USER:-${{ secrets.MYSQL_USER }}}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-${{ secrets.MYSQL_PASSWORD }}}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-${{ secrets.MYSQL_ROOT_PASSWORD }}}
-      MYSQL_HOST: ${MYSQL_HOST:-${{ secrets.MYSQL_HOST }}}
-      MYSQL_PORT: ${MYSQL_PORT:-${{ secrets.MYSQL_PORT }}}
-      DEBUG: ${DEBUG:-${{ secrets.DEBUG }}}
-      FORCE_HTTPS: ${FORCE_HTTPS:-${{ secrets.FORCE_HTTPS }}}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-${{ secrets.ALLOWED_HOSTS }}}
-      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-${{ secrets.S3_BUCKET_NAME }}}
-    depends_on:
-      - db
-    restart: unless-stopped
-
-  db:
-    image: mysql:8.0
-    container_name: mysfa-db
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-${{ secrets.MYSQL_ROOT_PASSWORD }}}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-${{ secrets.MYSQL_DATABASE }}}
-      MYSQL_USER: ${MYSQL_USER:-${{ secrets.MYSQL_USER }}}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-${{ secrets.MYSQL_PASSWORD }}}
-    volumes:
-      - db_data:/var/lib/mysql
-    restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
-
-  nginx:
-    image: nginx:alpine
-    container_name: mysfa-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /home/ec2-user/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-    profiles: ["ssl"]
-
-volumes:
-  db_data:
-EOD
-EOF
-
-      # docker-compose.prod.yml を EC2 に転送
-      - name: docker-composeファイルをEC2へ転送
-        run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            docker-compose.prod.tmp.yml ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
-          echo "docker-compose.prod.yml を転送しました。"
-
-      # アプリとDBを起動
       - name: アプリとDBを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d app db"
-          echo "アプリとDBを起動しました。"
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
 
-      # SSL証明書の設定
-      - name: SSL証明書の設定
+      - name: Nginx起動（SSL有効化）
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "if ! command -v certbot &> /dev/null; then
-              sudo amazon-linux-extras install -y epel
-              sudo yum install -y certbot
-            fi
-            if [ ! -d /etc/letsencrypt/live/mysfa.net ]; then
-              echo 'SSL証明書を取得中...'
-              sudo certbot certonly --standalone --non-interactive --agree-tos --email admin@mysfa.net -d mysfa.net || echo '証明書取得に失敗'
-            else
-              echo 'SSL証明書は既に存在します'
-            fi"
-          echo "SSL証明書の設定完了"
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d"
 
-      # Nginx設定ファイルをアップロード
-      - name: Nginx設定ファイルをアップロード
-        run: |
-          if ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "sudo test -d /etc/letsencrypt/live/mysfa.net"; then
-            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-https.conf > /tmp/nginx.conf
-          else
-            sed 's/\${DOMAIN_NAME}/mysfa.net/g' infrastructure/config/nginx-simple.conf > /tmp/nginx.conf
-          fi
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/nginx.conf ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/nginx.conf
-          echo "Nginx設定ファイルをアップロードしました。"
-
-      # Nginxを起動
-      - name: Nginxを起動
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d nginx"
-          echo "Nginxを起動しました。"
-
-      # ヘルスチェック
       - name: ヘルスチェック
         run: |
-          echo "ヘルスチェックを実行中..."
-          sleep 5
           for i in {1..6}; do
             if curl -f -k -s https://mysfa.net > /dev/null 2>&1; then
-              echo "HTTPS接続に成功しました"
+              echo "HTTPS接続成功"
               exit 0
             elif curl -f -s http://mysfa.net > /dev/null 2>&1; then
-              echo "HTTP接続は成功しましたが、HTTPSは利用できません"
+              echo "HTTP接続成功、HTTPSは未使用"
               exit 0
             else
-              if [ $i -lt 6 ]; then
-                echo "ヘルスチェック試行 $i/6 失敗、再試行中..."
-                sleep 2
-              fi
+              echo "接続失敗 $i/6"
+              sleep 2
             fi
           done
-          echo "ヘルスチェックに失敗しました"
+          echo "ヘルスチェック失敗"
           exit 1
