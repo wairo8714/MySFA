@@ -16,7 +16,7 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
-# セキュリティ設定
+# SSHアクセス許可（例示不要、必要に応じて上書き）
 variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed to SSH access"
   type        = list(string)
@@ -27,56 +27,57 @@ variable "allowed_ssh_cidrs" {
 variable "dockerhub_username" {
   description = "Docker Hub username for image pulling"
   type        = string
-  default     = "your-dockerhub-username"
-}
-
-variable "mysql_host" {
-  description = "MySQL host"
-  type        = string
-  default     = "localhost"
-}
-
-variable "mysql_database" {
-  description = "MySQL database name"
-  type        = string
-  default     = "mysfa_db"
-}
-
-variable "mysql_user" {
-  description = "MySQL user"
-  type        = string
-  default     = "admin"
-}
-
-variable "mysql_password" {
-  description = "MySQL password"
-  type        = string
-  sensitive   = true
-  default     = "your-secure-password"
-}
-
-variable "mysql_root_password" {
-  description = "MySQL root password"
-  type        = string
-  sensitive   = true
-  default     = "your-root-password"
-}
-
-variable "secret_key" {
-  description = "Django secret key"
-  type        = string
-  sensitive   = true
-  default     = "your-django-secret-key"
-}
-
-variable "allowed_hosts" {
-  description = "Django ALLOWED_HOSTS setting"
-  type        = string
-  default     = "*"
+  default     = ""
 }
 
 variable "domain_name" {
   description = "Domain name for the application"
   type        = string
   default     = "mysfa.net"
+}
+
+# DB / Django 設定（環境変数で注入）
+variable "mysql_host" {
+  description = "MySQL host"
+  type        = string
+  default     = ""
+}
+
+variable "mysql_database" {
+  description = "MySQL database name"
+  type        = string
+  default     = ""
+}
+
+variable "mysql_user" {
+  description = "MySQL user"
+  type        = string
+  default     = ""
+}
+
+variable "mysql_password" {
+  description = "MySQL password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "mysql_root_password" {
+  description = "MySQL root password"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "secret_key" {
+  description = "Django secret key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "allowed_hosts" {
+  description = "Django ALLOWED_HOSTS setting"
+  type        = string
+  default     = "*"
 }
