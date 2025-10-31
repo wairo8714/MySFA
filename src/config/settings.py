@@ -6,7 +6,9 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-replace-with-your-own-key"
+)
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
@@ -71,10 +73,30 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        )
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "MinimumLengthValidator"
+        )
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        )
+    },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "NumericPasswordValidator"
+        )
+    },
 ]
 
 LANGUAGE_CODE = "ja"
@@ -115,12 +137,8 @@ MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
 THUMBNAIL_SIZE = (300, 300)
 
-DEFAULT_USER_ICON = os.path.join(
-    MEDIA_URL, "default_images/ic013.png"
-)
-DEFAULT_GROUP_ICON = os.path.join(
-    MEDIA_URL, "default_images/702.png"
-)
+DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
+DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
 
 AUTH_USER_MODEL = "accounts.CustomUser"
 
@@ -159,10 +177,7 @@ LOGGING = {
             ),
             "style": "{",
         },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
+        "simple": {"format": "{levelname} {message}", "style": "{"},
     },
     "handlers": {
         "file": {
@@ -171,21 +186,10 @@ LOGGING = {
             "filename": "django.log",
             "formatter": "verbose",
         },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
+        "console": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "simple"},
     },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO",
-    },
+    "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        }
+        "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}
     },
 }
