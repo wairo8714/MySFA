@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,8 +13,7 @@ DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv(
     "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,"
-    "mysfa.net,app",
+    "localhost,127.0.0.1," "mysfa.net,app",
 ).split(",")
 
 INSTALLED_APPS = [
