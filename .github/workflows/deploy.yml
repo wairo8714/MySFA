@@ -24,24 +24,26 @@ jobs:
 
       - name: EC2へdocker-compose.prod.ymlと.env.prodを作成
         run: |
+          # docker-compose.prod.yml を転送
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
             ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash -c "'
-            # Secrets優先、なければ.envから読み込み
-            touch /home/ec2-user/.env.prod
-            echo \"SECRET_KEY=${{ secrets.SECRET_KEY }}\" > /home/ec2-user/.env.prod
-            echo \"DEBUG=${{ secrets.DEBUG }}\" >> /home/ec2-user/.env.prod
-            echo \"ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_USER=${{ secrets.MYSQL_USER }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_HOST=${{ secrets.MYSQL_HOST }}\" >> /home/ec2-user/.env.prod
-            echo \"MYSQL_PORT=${{ secrets.MYSQL_PORT }}\" >> /home/ec2-user/.env.prod
-            echo \"FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}\" >> /home/ec2-user/.env.prod
-            echo \"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}\" >> /home/ec2-user/.env.prod
-            if [ -f /home/ec2-user/.env ]; then
+          # .env.prod を安全に作成
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash -c "
+            echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod
+            echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod
+            echo 'ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_USER=${{ secrets.MYSQL_USER }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_HOST=${{ secrets.MYSQL_HOST }}' >> /home/ec2-user/.env.prod
+            echo 'MYSQL_PORT=${{ secrets.MYSQL_PORT }}' >> /home/ec2-user/.env.prod
+            echo 'FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}' >> /home/ec2-user/.env.prod
+            echo 'S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}' >> /home/ec2-user/.env.prod
+            echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod
+            echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod
+          "
 
       - name: 古いコンテナ停止と削除
         run: |
