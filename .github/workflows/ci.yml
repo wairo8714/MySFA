@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.0
@@ -20,7 +21,10 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=3
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +32,7 @@ jobs:
       - name: Pythonのセットアップ
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: 依存関係をインストール
         run: |
@@ -36,9 +40,12 @@ jobs:
 
       - name: コード整形・静的解析を実行
         run: |
+          echo "flake8を実行します（静的解析）"
           flake8 src/ --max-line-length=88 --ignore=E203,W503
-          black --check src/ --line-length 88
-          isort --check-only src/ --profile black
+          echo "blackを実行します（自動整形）"
+          black src/ --line-length 88
+          echo "isortを実行します（インポート整列）"
+          isort src/ --profile black
 
       - name: MySQLの起動待機
         run: |
@@ -90,22 +97,21 @@ jobs:
           echo "MySQLユーザーの権限を設定します。"
           mysql -h 127.0.0.1 -u root -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%'; FLUSH PRIVILEGES;"
 
-      - name: コード整形と自動修正
+      - name: コード整形と自動修正をコミット
         run: |
-          echo "コードの自動整形を実行します。"
+          echo "blackとisortによるコード整形を再実行します。"
           black src/ --line-length 88
           isort src/ --profile black
-          flake8 src/ --max-line-length=88 --ignore=E203,W503
-          
+
           if [ -n "$(git status --porcelain)" ]; then
-            echo "変更が検出されたため、自動修正をコミットします。"
+            echo "コードフォーマットの変更が検出されました。自動コミットを実行します。"
             git config --global user.name "GitHub Actions"
             git config --global user.email "actions@github.com"
             git add .
-            git commit -m "Auto-fix code formatting [skip ci]"
+            git commit -m "Auto-format code using Black and isort [skip ci]"
             git push
           else
-            echo "修正の必要はありません。"
+            echo "変更はありません。"
           fi
 
       - name: テストの実行
