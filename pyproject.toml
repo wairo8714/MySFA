@@ -11,6 +11,8 @@ dependencies = [
     "python-dotenv",
     "gunicorn",
     "Pillow",
+    "django-storages[boto3]>=1.14.4",
+    "boto3>=1.34.0",
 ]
 
 [project.optional-dependencies]
