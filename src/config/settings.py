@@ -6,7 +6,10 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-replace-with-your-own-key"
+)
+
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv(
@@ -70,10 +73,7 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
-        )
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
     },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
@@ -122,6 +122,7 @@ DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
 DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
 
 AUTH_USER_MODEL = "accounts.CustomUser"
+
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -151,10 +152,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": (
-                "{levelname} {asctime} {module} {process:d} "
-                "{thread:d} {message}"
-            ),
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
             "style": "{",
         },
         "simple": {"format": "{levelname} {message}", "style": "{"},
@@ -166,18 +164,10 @@ LOGGING = {
             "filename": "django.log",
             "formatter": "verbose",
         },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
+        "console": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "simple"},
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        }
+        "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}
     },
 }
