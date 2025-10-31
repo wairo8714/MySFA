@@ -6,14 +6,14 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv(
-    "SECRET_KEY", "django-insecure-replace-with-your-own-key"
-)
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS", "localhost,127.0.0.1,mysfa.net,app"
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,"
+    "mysfa.net,app",
 ).split(",")
 
 INSTALLED_APPS = [
@@ -73,7 +73,8 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+        "NAME": "django.contrib.auth.password_validation."
+        "UserAttributeSimilarityValidator"
     },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
@@ -97,14 +98,14 @@ if USE_S3:
 
     STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
     STATIC_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
-        "static/"
+        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+        f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
     )
 
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
     MEDIA_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
-        "media/"
+        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+        f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
     )
 else:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
@@ -152,7 +153,8 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "format": "{levelname} {asctime} {module} {process:d} "
+            "{thread:d} {message}",
             "style": "{",
         },
         "simple": {"format": "{levelname} {message}", "style": "{"},
@@ -164,7 +166,11 @@ LOGGING = {
             "filename": "django.log",
             "formatter": "verbose",
         },
-        "console": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "simple"},
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
     "loggers": {
