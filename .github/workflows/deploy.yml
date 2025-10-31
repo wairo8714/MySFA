@@ -28,22 +28,20 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
             ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-          # .env.prod を安全に作成
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} bash -c "
-            echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod
-            echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod
-            echo 'ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_USER=${{ secrets.MYSQL_USER }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_HOST=${{ secrets.MYSQL_HOST }}' >> /home/ec2-user/.env.prod
-            echo 'MYSQL_PORT=${{ secrets.MYSQL_PORT }}' >> /home/ec2-user/.env.prod
-            echo 'FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}' >> /home/ec2-user/.env.prod
-            echo 'S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}' >> /home/ec2-user/.env.prod
-            echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod
-            echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod
-          "
+          # .env.prod を一行ずつ作成（ヒアドキュメントは使わない）
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_USER=${{ secrets.MYSQL_USER }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_HOST=${{ secrets.MYSQL_HOST }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'MYSQL_PORT=${{ secrets.MYSQL_PORT }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod"
 
       - name: 古いコンテナ停止と削除
         run: |
@@ -53,7 +51,7 @@ jobs:
       - name: アプリとDBを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d"
+            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d --build"
 
       - name: Nginx起動（SSL有効化）
         run: |
