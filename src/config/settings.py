@@ -93,10 +93,16 @@ if USE_S3:
     AWS_QUERYSTRING_AUTH = False
 
     STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+    STATIC_URL = (
+        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+        f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+    )
 
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+    MEDIA_URL = (
+        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+        f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+    )
 else:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
     DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
@@ -109,8 +115,12 @@ MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
 THUMBNAIL_SIZE = (300, 300)
 
-DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
-DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
+DEFAULT_USER_ICON = os.path.join(
+    MEDIA_URL, "default_images/ic013.png"
+)
+DEFAULT_GROUP_ICON = os.path.join(
+    MEDIA_URL, "default_images/702.png"
+)
 
 AUTH_USER_MODEL = "accounts.CustomUser"
 
@@ -142,13 +152,40 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {"format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}", "style": "{"},
-        "simple": {"format": "{levelname} {message}", "style": "{"},
+        "verbose": {
+            "format": (
+                "{levelname} {asctime} {module} {process:d} "
+                "{thread:d} {message}"
+            ),
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
     },
     "handlers": {
-        "file": {"level": "INFO", "class": "logging.FileHandler", "filename": "django.log", "formatter": "verbose"},
-        "console": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "simple"},
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": "django.log",
+            "formatter": "verbose",
+        },
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
     },
-    "root": {"handlers": ["console", "file"], "level": "INFO"},
-    "loggers": {"django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}},
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        }
+    },
 }
