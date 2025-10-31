@@ -11,7 +11,10 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key"
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,mysfa.net,app").split(",")
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,mysfa.net,app",
+).split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -95,11 +98,17 @@ AWS_QUERYSTRING_AUTH = False  # 公開ファイルは署名不要
 
 # Static Files
 STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+STATIC_URL = (
+    f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+    f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+)
 
 # Media Files
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+MEDIA_URL = (
+    f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
+    f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+)
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
@@ -145,7 +154,8 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "format": "{levelname} {asctime} {module} {process:d} "
+            "{thread:d} {message}",
             "style": "{",
         },
         "simple": {
@@ -167,5 +177,11 @@ LOGGING = {
         },
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
-    "loggers": {"django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}},
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        }
+    },
 }
