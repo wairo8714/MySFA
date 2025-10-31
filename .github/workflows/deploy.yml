@@ -28,7 +28,7 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
             ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
 
-          # .env.prod を一行ずつ作成（ヒアドキュメントは使わない）
+          # .env.prod を一行ずつ作成
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod"
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod"
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} "echo 'ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}' >> /home/ec2-user/.env.prod"
@@ -46,17 +46,17 @@ jobs:
       - name: 古いコンテナ停止と削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo docker-compose -f /home/ec2-user/docker-compose.prod.yml down || true"
+            "sudo docker-compose --env-file /home/ec2-user/.env.prod -f /home/ec2-user/docker-compose.prod.yml down || true"
 
       - name: アプリとDBを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml up -d --build"
+            "cd /home/ec2-user && sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml up -d --build"
 
       - name: Nginx起動（SSL有効化）
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose -f docker-compose.prod.yml --profile ssl up -d"
+            "cd /home/ec2-user && sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d"
 
       - name: ヘルスチェック
         run: |
