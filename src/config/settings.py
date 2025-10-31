@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +24,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts.apps.AccountsConfig",
     "mysfa.apps.MysfaConfig",
-    "storages",  # django-storages を追加
+    "storages",
 ]
 
 MIDDLEWARE = [
@@ -72,12 +71,7 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
-        )
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -89,30 +83,30 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = False
 
-# 静的ファイルとメディアを S3 管理
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
-AWS_S3_REGION_NAME = os.getenv("AWS_REGION", "ap-northeast-1")
-AWS_QUERYSTRING_AUTH = False  # 公開ファイルは署名不要
+USE_S3 = os.getenv("USE_S3", "False").lower() == "true"
 
-# Static Files
-STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-STATIC_URL = (
-    f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-    f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-)
+if USE_S3:
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_REGION", "ap-northeast-1")
+    AWS_QUERYSTRING_AUTH = False
 
-# Media Files
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-MEDIA_URL = (
-    f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-    f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
-)
+    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
+
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
+else:
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+    STATIC_URL = "/static/"
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+    STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
-
 THUMBNAIL_SIZE = (300, 300)
 
 DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
@@ -122,10 +116,8 @@ AUTH_USER_MODEL = "accounts.CustomUser"
 
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/"
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Security Settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = "DENY"
@@ -133,7 +125,6 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# CSRF Settings
 CSRF_TRUSTED_ORIGINS = [
     "https://mysfa.net",
     "https://www.mysfa.net",
@@ -141,47 +132,23 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
 ]
 
-# HTTPS Settings (for production)
 if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Logging Configuration
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} "
-            "{thread:d} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{levelname} {message}",
-            "style": "{",
-        },
+        "verbose": {"format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}", "style": "{"},
+        "simple": {"format": "{levelname} {message}", "style": "{"},
     },
     "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "django.log",
-            "formatter": "verbose",
-        },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
+        "file": {"level": "INFO", "class": "logging.FileHandler", "filename": "django.log", "formatter": "verbose"},
+        "console": {"level": "INFO", "class": "logging.StreamHandler", "formatter": "simple"},
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
-    "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        }
-    },
+    "loggers": {"django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}},
 }
