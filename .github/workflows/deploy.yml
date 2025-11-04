@@ -1,10 +1,10 @@
 name: AWS
 
 on:
-  push:
-    branches:
-      - main
-      - deploy/*
+  workflow_run:
+    workflows: ["Terraform"]
+    types:
+      - completed
 
 jobs:
   deploy:
