@@ -28,11 +28,16 @@ data "aws_ami" "amazon_linux" {
   }
 }
 
+# 既存のキーペアを参照
+data "aws_key_pair" "main" {
+  key_name = "${var.project_name}-keypair"
+}
+
 # EC2インスタンス（セキュア構成）
 resource "aws_instance" "main" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  key_name               = aws_key_pair.main.key_name
+  key_name               = data.aws_key_pair.main.key_name  # 既存のキーペアを参照
   vpc_security_group_ids = [aws_security_group.main.id]
 
   user_data = templatefile("${path.module}/../config/user_data.sh", {
@@ -52,12 +57,6 @@ resource "aws_instance" "main" {
   tags = {
     Name = "${var.project_name}-server"
   }
-}
-
-# キーペア
-resource "aws_key_pair" "main" {
-  key_name   = "${var.project_name}-keypair"
-  public_key = var.public_key
 }
 
 # セキュリティグループ
