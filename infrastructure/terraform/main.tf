@@ -136,7 +136,19 @@ resource "aws_s3_bucket" "mysfa_bucket" {
   }
 }
 
+# S3バケットの所有権制御（ACLを有効にするため）
+resource "aws_s3_bucket_ownership_controls" "mysfa_bucket_ownership" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+# S3バケットACL
 resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.mysfa_bucket_ownership]
+  
   bucket = aws_s3_bucket.mysfa_bucket.id
   acl    = "private"
 }
@@ -149,7 +161,19 @@ resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
   }
 }
 
+# S3バケットのPublic Access Block設定
+resource "aws_s3_bucket_public_access_block" "mysfa_bucket_pab" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = false  # ポリシーを許可するためfalse
+  ignore_public_acls      = true
+  restrict_public_buckets = false
+}
+
 resource "aws_s3_bucket_policy" "mysfa_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.mysfa_bucket_pab]
+  
   bucket = aws_s3_bucket.mysfa_bucket.id
   policy = jsonencode({
     Version = "2012-10-17"
