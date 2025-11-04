@@ -36,17 +36,17 @@ resource "aws_instance" "main" {
   vpc_security_group_ids = [aws_security_group.main.id]
 
   user_data = templatefile("${path.module}/../config/user_data.sh", {
-    dockerhub_username  = var.dockerhub_username
-    mysql_host         = var.mysql_host
-    mysql_database     = var.mysql_database
-    mysql_user         = var.mysql_user
-    mysql_password     = var.mysql_password
-    mysql_root_password = var.mysql_root_password
-    secret_key         = var.secret_key
-    allowed_hosts      = var.allowed_hosts
-    domain_name        = var.domain_name
-    s3_bucket_name     = var.s3_bucket_name
-    aws_region         = var.aws_region
+    dockerhub_username   = var.dockerhub_username
+    mysql_host           = var.mysql_host
+    mysql_database       = var.mysql_database
+    mysql_user           = var.mysql_user
+    mysql_password       = var.mysql_password
+    mysql_root_password  = var.mysql_root_password
+    secret_key           = var.secret_key
+    allowed_hosts        = var.allowed_hosts
+    domain_name          = var.domain_name
+    s3_bucket_name       = var.s3_bucket_name
+    aws_region           = var.aws_region
   })
 
   tags = {
@@ -132,13 +132,17 @@ resource "aws_s3_bucket" "mysfa_bucket" {
   bucket = var.s3_bucket_name
   acl    = "private"
 
-  versioning {
-    enabled = true
-  }
-
   tags = {
     Name        = "${var.project_name}-bucket"
     Environment = "production"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
   }
 }
 
