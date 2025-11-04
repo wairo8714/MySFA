@@ -55,15 +55,26 @@ jobs:
         id: plan
         run: |
           terraform plan -out=tfplan -input=false -no-color | tee plan_output.txt
-          terraform show -no-color tfplan > plan_details.txt || true
+          PLAN_EXIT_CODE=${PIPESTATUS[0]}
+          if [ $PLAN_EXIT_CODE -eq 0 ] && [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan_details.txt || true
+            echo "plan_succeeded=true" >> $GITHUB_OUTPUT
+          else
+            echo "plan_succeeded=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
 
       - name: 変更の有無を確認
         id: check-changes
         run: |
-          if grep -q "No changes" plan_output.txt; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+          if [ -f plan_output.txt ]; then
+            if grep -q "No changes" plan_output.txt; then
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            else
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Plan結果の表示
@@ -114,7 +125,7 @@ jobs:
             });
 
       - name: Planファイルをアーティファクトとして保存
-        if: github.event_name == 'push' && steps.check-changes.outputs.has_changes == 'true'
+        if: github.event_name == 'push' && steps.check-changes.outputs.has_changes == 'true' && steps.plan.outputs.plan_succeeded == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
@@ -145,6 +156,7 @@ jobs:
         run: terraform init
 
       - name: Planファイルをダウンロード
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
@@ -153,7 +165,8 @@ jobs:
       - name: Planファイルの確認
         run: |
           if [ ! -f tfplan ]; then
-            echo "❌ エラー: tfplanファイルが見つかりません。Applyの前にPlanが成功している必要があります。"
+            echo "❌ エラー: tfplanファイルが見つかりません。"
+            echo "Planが失敗したか、アーティファクトがアップロードされていない可能性があります。"
             exit 1
           fi
           echo "✅ Planファイルが見つかりました。Applyを実行します。"
