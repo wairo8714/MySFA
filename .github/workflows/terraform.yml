@@ -52,15 +52,26 @@ jobs:
       - name: 状態の修正（初回のみ）
         run: |
           # 古いキーペアリソースの状態を削除（dataに変更されたため）
+          # 注意: これは状態ファイルから削除するだけで、AWS上のキーペアは削除されない
           terraform state rm aws_key_pair.main 2>/dev/null || true
           
+          # キーペアの存在確認（存在しない場合はエラーを表示）
+          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+          if [ -z "$KEY_PAIR_EXISTS" ] || [ "$KEY_PAIR_EXISTS" = "None" ]; then
+            echo "⚠️  Warning: Key pair 'mysfa-keypair' not found in AWS"
+            echo "⚠️  EC2 instance creation will fail without a key pair"
+          else
+            echo "✅ Key pair 'mysfa-keypair' exists in AWS"
+          fi
+          
           # 既存のS3バケットをインポート（既にインポート済みの場合はエラーを無視）
-          terraform import aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_ownership_controls.mysfa_bucket_ownership ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_public_access_block.mysfa_bucket_pab ${{ secrets.S3_BUCKET_NAME }} || true
+          # -targetオプションでキーペアの参照を回避
+          terraform import -target=aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket_ownership_controls.mysfa_bucket_ownership ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket_public_access_block.mysfa_bucket_pab ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
 
       - name: Terraform プラン作成
         id: plan
