@@ -57,7 +57,7 @@ resource "aws_instance" "main" {
 # キーペア
 resource "aws_key_pair" "main" {
   key_name   = "${var.project_name}-keypair"
-  public_key = file("${path.module}/../keys/mysfa-dev-keypair.pub")
+  public_key = var.public_key
 }
 
 # セキュリティグループ
@@ -130,12 +130,16 @@ resource "aws_route53_record" "main" {
 # S3バケット（静的・メディア用）
 resource "aws_s3_bucket" "mysfa_bucket" {
   bucket = var.s3_bucket_name
-  acl    = "private"
 
   tags = {
     Name        = "${var.project_name}-bucket"
     Environment = "production"
   }
+}
+
+resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+  acl    = "private"
 }
 
 resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {

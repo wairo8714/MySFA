@@ -30,6 +30,7 @@ jobs:
       TF_VAR_secret_key: ${{ secrets.SECRET_KEY }}
       TF_VAR_domain_name: ${{ secrets.DOMAIN_NAME }}
       TF_VAR_s3_bucket_name: ${{ secrets.S3_BUCKET_NAME }}
+      TF_VAR_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
 
     defaults:
       run:
