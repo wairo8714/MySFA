@@ -48,17 +48,15 @@ jobs:
       - name: 古いコンテナ停止と削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo docker-compose --env-file /home/ec2-user/.env.prod -f /home/ec2-user/docker-compose.prod.yml down || true"
+            "cd /home/ec2-user && \
+             sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml down --remove-orphans || true && \
+             sudo docker network prune -f || true"
 
-      - name: アプリとDBを起動
+      - name: アプリとDBとNginxを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml up -d --build"
-
-      - name: Nginx起動（SSL有効化）
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d"
+            "cd /home/ec2-user && \
+             sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --build"
 
       - name: ヘルスチェック
         run: |
