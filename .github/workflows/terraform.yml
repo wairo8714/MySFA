@@ -90,8 +90,13 @@ jobs:
           if [ $PLAN_EXIT_CODE -eq 0 ] && [ -f tfplan ]; then
             terraform show -no-color tfplan > plan_details.txt || true
             echo "plan_succeeded=true" >> $GITHUB_OUTPUT
+            echo "✅ Planが正常に完了しました"
           else
             echo "plan_succeeded=false" >> $GITHUB_OUTPUT
+            echo "❌ Planが失敗しました（exit code: $PLAN_EXIT_CODE）"
+            if [ ! -f tfplan ]; then
+              echo "⚠️  tfplanファイルが作成されませんでした"
+            fi
           fi
         continue-on-error: true
 
@@ -160,8 +165,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan
-          path: tfplan
+          path: infrastructure/terraform/tfplan
           retention-days: 1
+          if-no-files-found: error
 
   terraform-apply:
     name: Terraform 適用
