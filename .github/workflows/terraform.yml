@@ -51,16 +51,16 @@ jobs:
 
       - name: キーペアの確認と作成
         run: |
-          # キーペアの存在確認
-          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+          # キーペアの存在確認（環境変数AWS_DEFAULT_REGIONを使用）
+          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
           if [ -z "$KEY_PAIR_EXISTS" ] || [ "$KEY_PAIR_EXISTS" = "None" ]; then
             echo "⚠️  Key pair 'mysfa-keypair' not found in AWS, creating..."
             echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/public_key.pub
-            aws ec2 import-key-pair --region ${{ secrets.AWS_REGION }} --key-name mysfa-keypair --public-key-material fileb:///tmp/public_key.pub 2>&1 || echo "Key pair creation failed or already exists"
+            aws ec2 import-key-pair --key-name mysfa-keypair --public-key-material fileb:///tmp/public_key.pub 2>&1 || echo "Key pair creation failed or already exists"
             rm -f /tmp/public_key.pub
             # 作成後の確認
             sleep 2
-            KEY_PAIR_CHECK=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+            KEY_PAIR_CHECK=$(aws ec2 describe-key-pairs --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
             if [ -n "$KEY_PAIR_CHECK" ] && [ "$KEY_PAIR_CHECK" != "None" ]; then
               echo "✅ Key pair 'mysfa-keypair' successfully created"
             else
