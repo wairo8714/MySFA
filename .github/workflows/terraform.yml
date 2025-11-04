@@ -51,6 +51,37 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
+      - name: 既存リソースのインポート（初回のみ）
+        continue-on-error: true
+        run: |
+          echo "🔍 tfstateの状態を確認中..."
+          
+          # EC2インスタンスのインポート（tfstateにない場合のみ）
+          STATE_INSTANCE=$(terraform state list 2>/dev/null | grep '^aws_instance.main$' || echo "")
+          if [ -z "$STATE_INSTANCE" ]; then
+            INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${TF_VAR_project_name}-server" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
+            if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
+              echo "📥 EC2インスタンスをインポート: $INSTANCE_ID"
+              terraform import aws_instance.main "$INSTANCE_ID" 2>&1 && echo "✅ インポート成功" || echo "⚠️  インポート失敗（既に存在する可能性）"
+            fi
+          else
+            echo "✅ EC2インスタンスは既にtfstateに存在"
+          fi
+          
+          # S3バケットのインポート（tfstateにない場合のみ）
+          STATE_S3_BUCKET=$(terraform state list 2>/dev/null | grep '^aws_s3_bucket.mysfa_bucket$' || echo "")
+          if [ -z "$STATE_S3_BUCKET" ] && [ -n "${TF_VAR_s3_bucket_name}" ]; then
+            echo "📥 S3バケットをインポート: ${TF_VAR_s3_bucket_name}"
+            terraform import aws_s3_bucket.mysfa_bucket "${TF_VAR_s3_bucket_name}" 2>&1 && echo "✅ S3バケットインポート成功" || echo "⚠️  S3バケットインポート失敗"
+            terraform import aws_s3_bucket_ownership_controls.mysfa_bucket_ownership "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  所有権制御インポート失敗"
+            terraform import aws_s3_bucket_acl.mysfa_bucket_acl "${TF_VAR_s3_bucket_name},private" 2>&1 || echo "⚠️  ACLインポート失敗"
+            terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  バージョニングインポート失敗"
+            terraform import aws_s3_bucket_public_access_block.mysfa_bucket_pab "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  Public Access Blockインポート失敗"
+            terraform import aws_s3_bucket_policy.mysfa_bucket_policy "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  ポリシーインポート失敗"
+          else
+            echo "✅ S3バケットは既にtfstateに存在"
+          fi
+
       - name: Terraform プラン作成
         id: plan
         run: |
