@@ -50,6 +50,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && \
              sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml down --remove-orphans || true && \
+             sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
+             sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
              sudo docker network prune -f || true"
 
       - name: アプリとDBとNginxを起動
