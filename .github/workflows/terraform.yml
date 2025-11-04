@@ -1,0 +1,53 @@
+name: Terraform
+
+on:
+  pull_request:
+    branches:
+      - main
+      - deploy/*
+
+  push:
+    branches:
+      - main
+      - deploy/*
+
+jobs:
+  terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+
+    steps:
+      - name: コードチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Terraform インストール
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.7
+
+      - name: Terraform 初期化
+        run: terraform init
+
+      - name: Terraform プラン作成
+        id: plan
+        run: |
+          terraform plan -out=tfplan
+          # 差分があるか確認
+          terraform show -json tfplan | jq -e '.resource_changes | length > 0' && echo "CHANGES=true" >> $GITHUB_ENV || echo "CHANGES=false" >> $GITHUB_ENV
+
+      - name: Terraform Apply（差分がある場合のみ）
+        if: env.CHANGES == 'true'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Apply スキップ（差分なし）
+        if: env.CHANGES == 'false'
+        run: echo "No changes detected, skipping terraform apply."
