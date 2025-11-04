@@ -49,15 +49,26 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
-      - name: 既存リソースのインポート（初回のみ、エラーは無視）
+      - name: キーペアの確認と作成
         run: |
-          # S3バケットと関連リソースをインポート（既にインポート済みの場合はエラーを無視）
-          terraform import aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_ownership_controls.mysfa_bucket_ownership ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_public_access_block.mysfa_bucket_pab ${{ secrets.S3_BUCKET_NAME }} || true
+          # キーペアの存在確認
+          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+          if [ -z "$KEY_PAIR_EXISTS" ] || [ "$KEY_PAIR_EXISTS" = "None" ]; then
+            echo "⚠️  Key pair 'mysfa-keypair' not found in AWS, creating..."
+            echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/public_key.pub
+            aws ec2 import-key-pair --region ${{ secrets.AWS_REGION }} --key-name mysfa-keypair --public-key-material fileb:///tmp/public_key.pub 2>&1 || echo "Key pair creation failed or already exists"
+            rm -f /tmp/public_key.pub
+            # 作成後の確認
+            sleep 2
+            KEY_PAIR_CHECK=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+            if [ -n "$KEY_PAIR_CHECK" ] && [ "$KEY_PAIR_CHECK" != "None" ]; then
+              echo "✅ Key pair 'mysfa-keypair' successfully created"
+            else
+              echo "❌ Key pair creation may have failed"
+            fi
+          else
+            echo "✅ Key pair 'mysfa-keypair' already exists in AWS"
+          fi
 
       - name: Terraform プラン作成
         id: plan
