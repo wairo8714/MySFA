@@ -56,28 +56,43 @@ jobs:
           terraform state rm aws_key_pair.main 2>/dev/null || true
           
           # キーペアの存在確認と再作成（存在しない場合）
-          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+          KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
           if [ -z "$KEY_PAIR_EXISTS" ] || [ "$KEY_PAIR_EXISTS" = "None" ]; then
             echo "⚠️  Key pair 'mysfa-keypair' not found in AWS"
             echo "📝 Creating key pair from GitHub Secrets..."
             # 公開鍵を一時ファイルに保存
             echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/public_key.pub
             # キーペアをインポート（既存の場合はエラーを無視）
-            aws ec2 import-key-pair --key-name mysfa-keypair --public-key-material fileb:///tmp/public_key.pub 2>&1 || echo "Key pair may already exist or import failed"
+            aws ec2 import-key-pair --region ${{ secrets.AWS_REGION }} --key-name mysfa-keypair --public-key-material fileb:///tmp/public_key.pub 2>&1 || echo "Key pair may already exist or import failed"
             rm -f /tmp/public_key.pub
             echo "✅ Key pair creation attempted"
+            # キーペアが作成されたことを確認
+            sleep 2
+            KEY_PAIR_EXISTS=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+            if [ -n "$KEY_PAIR_EXISTS" ] && [ "$KEY_PAIR_EXISTS" != "None" ]; then
+              echo "✅ Key pair 'mysfa-keypair' successfully created"
+            else
+              echo "❌ Key pair creation may have failed"
+            fi
           else
             echo "✅ Key pair 'mysfa-keypair' exists in AWS"
           fi
           
+          # キーペアが存在することを確認（インポート前に必須）
+          KEY_PAIR_FINAL=$(aws ec2 describe-key-pairs --region ${{ secrets.AWS_REGION }} --key-names mysfa-keypair --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "")
+          if [ -z "$KEY_PAIR_FINAL" ] || [ "$KEY_PAIR_FINAL" = "None" ]; then
+            echo "❌ Error: Key pair 'mysfa-keypair' does not exist. Cannot proceed with imports."
+            exit 1
+          fi
+          
           # 既存のS3バケットをインポート（既にインポート済みの場合はエラーを無視）
           # -targetオプションでキーペアの参照を回避
-          terraform import -target=aws_s3_bucket.mysfa_bucket aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
-          terraform import -target=aws_s3_bucket_acl.mysfa_bucket_acl aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
-          terraform import -target=aws_s3_bucket_versioning.mysfa_bucket_versioning aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
-          terraform import -target=aws_s3_bucket_policy.mysfa_bucket_policy aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
-          terraform import -target=aws_s3_bucket_ownership_controls.mysfa_bucket_ownership aws_s3_bucket_ownership_controls.mysfa_bucket_ownership ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
-          terraform import -target=aws_s3_bucket_public_access_block.mysfa_bucket_pab aws_s3_bucket_public_access_block.mysfa_bucket_pab ${{ secrets.S3_BUCKET_NAME }} 2>&1 | grep -v "no matching EC2 Key Pair" || true
+          terraform import -target=aws_s3_bucket.mysfa_bucket aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import -target=aws_s3_bucket_acl.mysfa_bucket_acl aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import -target=aws_s3_bucket_versioning.mysfa_bucket_versioning aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import -target=aws_s3_bucket_policy.mysfa_bucket_policy aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import -target=aws_s3_bucket_ownership_controls.mysfa_bucket_ownership aws_s3_bucket_ownership_controls.mysfa_bucket_ownership ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import -target=aws_s3_bucket_public_access_block.mysfa_bucket_pab aws_s3_bucket_public_access_block.mysfa_bucket_pab ${{ secrets.S3_BUCKET_NAME }} || true
 
       - name: Terraform プラン作成
         id: plan
