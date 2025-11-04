@@ -49,29 +49,6 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
-      - name: 既存リソースをインポート（エラーは無視）
-        run: |
-          # Route 53 Recordをインポート（既にインポート済みの場合はエラーを無視）
-          terraform import aws_route53_record.main Z0586925BA1A0YXNOLU7_${{ secrets.DOMAIN_NAME }}._A || true
-          
-          # S3 Bucketをインポート（既にインポート済みの場合はエラーを無視）
-          terraform import aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} || true
-          
-          # S3 Bucket関連リソースをインポート
-          terraform import aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} || true
-          terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} || true
-          
-          # S3 Bucket Policyをインポート（成功したかどうかを確認）
-          IMPORT_OUTPUT=$(terraform import aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} 2>&1) || IMPORT_EXIT_CODE=$?
-          if echo "$IMPORT_OUTPUT" | grep -q "Import successful"; then
-            echo "✅ S3 Bucket Policy imported successfully"
-          elif echo "$IMPORT_OUTPUT" | grep -q "already managed"; then
-            echo "ℹ️  S3 Bucket Policy is already managed by Terraform"
-          else
-            echo "⚠️  S3 Bucket Policy does not exist yet, will be created by Terraform"
-            echo "Import output: $IMPORT_OUTPUT"
-          fi
-
       - name: Terraform プラン作成
         id: plan
         run: |

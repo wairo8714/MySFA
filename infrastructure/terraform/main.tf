@@ -6,6 +6,13 @@ terraform {
       version = "~> 5.0"
     }
   }
+  
+  backend "s3" {
+    bucket = "mysfa-terraform-state"  # tfstate保存用のS3バケット（手動作成が必要）
+    key    = "terraform.tfstate"
+    region = "ap-northeast-1"
+    encrypt = true
+  }
 }
 
 provider "aws" {
