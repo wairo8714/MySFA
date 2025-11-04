@@ -23,7 +23,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: infrastructure/terraform
+        working-directory: ./infrastructure/terraform
 
     steps:
       - name: コードチェックアウト
@@ -32,7 +32,8 @@ jobs:
       - name: Terraform インストール
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.7
+          terraform_version: ">=1.6.0, <1.7.0"
+          terraform_wrapper: true
 
       - name: Terraform 初期化
         run: terraform init
