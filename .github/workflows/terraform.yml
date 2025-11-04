@@ -49,6 +49,19 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
+      - name: 既存リソースをインポート（初回のみ、エラーは無視）
+        run: |
+          # Route 53 Recordをインポート（既にインポート済みの場合はエラーを無視）
+          terraform import aws_route53_record.main Z0586925BA1A0YXNOLU7_${{ secrets.DOMAIN_NAME }}._A || true
+          
+          # S3 Bucketをインポート（既にインポート済みの場合はエラーを無視）
+          terraform import aws_s3_bucket.mysfa_bucket ${{ secrets.S3_BUCKET_NAME }} || true
+          
+          # S3 Bucket関連リソースをインポート
+          terraform import aws_s3_bucket_acl.mysfa_bucket_acl ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning ${{ secrets.S3_BUCKET_NAME }} || true
+          terraform import aws_s3_bucket_policy.mysfa_bucket_policy ${{ secrets.S3_BUCKET_NAME }} || true
+
       - name: Terraform プラン作成
         id: plan
         run: |
