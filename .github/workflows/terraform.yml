@@ -51,80 +51,34 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
-      - name: 既存リソースのインポート（初回のみ）
-        continue-on-error: true
-        run: |
-          echo "🔍 tfstateの状態を確認中..."
-          
-          # EC2インスタンスのインポート（tfstateにない場合のみ）
-          STATE_INSTANCE=$(terraform state list 2>/dev/null | grep '^aws_instance.main$' || echo "")
-          if [ -z "$STATE_INSTANCE" ]; then
-            INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${TF_VAR_project_name}-server" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || echo "")
-            if [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ]; then
-              echo "📥 EC2インスタンスをインポート: $INSTANCE_ID"
-              terraform import aws_instance.main "$INSTANCE_ID" 2>&1 && echo "✅ インポート成功" || echo "⚠️  インポート失敗（既に存在する可能性）"
-            fi
-          else
-            echo "✅ EC2インスタンスは既にtfstateに存在"
-          fi
-          
-          # S3バケットのインポート（tfstateにない場合のみ）
-          STATE_S3_BUCKET=$(terraform state list 2>/dev/null | grep '^aws_s3_bucket.mysfa_bucket$' || echo "")
-          if [ -z "$STATE_S3_BUCKET" ] && [ -n "${TF_VAR_s3_bucket_name}" ]; then
-            echo "📥 S3バケットをインポート: ${TF_VAR_s3_bucket_name}"
-            terraform import aws_s3_bucket.mysfa_bucket "${TF_VAR_s3_bucket_name}" 2>&1 && echo "✅ S3バケットインポート成功" || echo "⚠️  S3バケットインポート失敗"
-            terraform import aws_s3_bucket_ownership_controls.mysfa_bucket_ownership "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  所有権制御インポート失敗"
-            terraform import aws_s3_bucket_acl.mysfa_bucket_acl "${TF_VAR_s3_bucket_name},private" 2>&1 || echo "⚠️  ACLインポート失敗"
-            terraform import aws_s3_bucket_versioning.mysfa_bucket_versioning "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  バージョニングインポート失敗"
-            terraform import aws_s3_bucket_public_access_block.mysfa_bucket_pab "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  Public Access Blockインポート失敗"
-            terraform import aws_s3_bucket_policy.mysfa_bucket_policy "${TF_VAR_s3_bucket_name}" 2>&1 || echo "⚠️  ポリシーインポート失敗"
-          else
-            echo "✅ S3バケットは既にtfstateに存在"
-          fi
-
       - name: Terraform プラン作成
         id: plan
         run: |
           terraform plan -out=tfplan -input=false -no-color | tee plan_output.txt
-          PLAN_EXIT_CODE=${PIPESTATUS[0]}
-          if [ $PLAN_EXIT_CODE -eq 0 ] && [ -f tfplan ]; then
+          if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f tfplan ]; then
             terraform show -no-color tfplan > plan_details.txt || true
             echo "plan_succeeded=true" >> $GITHUB_OUTPUT
-            echo "✅ Planが正常に完了しました"
           else
             echo "plan_succeeded=false" >> $GITHUB_OUTPUT
-            echo "❌ Planが失敗しました（exit code: $PLAN_EXIT_CODE）"
-            if [ ! -f tfplan ]; then
-              echo "⚠️  tfplanファイルが作成されませんでした"
-            fi
           fi
         continue-on-error: true
 
       - name: 変更の有無を確認
         id: check-changes
         run: |
-          if [ -f plan_output.txt ]; then
-            if grep -q "No changes" plan_output.txt; then
-              echo "has_changes=false" >> $GITHUB_OUTPUT
-            else
-              echo "has_changes=true" >> $GITHUB_OUTPUT
-            fi
-          else
+          if [ -f plan_output.txt ] && grep -q "No changes" plan_output.txt; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Plan結果の表示
         run: |
-          echo "## 📋 Terraform Plan結果" >> $GITHUB_STEP_SUMMARY
+          echo "## Terraform Plan結果" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat plan_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          if [ -f plan_details.txt ]; then
-            echo "## 📝 詳細な変更内容" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat plan_details.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+          [ ! -f plan_details.txt ] || (echo "## 詳細な変更内容" >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY && cat plan_details.txt >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY)
 
       - name: Plan結果をPRにコメント
         if: github.event_name == 'pull_request'
@@ -134,25 +88,12 @@ jobs:
           script: |
             const fs = require('fs');
             const planOutput = fs.readFileSync('plan_output.txt', 'utf8');
-            const planDetails = fs.existsSync('plan_details.txt') 
-              ? fs.readFileSync('plan_details.txt', 'utf8') 
-              : '';
-            
+            const planDetails = fs.existsSync('plan_details.txt') ? fs.readFileSync('plan_details.txt', 'utf8') : '';
             const codeBlock = '```';
-            let body = '## 📋 Terraform Plan結果\n\n' +
-              codeBlock + '\n' +
-              planOutput + '\n' +
-              codeBlock;
-            
+            let body = '## Terraform Plan結果\n\n' + codeBlock + '\n' + planOutput + '\n' + codeBlock;
             if (planDetails) {
-              body += '\n\n### 📝 詳細な変更内容\n' +
-                codeBlock + '\n' +
-                planDetails + '\n' +
-                codeBlock;
+              body += '\n\n### 詳細な変更内容\n' + codeBlock + '\n' + planDetails + '\n' + codeBlock;
             }
-            
-            body += '\n\n---\n*このコメントは自動生成されています*';
-            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -201,12 +142,7 @@ jobs:
 
       - name: Planファイルの確認
         run: |
-          if [ ! -f tfplan ]; then
-            echo "❌ エラー: tfplanファイルが見つかりません。"
-            echo "Planが失敗したか、アーティファクトがアップロードされていない可能性があります。"
-            exit 1
-          fi
-          echo "✅ Planファイルが見つかりました。Applyを実行します。"
+          [ -f tfplan ] || (echo "エラー: tfplanファイルが見つかりません" && exit 1)
 
       - name: Terraform 適用
         run: terraform apply -auto-approve tfplan
