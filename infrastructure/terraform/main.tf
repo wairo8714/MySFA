@@ -5,10 +5,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
   }
   
   backend "s3" {
@@ -62,13 +58,16 @@ data "aws_subnets" "public" {
   }
 }
 
-# セキュリティグループ名用のランダムID（既存のセキュリティグループと重複しないように）
-resource "random_id" "sg_suffix" {
-  byte_length = 4
-  keepers = {
-    # プロジェクト名が変更された場合のみ再生成
-    project_name = var.project_name
-  }
+# 既存のセキュリティグループを参照（EC2用）
+data "aws_security_group" "ec2" {
+  name   = "mysfa-ec2-sg-8cb59333"
+  vpc_id = data.aws_vpc.default.id
+}
+
+# 既存のセキュリティグループを参照（ALB用）
+data "aws_security_group" "alb" {
+  name   = "mysfa-alb-sg-8cb59333"
+  vpc_id = data.aws_vpc.default.id
 }
 
 # EC2インスタンス（セキュア構成）
@@ -76,111 +75,27 @@ resource "aws_instance" "main" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   key_name               = data.aws_key_pair.main.key_name  # 既存のキーペアを参照
-  vpc_security_group_ids = [aws_security_group.ec2.id]
+  vpc_security_group_ids = [data.aws_security_group.ec2.id]
   subnet_id              = data.aws_subnets.public.ids[0]
 
   # user_dataは削除（Nginx設定はdeploy.ymlで転送されるため不要）
   # Docker/Docker Composeは既存インスタンスに手動でインストール済み、または別途インストールが必要
-
-  lifecycle {
-    # セキュリティグループの変更時に、古いセキュリティグループを削除する前に
-    # 新しいセキュリティグループを適用する
-    create_before_destroy = false
-    # セキュリティグループの変更を無視しない（更新を強制）
-    ignore_changes = []
-  }
 
   tags = {
     Name = "${var.project_name}-server"
   }
 }
 
-# ALB用セキュリティグループ（固有の名前を使用）
-resource "aws_security_group" "alb" {
-  name        = "${var.project_name}-alb-sg-${random_id.sg_suffix.hex}"
-  description = "Security group for ALB"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP access (redirects to HTTPS)"
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTPS access"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "All outbound traffic"
-  }
-
-  lifecycle {
-    # 使用中のセキュリティグループの誤削除を防止
-    prevent_destroy = true
-  }
-
-  tags = {
-    Name        = "${var.project_name}-alb-sg-${random_id.sg_suffix.hex}"
-    ManagedBy   = "terraform"
-    Project     = var.project_name
-    Environment = "production"
-  }
-}
-
-# EC2用セキュリティグループ（ALBからのみアクセス許可、固有の名前を使用）
-resource "aws_security_group" "ec2" {
-  name        = "${var.project_name}-ec2-sg-${random_id.sg_suffix.hex}"
-  description = "Security group for EC2 instance"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidrs
-    description = "SSH access from specific IPs only"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "All outbound traffic"
-  }
-
-  lifecycle {
-    # 使用中のセキュリティグループの誤削除を防止
-    prevent_destroy = true
-  }
-
-  tags = {
-    Name        = "${var.project_name}-ec2-sg-${random_id.sg_suffix.hex}"
-    ManagedBy   = "terraform"
-    Project     = var.project_name
-    Environment = "production"
-  }
-}
-
 # EC2セキュリティグループのルール（ALBからのHTTPアクセスを許可）
+# 既存のセキュリティグループにルールが存在する場合は、このリソースは不要
+# 存在しない場合は手動で追加するか、このリソースを有効化する
 resource "aws_security_group_rule" "ec2_from_alb" {
   type                     = "ingress"
   from_port                = 80
   to_port                  = 80
   protocol                 = "tcp"
-  source_security_group_id = aws_security_group.alb.id
-  security_group_id         = aws_security_group.ec2.id
+  source_security_group_id = data.aws_security_group.alb.id
+  security_group_id        = data.aws_security_group.ec2.id
   description              = "HTTP access from ALB only"
 }
 
@@ -269,7 +184,7 @@ resource "aws_lb" "main" {
   name               = "${var.project_name}-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
+  security_groups    = [data.aws_security_group.alb.id]
   subnets            = data.aws_subnets.public.ids
 
   enable_deletion_protection = false
