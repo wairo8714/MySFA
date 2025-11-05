@@ -2,8 +2,8 @@
 FROM python:3.12-slim
 
 # 環境変数設定
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # 作業ディレクトリ作成
 WORKDIR /app
@@ -11,7 +11,7 @@ WORKDIR /app
 # 必要パッケージインストール
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libmysqlclient-dev \
+    libmariadb-dev-compat \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
