@@ -116,14 +116,6 @@ resource "aws_security_group" "ec2" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port                = 80
-    to_port                  = 80
-    protocol                 = "tcp"
-    source_security_group_id = aws_security_group.alb.id
-    description              = "HTTP access from ALB only"
-  }
-
-  ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -142,6 +134,17 @@ resource "aws_security_group" "ec2" {
   tags = {
     Name = "${var.project_name}-ec2-sg"
   }
+}
+
+# EC2セキュリティグループのルール（ALBからのHTTPアクセスを許可）
+resource "aws_security_group_rule" "ec2_from_alb" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  security_group_id         = aws_security_group.ec2.id
+  description              = "HTTP access from ALB only"
 }
 
 # ACM証明書（DNS検証）
