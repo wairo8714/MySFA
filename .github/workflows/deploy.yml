@@ -19,6 +19,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ✅ AWS認証
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
@@ -26,12 +27,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # ✅ AWS CLI が正常に動作するか確認
+      - name: Verify AWS CLI
+        run: aws sts get-caller-identity
+
+      # ✅ ECRログインパスワードを取得して環境変数に設定
+      - name: Get ECR login password
+        id: ecr-login
+        run: |
+          echo "ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})" >> $GITHUB_ENV
+
+      # ✅ Docker login (username/password 明示)
       - name: Docker login to ECR
         uses: docker/login-action@v3
         with:
-          ecr: auto
+          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          username: AWS
+          password: ${{ env.ECR_PASSWORD }}
           logout: true
 
+      # ✅ マルチアーキテクチャ対応ビルド＆ECRにpush
       - name: Build and push multi-arch image
         run: |
           docker buildx build \
@@ -39,6 +54,7 @@ jobs:
             -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mysfa_ver2:latest \
             --push .
 
+      # ✅ SSH鍵の設定
       - name: SSH鍵を設定
         run: |
           mkdir -p ~/.ssh
@@ -46,6 +62,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      # ✅ docker-compose.prod.yml と .env.prod の転送
       - name: EC2へdocker-compose.prod.ymlと.env.prodを作成
         run: |
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
@@ -65,6 +82,7 @@ jobs:
              echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod && \
              echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod"
 
+      # ✅ Nginx設定ファイルの転送と置換確認
       - name: Nginx設定ファイルを転送と設定
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
@@ -76,8 +94,11 @@ jobs:
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
              chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
-             chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf"
+             chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             file /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             ls -l /home/ec2-user/infrastructure/config/nginx-https.conf"
 
+      # ✅ 古いコンテナの削除とネットワーク整理
       - name: 古いコンテナ停止と削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
@@ -87,25 +108,27 @@ jobs:
              sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
              sudo docker network prune -f || true"
 
+      # ✅ 新しいコンテナ起動
       - name: アプリとDBとNginxを起動
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "cd /home/ec2-user && \
              sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --build"
 
+      # ✅ ヘルスチェック（HTTP/HTTPS 両対応）
       - name: ヘルスチェック
         run: |
           for i in {1..6}; do
             if curl -f -k -s https://mysfa.net > /dev/null 2>&1; then
-              echo "HTTPS接続成功"
+              echo "✅ HTTPS接続成功"
               exit 0
             elif curl -f -s http://mysfa.net > /dev/null 2>&1; then
-              echo "HTTP接続成功、HTTPSは未使用"
+              echo "⚠️ HTTP接続成功、HTTPSは未使用"
               exit 0
             else
               echo "接続失敗 $i/6"
               sleep 2
             fi
           done
-          echo "ヘルスチェック失敗"
+          echo "❌ ヘルスチェック失敗"
           exit 1
