@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
   
   backend "s3" {
@@ -58,6 +62,15 @@ data "aws_subnets" "public" {
   }
 }
 
+# セキュリティグループ名用のランダムID（既存のセキュリティグループと重複しないように）
+resource "random_id" "sg_suffix" {
+  byte_length = 4
+  keepers = {
+    # プロジェクト名が変更された場合のみ再生成
+    project_name = var.project_name
+  }
+}
+
 # EC2インスタンス（セキュア構成）
 resource "aws_instance" "main" {
   ami                    = data.aws_ami.amazon_linux.id
@@ -82,9 +95,9 @@ resource "aws_instance" "main" {
   }
 }
 
-# ALB用セキュリティグループ
+# ALB用セキュリティグループ（固有の名前を使用）
 resource "aws_security_group" "alb" {
-  name_prefix = "${var.project_name}-alb-"
+  name        = "${var.project_name}-alb-sg-${random_id.sg_suffix.hex}"
   description = "Security group for ALB"
   vpc_id      = data.aws_vpc.default.id
 
@@ -113,13 +126,16 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name = "${var.project_name}-alb-sg"
+    Name        = "${var.project_name}-alb-sg-${random_id.sg_suffix.hex}"
+    ManagedBy   = "terraform"
+    Project     = var.project_name
+    Environment = "production"
   }
 }
 
-# EC2用セキュリティグループ（ALBからのみアクセス許可）
+# EC2用セキュリティグループ（ALBからのみアクセス許可、固有の名前を使用）
 resource "aws_security_group" "ec2" {
-  name_prefix = "${var.project_name}-ec2-"
+  name        = "${var.project_name}-ec2-sg-${random_id.sg_suffix.hex}"
   description = "Security group for EC2 instance"
   vpc_id      = data.aws_vpc.default.id
 
@@ -140,7 +156,10 @@ resource "aws_security_group" "ec2" {
   }
 
   tags = {
-    Name = "${var.project_name}-ec2-sg"
+    Name        = "${var.project_name}-ec2-sg-${random_id.sg_suffix.hex}"
+    ManagedBy   = "terraform"
+    Project     = var.project_name
+    Environment = "production"
   }
 }
 
