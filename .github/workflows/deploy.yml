@@ -13,9 +13,11 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      # コードチェックアウト
       - name: コードをチェックアウト
         uses: actions/checkout@v4
 
+      # Docker Buildxセットアップ
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -26,34 +28,27 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+          # 必要に応じて AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
 
       # AWS CLI確認
-      - name: Verify AWS CLI identity
+      - name: Verify AWS identity and permissions
         run: |
           echo "=== AWS Identity ==="
           aws sts get-caller-identity
+          echo "=== List ECR repositories ==="
+          aws ecr describe-repositories || echo "Failed to list repositories"
 
-      # ECRログイン（step output方式）
-      - name: Get ECR login password
-        id: ecr-login
+      # ECRログイン（CLI直打ち）
+      - name: Docker login to ECR (CLI)
         run: |
-          TOKEN=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
-          echo "TOKEN_LENGTH=${#TOKEN}" >> $GITHUB_ENV
-          echo "TOKEN_FIRST20=${TOKEN:0:20}" >> $GITHUB_ENV
-          echo "ecr_password=$TOKEN" >> $GITHUB_OUTPUT
-
-      # デバッグ用ログ（安全にパスワードを確認）
-      - name: Debug ECR token
-        run: |
-          echo "ECR password length: $TOKEN_LENGTH"
-          echo "ECR password first 20 chars: $TOKEN_FIRST20"
-
-      - name: Docker login to ECR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          username: AWS
-          password: ${{ steps.ecr-login.outputs.ecr_password }}
+          echo "=== Attempting Docker login to ECR ==="
+          set -x
+          LOGIN_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
+          echo "Retrieved password length: ${#LOGIN_PASSWORD}"
+          echo "$LOGIN_PASSWORD" | docker login \
+            --username AWS \
+            --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          docker info
 
       # マルチアーキテクチャ対応ビルド＆ECRにpush
       - name: Build and push multi-arch image
