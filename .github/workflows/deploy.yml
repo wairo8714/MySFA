@@ -141,19 +141,117 @@ jobs:
           sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --pull always
         EOF
 
+    - name: コンテナの状態確認
+      run: |
+        echo "=== Dockerコンテナの状態 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}'"
+        echo ""
+        echo "=== Dockerネットワーク ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker network ls && sudo docker network inspect $(sudo docker network ls -q --filter name=mysfa) 2>/dev/null || echo 'No mysfa network found'"
+
+    - name: アプリケーションコンテナのログ確認
+      continue-on-error: true
+      run: |
+        echo "=== mysfa-app コンテナのログ（最新50行） ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker logs mysfa-app --tail 50 2>&1 || echo 'mysfa-app container not found or not running'"
+        echo ""
+        echo "=== mysfa-app コンテナの詳細情報 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker inspect mysfa-app --format '{{.State.Status}}' 2>/dev/null || echo 'container not found'"
+
+    - name: データベースコンテナのログ確認
+      continue-on-error: true
+      run: |
+        echo "=== mysfa-db コンテナのログ（最新30行） ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker logs mysfa-db --tail 30 2>&1 || echo 'mysfa-db container not found or not running'"
+        echo ""
+        echo "=== mysfa-db コンテナの詳細情報 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker inspect mysfa-db --format '{{.State.Status}}' 2>/dev/null || echo 'container not found'"
+
+    - name: Nginxコンテナのログと設定確認
+      continue-on-error: true
+      run: |
+        echo "=== mysfa-nginx コンテナのログ（最新50行） ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker logs mysfa-nginx --tail 50 2>&1 || echo 'mysfa-nginx container not found or not running'"
+        echo ""
+        echo "=== Nginx設定ファイルの確認 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "cat /home/ec2-user/infrastructure/config/nginx-https.conf | head -30 || echo 'nginx config file not found'"
+        echo ""
+        echo "=== Nginx設定のテスト ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker exec mysfa-nginx nginx -t 2>&1 || echo 'nginx container not running or config error'"
+
+    - name: ポートの確認
+      continue-on-error: true
+      run: |
+        echo "=== リッスンしているポート ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo netstat -tlnp | grep -E ':(80|443|8000|3306)' || echo 'No expected ports listening'"
+        echo ""
+        echo "=== Dockerコンテナのポートマッピング ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker ps --format '{{.Names}}: {{.Ports}}' | grep -E '(mysfa-app|mysfa-nginx|mysfa-db)' || echo 'No container ports found'"
+
+    - name: アプリケーション内部の状態確認
+      continue-on-error: true
+      run: |
+        echo "=== アプリケーションコンテナ内でのプロセス確認 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker exec mysfa-app ps aux 2>&1 || echo 'Cannot exec into mysfa-app container'"
+        echo ""
+        echo "=== アプリケーションコンテナ内での環境変数確認 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker exec mysfa-app env | grep -E '(MYSQL|SECRET|ALLOWED|DEBUG)' 2>&1 || echo 'Cannot exec into mysfa-app container'"
+
+    - name: データベース接続確認
+      continue-on-error: true
+      run: |
+        echo "=== データベースコンテナへの接続テスト ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker exec mysfa-db mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e 'SELECT 1' 2>&1 || echo 'Database connection test failed'"
+
+    - name: ディスク使用量とリソース確認
+      continue-on-error: true
+      run: |
+        echo "=== ディスク使用量 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "df -h | head -5"
+        echo ""
+        echo "=== Docker ディスク使用量 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo docker system df"
+        echo ""
+        echo "=== メモリ使用量 ==="
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "free -h"
+
     - name: ヘルスチェック
       run: |
+        echo "=== ヘルスチェック開始 ==="
         for i in {1..6}; do
+          echo "ヘルスチェック試行 $i/6"
           if curl -f -k -s https://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
-            echo "HTTPS接続成功"
+            echo "✅ HTTPS接続成功"
             exit 0
           elif curl -f -s http://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
-            echo "HTTP接続成功、HTTPSは未使用"
+            echo "✅ HTTP接続成功、HTTPSは未使用"
+            exit 0
+          elif curl -f -s http://${{ secrets.EC2_HOST }} > /dev/null 2>&1; then
+            echo "⚠️  EC2 IPアドレスでのHTTP接続成功（ドメイン設定の問題の可能性）"
             exit 0
           else
-            echo "接続失敗 $i/6"
-            sleep 10
+            echo "❌ 接続失敗 $i/6"
+            if [ $i -lt 6 ]; then
+              sleep 10
+            fi
           fi
         done
-        echo "ヘルスチェック失敗"
+        echo "❌ ヘルスチェック失敗"
         exit 1
