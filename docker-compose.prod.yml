@@ -46,7 +46,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # nginx-https.conf をメイン設定としてマウント
+      # nginx-https.conf を Nginx のメイン設定としてマウント
       - /home/ec2-user/infrastructure/config/nginx-https.conf:/etc/nginx/nginx.conf:ro
       # Let's Encrypt の証明書を共有
       - /etc/letsencrypt:/etc/letsencrypt:ro
