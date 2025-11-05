@@ -119,9 +119,9 @@ jobs:
 
     - name: ECRログイン（EC2上）
       run: |
+        ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-          "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-           docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+          "echo '$ECR_PASSWORD' | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
     - name: 古いコンテナ停止と削除
       run: |
