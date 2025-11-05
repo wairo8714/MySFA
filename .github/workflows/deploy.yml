@@ -121,7 +121,7 @@ jobs:
       run: |
         ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-          "echo '$ECR_PASSWORD' | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+          "echo '$ECR_PASSWORD' | sudo docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
     - name: 古いコンテナ停止と削除
       run: |
@@ -134,9 +134,12 @@ jobs:
 
     - name: アプリとDBとNginxを起動
       run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-          "cd /home/ec2-user && \
-           sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --pull always"
+        ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} <<EOF
+          echo '$ECR_PASSWORD' | sudo docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          cd /home/ec2-user
+          sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --pull always
+        EOF
 
     - name: ヘルスチェック
       run: |
