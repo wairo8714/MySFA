@@ -37,18 +37,51 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Poetryのインストール
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: false
+
+      - name: Poetry Lockファイルの更新
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "Poetry Lockファイルを更新します。"
+          # pyproject.tomlが変更されている場合、依存関係を更新
+          if git diff --name-only HEAD~1 HEAD | grep -q "pyproject.toml"; then
+            echo "pyproject.tomlが変更されたため、依存関係を更新します。"
+            poetry lock --no-update || poetry lock
+          else
+            echo "pyproject.tomlに変更がないため、lockファイルのみチェックします。"
+            poetry lock --no-update
+          fi
+
+      - name: Poetry Lockファイルの変更をコミット
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [ -n "$(git status --porcelain poetry.lock)" ]; then
+            echo "poetry.lockに変更が検出されました。自動コミットを実行します。"
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            git add poetry.lock
+            git commit -m "chore: Update poetry.lock [skip ci]"
+            git push
+          else
+            echo "poetry.lockに変更はありません。"
+          fi
+
       - name: 依存関係をインストール
         run: |
-          pip install -e .[dev]
+          poetry install --no-root --with dev
 
       - name: コード整形・静的解析を実行
         run: |
           echo "flake8を実行します（静的解析）"
-          flake8 src/ --max-line-length=88 --ignore=E203,W503
+          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503
           echo "blackを実行します（自動整形）"
-          black src/ --line-length 88
+          poetry run black src/ --line-length 88
           echo "isortを実行します（インポート整列）"
-          isort src/ --profile black
+          poetry run isort src/ --profile black
 
       - name: MySQLの起動待機
         run: |
@@ -66,10 +99,10 @@ jobs:
           echo "PythonおよびDjangoのバージョン情報を表示します。"
           python --version
           which python
-          pip --version
-          pip freeze
+          poetry --version
+          poetry show
           cd src
-          python -m django --version || echo "Djangoがインストールされていません。"
+          poetry run python -m django --version || echo "Djangoがインストールされていません。"
 
       - name: MySQLサーバーの状態確認
         run: |
@@ -87,7 +120,7 @@ jobs:
         run: |
           echo "テスト失敗時にDjangoのマイグレーション状況を表示します。"
           cd src
-          python manage.py showmigrations || echo "showmigrationsコマンドの実行に失敗しました。"
+          poetry run python manage.py showmigrations || echo "showmigrationsコマンドの実行に失敗しました。"
 
       - name: MySQLエラーログの出力（失敗時）
         if: failure()
@@ -101,10 +134,11 @@ jobs:
           mysql -h 127.0.0.1 -u root -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%'; FLUSH PRIVILEGES;"
 
       - name: コード整形と自動修正をコミット
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "blackとisortによるコード整形を再実行します。"
-          black src/ --line-length 88
-          isort src/ --profile black
+          poetry run black src/ --line-length 88
+          poetry run isort src/ --profile black
 
           if [ -n "$(git status --porcelain)" ]; then
             echo "コードフォーマットの変更が検出されました。自動コミットを実行します。"
@@ -130,5 +164,5 @@ jobs:
         run: |
           echo "Djangoのマイグレーションおよびテストを実行します。"
           cd src
-          python manage.py migrate
-          python manage.py test
+          poetry run python manage.py migrate
+          poetry run python manage.py test
