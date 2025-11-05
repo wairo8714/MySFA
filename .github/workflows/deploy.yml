@@ -47,10 +47,14 @@ jobs:
 
       - name: Nginx設定ファイルを転送と設定
         run: |
-          # ディレクトリ作成（既存のディレクトリ/ファイルを削除してから）
+          # ディレクトリ作成と所有者設定（Docker Composeがroot所有で作成する可能性があるため）
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "mkdir -p /home/ec2-user/infrastructure/config && \
-             rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
+             sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure"
+
+          # 既存のファイル/ディレクトリを強制削除（sudo使用、root権限で作成された可能性があるため）
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+            "sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
 
           # nginx-https.conf を転送
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
