@@ -125,6 +125,11 @@ resource "aws_security_group" "alb" {
     description = "All outbound traffic"
   }
 
+  lifecycle {
+    # 使用中のセキュリティグループの誤削除を防止
+    prevent_destroy = true
+  }
+
   tags = {
     Name        = "${var.project_name}-alb-sg-${random_id.sg_suffix.hex}"
     ManagedBy   = "terraform"
@@ -153,6 +158,11 @@ resource "aws_security_group" "ec2" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
     description = "All outbound traffic"
+  }
+
+  lifecycle {
+    # 使用中のセキュリティグループの誤削除を防止
+    prevent_destroy = true
   }
 
   tags = {
