@@ -4,7 +4,6 @@ services:
   app:
     image: wairo8714/mysfa_ver2:latest
     container_name: mysfa-app
-    platform: linux/amd64
     ports:
       - "8000:8000"
     environment:
