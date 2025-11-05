@@ -21,9 +21,16 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 # PATHに追加
 ENV PATH="/root/.local/bin:$PATH"
 
+# Poetryのバージョン確認と設定
+RUN poetry --version && \
+    poetry config virtualenvs.create false
+
 # 依存関係コピーとインストール
-COPY pyproject.toml poetry.lock* /app/
-RUN poetry install --no-root --without dev
+COPY pyproject.toml poetry.lock /app/
+RUN poetry check && \
+    poetry install --no-root --without dev || \
+    (echo "poetry install failed. Attempting without --without dev..." && \
+     poetry install --no-root)
 
 # アプリケーションコピー
 COPY . /app/
