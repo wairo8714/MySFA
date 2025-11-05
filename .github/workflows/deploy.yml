@@ -1,137 +1,90 @@
-name: Deploy to EC2 (Multi-arch Docker)
+name: Deploy to AWS ECR
 
 on:
-  workflow_run:
-    workflows: ["Terraform"]
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:
-    name: EC2へデプロイ
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    env:
+      # 全体で使う環境変数（必要に応じて追加）
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      - name: コードをチェックアウト
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    # -------------------------------
+    # 1. Secrets 動作確認
+    # -------------------------------
+    - name: Check AWS secrets are set (length only)
+      run: |
+        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
+        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
 
-      # AWS認証
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+    - name: Test AWS credentials
+      run: |
+        echo "Testing AWS credentials..."
+        aws sts get-caller-identity
+      # Secrets は上で env に設定済みなので安全
 
-      # AWS CLI確認
-      - name: Verify AWS CLI
-        run: aws sts get-caller-identity
+    # -------------------------------
+    # 2. .env.prod 作成
+    # -------------------------------
+    - name: Create .env.prod
+      run: |
+        echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
+        echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env.prod
+        echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env.prod
+        echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env.prod
+        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env.prod
+        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env.prod
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
+        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
+        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
+        echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
+        echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
 
-      # ECRログイン
-      - name: Get ECR login password
-        id: ecr-login
-        run: |
-          echo "ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})" >> $GITHUB_ENV
+    # -------------------------------
+    # 3. Login to AWS ECR
+    # -------------------------------
+    - name: Login to Amazon ECR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        username: AWS
+        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      env:
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Docker login to ECR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-          username: AWS
-          password: ${{ env.ECR_PASSWORD }}
+    # -------------------------------
+    # 4. Build and push Docker image
+    # -------------------------------
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
-      # デバッグ: ルート直下のファイル確認
-      - name: List files for debug
-        run: ls -l
-
-      # マルチアーキテクチャ対応ビルド＆ECRにpush
-      - name: Build and push multi-arch image
-        run: |
-          docker buildx build \
-            -f docker/Dockerfile \
-            --platform linux/amd64,linux/arm64 \
-            -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mysfa_ver2:latest \
-            --push .
-
-      # SSH鍵の設定
-      - name: SSH鍵を設定
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-      # docker-compose.prod.yml と .env.prod の転送
-      - name: EC2へdocker-compose.prod.ymlと.env.prodを作成
-        run: |
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
-            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod && \
-             echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod && \
-             echo 'ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_USER=${{ secrets.MYSQL_USER }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_HOST=${{ secrets.MYSQL_HOST }}' >> /home/ec2-user/.env.prod && \
-             echo 'MYSQL_PORT=${{ secrets.MYSQL_PORT }}' >> /home/ec2-user/.env.prod && \
-             echo 'FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}' >> /home/ec2-user/.env.prod && \
-             echo 'S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}' >> /home/ec2-user/.env.prod && \
-             echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod && \
-             echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod"
-
-      # Nginx設定ファイルの転送と置換
-      - name: Nginx設定ファイルを転送と設定
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "mkdir -p /home/ec2-user/infrastructure/config && \
-             sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure && \
-             sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
-          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
-            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx-https.conf
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
-             chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
-             chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf && \
-             file /home/ec2-user/infrastructure/config/nginx-https.conf && \
-             ls -l /home/ec2-user/infrastructure/config/nginx-https.conf"
-
-      # 古いコンテナ停止と削除
-      - name: 古いコンテナ停止と削除
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && \
-             sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml down --remove-orphans || true && \
-             sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
-             sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
-             sudo docker network prune -f || true"
-
-      # 新しいコンテナ起動
-      - name: アプリとDBとNginxを起動
-        run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "cd /home/ec2-user && \
-             sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --build"
-
-      # ヘルスチェック
-      - name: ヘルスチェック
-        run: |
-          for i in {1..6}; do
-            if curl -f -k -s https://mysfa.net > /dev/null 2>&1; then
-              echo "✅ HTTPS接続成功"
-              exit 0
-            elif curl -f -s http://mysfa.net > /dev/null 2>&1; then
-              echo "⚠️ HTTP接続成功、HTTPSは未使用"
-              exit 0
-            else
-              echo "接続失敗 $i/6"
-              sleep 2
-            fi
-          done
-          echo "❌ ヘルスチェック失敗"
+    # -------------------------------
+    # 5. Optional: Debug Docker context
+    # -------------------------------
+    - name: List current directory (debug)
+      run: ls -la
+    - name: Check Dockerfile exists
+      run: |
+        if [ -f Dockerfile ]; then
+          echo "Dockerfile exists ✅"
+        else
+          echo "Dockerfile missing ❌"
           exit 1
+        fi
