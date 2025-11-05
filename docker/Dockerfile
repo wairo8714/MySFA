@@ -34,6 +34,9 @@ RUN poetry install --no-root
 # アプリケーションコピー
 COPY . /app/
 
+# 作業ディレクトリをsrcに変更
+WORKDIR /app/src
+
 # Django collectstatic はコンテナ内で行う
 RUN poetry run python manage.py collectstatic --noinput
 
