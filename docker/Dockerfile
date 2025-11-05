@@ -27,10 +27,7 @@ RUN poetry --version && \
 
 # 依存関係コピーとインストール
 COPY pyproject.toml poetry.lock /app/
-RUN poetry check && \
-    poetry install --no-root --without dev || \
-    (echo "poetry install failed. Attempting without --without dev..." && \
-     poetry install --no-root)
+RUN poetry install --no-root
 
 # アプリケーションコピー
 COPY . /app/
