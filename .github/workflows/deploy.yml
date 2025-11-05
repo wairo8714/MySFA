@@ -1,4 +1,4 @@
-name: AWS Deploy
+name: Deploy to EC2 (Multi-arch Docker)
 
 on:
   workflow_run:
@@ -16,6 +16,22 @@ jobs:
       - name: コードをチェックアウト
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker login
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push multi-arch image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t wairo8714/mysfa_ver2:latest \
+            --push .
+
       - name: SSH鍵を設定
         run: |
           mkdir -p ~/.ssh
@@ -25,11 +41,8 @@ jobs:
 
       - name: EC2へdocker-compose.prod.ymlと.env.prodを作成
         run: |
-          # docker-compose.prod.yml を転送
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
             ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
-
-          # .env.prod を一行ずつ作成
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "echo 'SECRET_KEY=${{ secrets.SECRET_KEY }}' > /home/ec2-user/.env.prod && \
              echo 'DEBUG=${{ secrets.DEBUG }}' >> /home/ec2-user/.env.prod && \
@@ -47,20 +60,12 @@ jobs:
 
       - name: Nginx設定ファイルを転送と設定
         run: |
-          # ディレクトリ作成と所有者設定（Docker Composeがroot所有で作成する可能性があるため）
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "mkdir -p /home/ec2-user/infrastructure/config && \
-             sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure"
-
-          # 既存のファイル/ディレクトリを強制削除（sudo使用、root権限で作成された可能性があるため）
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-            "sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
-
-          # nginx-https.conf を転送
+             sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure && \
+             sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
             ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx-https.conf
-
-          # ドメイン名を置換してファイルとして確認
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
             "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
              chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
