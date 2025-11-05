@@ -27,15 +27,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ✅ AWS CLI が正常に動作するか確認（これでエラー原因を明確化できる）
+      # ✅ AWS CLI が正常に動作するか確認（エラー原因の明確化）
       - name: Verify AWS CLI
         run: aws sts get-caller-identity
 
-      # ✅ ECRログイン（これで username/password required を防止）
+      # ✅ ECRログイン（AWS_ACCOUNT_ID を明示）
       - name: Docker login to ECR
         uses: docker/login-action@v3
         with:
-          ecr: auto
+          ecr: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           logout: true
 
       # ✅ マルチアーキテクチャ対応ビルド＆ECRにpush
