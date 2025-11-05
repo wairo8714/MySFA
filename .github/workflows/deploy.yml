@@ -51,11 +51,16 @@ jobs:
         echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env.prod
         echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env.prod
         echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env.prod
+        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env.prod
+        echo "MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}" >> .env.prod
         echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
+        echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
         echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
         echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
         echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
         echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
     # 3. Login to AWS ECR
@@ -82,15 +87,70 @@ jobs:
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 5. Optional: Debug Docker context
+    # 5. EC2へデプロイ
     # -------------------------------
-    - name: List current directory (debug)
-      run: ls -la
-    - name: Check Dockerfile exists
+    - name: SSH鍵を設定
       run: |
-        if [ -f docker/Dockerfile ]; then
-          echo "Dockerfile exists ✅"
-        else
-          echo "Dockerfile missing ❌"
-          exit 1
-        fi
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+    - name: EC2へdocker-compose.prod.ymlと.env.prodを転送
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
+          ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-compose.prod.yml
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa .env.prod \
+          ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/.env.prod
+
+    - name: Nginx設定ファイルを転送と設定
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "mkdir -p /home/ec2-user/infrastructure/config && \
+           sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure"
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
+          ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx-https.conf
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
+           chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
+           chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf"
+
+    - name: ECRログイン（EC2上）
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+           docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+
+    - name: 古いコンテナ停止と削除
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "cd /home/ec2-user && \
+           sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml down --remove-orphans || true && \
+           sudo docker stop mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
+           sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
+           sudo docker network prune -f || true"
+
+    - name: アプリとDBとNginxを起動
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+          "cd /home/ec2-user && \
+           sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --pull always"
+
+    - name: ヘルスチェック
+      run: |
+        for i in {1..6}; do
+          if curl -f -k -s https://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
+            echo "HTTPS接続成功"
+            exit 0
+          elif curl -f -s http://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
+            echo "HTTP接続成功、HTTPSは未使用"
+            exit 0
+          else
+            echo "接続失敗 $i/6"
+            sleep 10
+          fi
+        done
+        echo "ヘルスチェック失敗"
+        exit 1

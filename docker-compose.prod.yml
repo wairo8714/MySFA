@@ -2,8 +2,9 @@ version: "3.9"
 
 services:
   app:
-    image: wairo8714/mysfa_ver2:latest
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
     container_name: mysfa-app
+    platform: linux/amd64
     ports:
       - "8000:8000"
     environment:
