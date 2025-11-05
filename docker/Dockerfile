@@ -23,7 +23,7 @@ ENV PATH="/root/.local/bin:$PATH"
 
 # 依存関係コピーとインストール
 COPY pyproject.toml poetry.lock* /app/
-RUN poetry install --no-root --only main
+RUN poetry install --no-root --without dev
 
 # アプリケーションコピー
 COPY . /app/
