@@ -1,5 +1,3 @@
-# nginx.conf作成（既存のディレクトリ/ファイルを削除してから作成）
-rm -rf /home/ec2-user/nginx.conf || true
 cat > /home/ec2-user/nginx.conf << 'NGINX_EOF'
 server {
     listen 80;
