@@ -199,3 +199,46 @@ resource "aws_s3_bucket_policy" "mysfa_bucket_policy" {
     ]
   })
 }
+
+# ECRリポジトリを作成
+resource "aws_ecr_repository" "mysfa" {
+  name                 = "mysfa_ver2"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-ecr"
+    Environment = "production"
+  }
+}
+
+# 古いDockerイメージを自動削除するライフサイクルポリシー
+resource "aws_ecr_lifecycle_policy" "mysfa_policy" {
+  repository = aws_ecr_repository.mysfa.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last 10 images"
+        selection = {
+          tagStatus     = "any"
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+# ECRリポジトリURLを出力
+output "ecr_repository_url" {
+  value       = aws_ecr_repository.mysfa.repository_url
+  description = "ECR repository URL for Docker image pushes"
+}
