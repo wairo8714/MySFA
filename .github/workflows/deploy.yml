@@ -27,7 +27,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Docker login to ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           ecr: auto
           logout: true
