@@ -69,6 +69,14 @@ resource "aws_instance" "main" {
   # user_dataは削除（Nginx設定はdeploy.ymlで転送されるため不要）
   # Docker/Docker Composeは既存インスタンスに手動でインストール済み、または別途インストールが必要
 
+  lifecycle {
+    # セキュリティグループの変更時に、古いセキュリティグループを削除する前に
+    # 新しいセキュリティグループを適用する
+    create_before_destroy = false
+    # セキュリティグループの変更を無視しない（更新を強制）
+    ignore_changes = []
+  }
+
   tags = {
     Name = "${var.project_name}-server"
   }
