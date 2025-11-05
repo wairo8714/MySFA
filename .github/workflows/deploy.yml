@@ -45,6 +45,25 @@ jobs:
              echo 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' >> /home/ec2-user/.env.prod && \
              echo 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' >> /home/ec2-user/.env.prod"
 
+      - name: Nginx設定ファイルを転送と設定
+        run: |
+          # ディレクトリ作成（既存のディレクトリ/ファイルを削除してから）
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+            "mkdir -p /home/ec2-user/infrastructure/config && \
+             rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
+
+          # nginx-https.conf を転送
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
+            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx-https.conf
+
+          # ドメイン名を置換してファイルとして確認
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
+            "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             file /home/ec2-user/infrastructure/config/nginx-https.conf && \
+             ls -l /home/ec2-user/infrastructure/config/nginx-https.conf"
+
       - name: 古いコンテナ停止と削除
         run: |
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
