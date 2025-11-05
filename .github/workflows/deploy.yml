@@ -1,13 +1,18 @@
 name: Deploy to AWS ECR
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Terraform"]
+    types:
+      - completed
     branches:
       - main
+      - deploy/*
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     env:
       # 全体で使う環境変数（必要に応じて追加）
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
