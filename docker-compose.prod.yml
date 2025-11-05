@@ -42,16 +42,12 @@ services:
     container_name: mysfa-nginx
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      # nginx-https.conf を conf.d/default.conf としてマウント
-      - /home/ec2-user/infrastructure/config/nginx-https.conf:/etc/nginx/conf.d/default.conf:ro
-      # Let's Encrypt の証明書を共有
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # nginx-http.conf を conf.d/default.conf としてマウント（ALBでSSL終端）
+      - /home/ec2-user/infrastructure/config/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - app
     restart: unless-stopped
-    profiles: ["ssl"]
 
 volumes:
   db_data:

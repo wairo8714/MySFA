@@ -103,19 +103,19 @@ jobs:
         scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa .env.prod \
           ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/.env.prod
 
-    - name: Nginx設定ファイルを転送と設定
+    - name: Nginx設定ファイルを転送と設定（HTTPのみ、ALBでSSL終端）
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "mkdir -p /home/ec2-user/infrastructure/config && \
            sudo chown -R ec2-user:ec2-user /home/ec2-user/infrastructure"
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-          "sudo rm -rf /home/ec2-user/infrastructure/config/nginx-https.conf || true"
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-https.conf \
-          ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx-https.conf
+          "sudo rm -rf /home/ec2-user/infrastructure/config/nginx.conf || true"
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa infrastructure/config/nginx-http.conf \
+          ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/infrastructure/config/nginx.conf
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
-          "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx-https.conf && \
-           chmod 644 /home/ec2-user/infrastructure/config/nginx-https.conf && \
-           chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx-https.conf"
+          "sed -i 's/\${DOMAIN_NAME}/${{ secrets.DOMAIN_NAME }}/g' /home/ec2-user/infrastructure/config/nginx.conf && \
+           chmod 644 /home/ec2-user/infrastructure/config/nginx.conf && \
+           chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx.conf"
 
     - name: ECRログイン（EC2上）
       run: |
@@ -138,7 +138,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} <<EOF
           echo '$ECR_PASSWORD' | sudo docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           cd /home/ec2-user
-          sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml --profile ssl up -d --pull always
+          sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml up -d --pull always
         EOF
 
     - name: コンテナの状態確認
@@ -232,19 +232,13 @@ jobs:
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "free -h"
 
-    - name: ヘルスチェック
+    - name: ヘルスチェック（ALB経由）
       run: |
-        echo "=== ヘルスチェック開始 ==="
+        echo "=== ヘルスチェック開始（ALB経由） ==="
         for i in {1..6}; do
           echo "ヘルスチェック試行 $i/6"
           if curl -f -k -s https://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
-            echo "✅ HTTPS接続成功"
-            exit 0
-          elif curl -f -s http://${{ secrets.DOMAIN_NAME }} > /dev/null 2>&1; then
-            echo "✅ HTTP接続成功、HTTPSは未使用"
-            exit 0
-          elif curl -f -s http://${{ secrets.EC2_HOST }} > /dev/null 2>&1; then
-            echo "⚠️  EC2 IPアドレスでのHTTP接続成功（ドメイン設定の問題の可能性）"
+            echo "✅ HTTPS接続成功（ALB経由）"
             exit 0
           else
             echo "❌ 接続失敗 $i/6"

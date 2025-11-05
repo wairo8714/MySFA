@@ -40,51 +40,52 @@ data "aws_key_pair" "main" {
   key_name = "${var.project_name}-keypair"
 }
 
+# デフォルトVPCを取得
+data "aws_vpc" "default" {
+  default = true
+}
+
+# デフォルトVPCのパブリックサブネットを取得（ALB用に最低2つ必要）
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
+}
+
 # EC2インスタンス（セキュア構成）
 resource "aws_instance" "main" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
   key_name               = data.aws_key_pair.main.key_name  # 既存のキーペアを参照
-  vpc_security_group_ids = [aws_security_group.main.id]
+  vpc_security_group_ids = [aws_security_group.ec2.id]
+  subnet_id              = data.aws_subnets.public.ids[0]
 
-  user_data = templatefile("${path.module}/../config/user_data.sh", {
-    dockerhub_username   = var.dockerhub_username
-    mysql_host           = var.mysql_host
-    mysql_database       = var.mysql_database
-    mysql_user           = var.mysql_user
-    mysql_password       = var.mysql_password
-    mysql_root_password  = var.mysql_root_password
-    secret_key           = var.secret_key
-    allowed_hosts        = var.allowed_hosts
-    domain_name          = var.domain_name
-    s3_bucket_name       = var.s3_bucket_name
-    aws_region           = var.aws_region
-  })
+  # user_dataは削除（Nginx設定はdeploy.ymlで転送されるため不要）
+  # Docker/Docker Composeは既存インスタンスに手動でインストール済み、または別途インストールが必要
 
   tags = {
     Name = "${var.project_name}-server"
   }
 }
 
-# セキュリティグループ
-resource "aws_security_group" "main" {
-  name_prefix = "${var.project_name}-"
-  description = "Security group for MySFA application"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidrs
-    description = "SSH access from specific IPs only"
-  }
+# ALB用セキュリティグループ
+resource "aws_security_group" "alb" {
+  name_prefix = "${var.project_name}-alb-"
+  description = "Security group for ALB"
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP for HTTPS redirect"
+    description = "HTTP access (redirects to HTTPS)"
   }
 
   ingress {
@@ -92,7 +93,7 @@ resource "aws_security_group" "main" {
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTPS access via Nginx reverse proxy"
+    description = "HTTPS access"
   }
 
   egress {
@@ -104,17 +105,56 @@ resource "aws_security_group" "main" {
   }
 
   tags = {
-    Name = "${var.project_name}-sg"
+    Name = "${var.project_name}-alb-sg"
   }
 }
 
-# Elastic IP
-resource "aws_eip" "main" {
-  instance = aws_instance.main.id
-  domain   = "vpc"
+# EC2用セキュリティグループ（ALBからのみアクセス許可）
+resource "aws_security_group" "ec2" {
+  name_prefix = "${var.project_name}-ec2-"
+  description = "Security group for EC2 instance"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    from_port                = 80
+    to_port                  = 80
+    protocol                 = "tcp"
+    security_group_id        = aws_security_group.alb.id
+    description              = "HTTP access from ALB only"
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.allowed_ssh_cidrs
+    description = "SSH access from specific IPs only"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound traffic"
+  }
 
   tags = {
-    Name = "${var.project_name}-eip"
+    Name = "${var.project_name}-ec2-sg"
+  }
+}
+
+# ACM証明書（DNS検証）
+resource "aws_acm_certificate" "main" {
+  domain_name       = var.domain_name
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name = "${var.project_name}-cert"
   }
 }
 
@@ -124,13 +164,123 @@ data "aws_route53_zone" "main" {
   private_zone = false
 }
 
-# Route 53 A Record
+# ACM証明書のDNS検証レコード
+resource "aws_route53_record" "cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = data.aws_route53_zone.main.zone_id
+}
+
+# ACM証明書の検証
+resource "aws_acm_certificate_validation" "main" {
+  certificate_arn         = aws_acm_certificate.main.arn
+  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
+
+  timeouts {
+    create = "5m"
+  }
+}
+
+# ターゲットグループ
+resource "aws_lb_target_group" "main" {
+  name     = "${var.project_name}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 5
+    interval            = 30
+    path                = "/health/"
+    protocol            = "HTTP"
+    matcher             = "200"
+  }
+
+  deregistration_delay = 30
+
+  tags = {
+    Name = "${var.project_name}-tg"
+  }
+}
+
+# ターゲットグループへのEC2インスタンス登録
+resource "aws_lb_target_group_attachment" "main" {
+  target_group_arn = aws_lb_target_group.main.arn
+  target_id        = aws_instance.main.id
+  port             = 80
+}
+
+# Application Load Balancer
+resource "aws_lb" "main" {
+  name               = "${var.project_name}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = data.aws_subnets.public.ids
+
+  enable_deletion_protection = false
+
+  tags = {
+    Name = "${var.project_name}-alb"
+  }
+}
+
+# ALB HTTPリスナー（HTTPSへリダイレクト）
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# ALB HTTPSリスナー
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.main.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.main.arn
+  }
+}
+
+# Route 53 A Record（ALBのDNS名を指す）
 resource "aws_route53_record" "main" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "A"
-  ttl     = 300
-  records = [aws_eip.main.public_ip]
+
+  alias {
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = true
+  }
 }
 
 # S3バケット（静的・メディア用）
