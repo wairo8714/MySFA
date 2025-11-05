@@ -47,13 +47,19 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "Poetry Lockファイルを更新します。"
-          # pyproject.tomlが変更されている場合、依存関係を更新
-          if git diff --name-only HEAD~1 HEAD | grep -q "pyproject.toml"; then
-            echo "pyproject.tomlが変更されたため、依存関係を更新します。"
-            poetry lock --no-update || poetry lock
+          # コミット履歴が存在するか確認
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            # pyproject.tomlが変更されている場合、依存関係を更新
+            if git diff --name-only HEAD~1 HEAD | grep -q "pyproject.toml"; then
+              echo "pyproject.tomlが変更されたため、依存関係を更新します。"
+              poetry lock
+            else
+              echo "pyproject.tomlに変更がないため、lockファイルの整合性のみチェックします。"
+              poetry lock --check || poetry lock
+            fi
           else
-            echo "pyproject.tomlに変更がないため、lockファイルのみチェックします。"
-            poetry lock --no-update
+            echo "初回コミットまたはコミット履歴が不足しています。lockファイルを生成します。"
+            poetry lock
           fi
 
       - name: Poetry Lockファイルの変更をコミット
