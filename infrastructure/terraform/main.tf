@@ -86,17 +86,17 @@ resource "aws_instance" "main" {
   }
 }
 
-# EC2セキュリティグループのルール（ALBからのHTTPアクセスを許可）
+# ECSタスク用セキュリティグループのルール（ALBからのHTTPアクセスを許可）
 # 既存のセキュリティグループにルールが存在する場合は、このリソースは不要
 # 存在しない場合は手動で追加するか、このリソースを有効化する
-resource "aws_security_group_rule" "ec2_from_alb" {
+resource "aws_security_group_rule" "ecs_from_alb" {
   type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
+  from_port                = 8000
+  to_port                  = 8000
   protocol                 = "tcp"
   source_security_group_id = data.aws_security_group.alb.id
   security_group_id        = data.aws_security_group.ec2.id
-  description              = "HTTP access from ALB only"
+  description              = "HTTP access from ALB to ECS tasks on port 8000"
 }
 
 # ACM証明書（DNS検証）
