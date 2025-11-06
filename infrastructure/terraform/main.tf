@@ -149,7 +149,7 @@ resource "aws_acm_certificate_validation" "main" {
 
 # ターゲットグループ
 resource "aws_lb_target_group" "main" {
-  name     = "${var.project_name}-tg"
+  name     = "${var.project_name}-tg-v2"
   port     = 8000
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.default.id
@@ -169,7 +169,7 @@ resource "aws_lb_target_group" "main" {
   deregistration_delay = 30
 
   tags = {
-    Name = "${var.project_name}-tg"
+    Name = "${var.project_name}-tg-v2"
   }
 }
 
