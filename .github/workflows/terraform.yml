@@ -51,13 +51,6 @@ jobs:
       - name: Terraform 初期化
         run: terraform init
 
-      - name: 既存のセキュリティグループリソースを状態から削除（dataソースに変更したため）
-        continue-on-error: true
-        run: |
-          # 状態から削除（実際のAWSリソースは削除されない）
-          terraform state rm aws_security_group.alb 2>/dev/null || echo "aws_security_group.alb は既に削除済みまたは存在しません"
-          terraform state rm aws_security_group.ec2 2>/dev/null || echo "aws_security_group.ec2 は既に削除済みまたは存在しません"
-
       - name: Terraform プラン作成
         id: plan
         run: |
@@ -139,13 +132,6 @@ jobs:
 
       - name: Terraform 初期化
         run: terraform init
-
-      - name: 既存のセキュリティグループリソースを状態から削除（dataソースに変更したため）
-        continue-on-error: true
-        run: |
-          # 状態から削除（実際のAWSリソースは削除されない）
-          terraform state rm aws_security_group.alb 2>/dev/null || echo "aws_security_group.alb は既に削除済みまたは存在しません"
-          terraform state rm aws_security_group.ec2 2>/dev/null || echo "aws_security_group.ec2 は既に削除済みまたは存在しません"
 
       - name: Planファイルをダウンロード
         continue-on-error: true
