@@ -33,6 +33,29 @@ jobs:
         ref: ${{ github.event.workflow_run.head_sha }}
 
     # -------------------------------
+    # 0.5 AWS 環境変数・認証情報デバッグ
+    # -------------------------------
+    - name: Debug AWS Environment Variables
+      run: |
+        echo "=== Check AWS Environment Variables ==="
+        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
+        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+        echo "AWS_REGION: $AWS_REGION"
+
+        if [ -z "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is empty!"; fi
+        if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is empty!"; fi
+        if [ -z "$AWS_REGION" ]; then echo "AWS_REGION is empty!"; fi
+
+        echo ""
+        echo "=== Test AWS Credentials with STS ==="
+        aws sts get-caller-identity || echo "Failed to authenticate with AWS"
+
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+
+    # -------------------------------
     # 1. .env.prod 作成
     # -------------------------------
     - name: Create .env.prod
@@ -110,4 +133,3 @@ jobs:
           --service my-ecs-service \
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
-
