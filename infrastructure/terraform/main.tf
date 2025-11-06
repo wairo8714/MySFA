@@ -87,25 +87,15 @@ resource "aws_instance" "main" {
 }
 
 # ECSタスク用セキュリティグループのルール（ALBからのHTTPアクセスを許可）
-# 注意: 既存のセキュリティグループにルールを追加する場合は、手動で追加してください
-# または、既存のルールをインポートしてからこのリソースを有効化してください
-# 
-# 手動で追加する場合の設定:
-# - タイプ: インバウンドルール
-# - ポート: 8000
-# - プロトコル: TCP
-# - ソース: ALBのセキュリティグループ (mysfa-alb-sg-8cb59333)
-# - 説明: HTTP access from ALB to ECS tasks on port 8000
-#
-# resource "aws_security_group_rule" "ecs_from_alb" {
-#   type                     = "ingress"
-#   from_port                = 8000
-#   to_port                  = 8000
-#   protocol                 = "tcp"
-#   source_security_group_id = data.aws_security_group.alb.id
-#   security_group_id        = data.aws_security_group.ec2.id
-#   description              = "HTTP access from ALB to ECS tasks on port 8000"
-# }
+resource "aws_security_group_rule" "ecs_from_alb" {
+  type                     = "ingress"
+  from_port                = 8000
+  to_port                  = 8000
+  protocol                 = "tcp"
+  source_security_group_id = data.aws_security_group.alb.id
+  security_group_id        = data.aws_security_group.ec2.id
+  description              = "HTTP access from ALB to ECS tasks on port 8000"
+}
 
 # ACM証明書（DNS検証）
 resource "aws_acm_certificate" "main" {
@@ -166,8 +156,8 @@ resource "aws_lb_target_group" "main" {
   health_check {
     enabled             = true
     healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 5
+    unhealthy_threshold = 3
+    timeout             = 10
     interval            = 30
     path                = "/health/"
     protocol            = "HTTP"
@@ -393,6 +383,14 @@ resource "aws_ecs_task_definition" "app" {
           hostPort      = 8000
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/${var.project_name}-task"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
     }
   ])
 }
@@ -445,4 +443,14 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# CloudWatch Logs ロググループ
+resource "aws_cloudwatch_log_group" "ecs_task" {
+  name              = "/ecs/${var.project_name}-task"
+  retention_in_days = 7
+
+  tags = {
+    Name = "${var.project_name}-ecs-logs"
+  }
 }

@@ -111,7 +111,15 @@ jobs:
               {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
               {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
               {\"name\": \"USE_S3\", \"value\": \"true\"}
-            ]
+            ],
+            \"logConfiguration\": {
+              \"logDriver\": \"awslogs\",
+              \"options\": {
+                \"awslogs-group\": \"/ecs/mysfa-task\",
+                \"awslogs-region\": \"${{ secrets.AWS_REGION }}\",
+                \"awslogs-stream-prefix\": \"ecs\"
+              }
+            }
           }]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \

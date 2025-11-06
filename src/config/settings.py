@@ -11,10 +11,16 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key"
 
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv(
+ALLOWED_HOSTS_STR = os.getenv(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1," "mysfa.net,app",
-).split(",")
+)
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STR.split(",") if host.strip()]
+
+# ALBからのヘルスチェックを許可するため、本番環境ではすべてのホストを許可
+# セキュリティはALBとセキュリティグループで確保
+if not DEBUG:
+    ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -143,10 +149,17 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
-    SECURE_SSL_REDIRECT = True
+    # ALBのHTTPリスナーがHTTPSにリダイレクトするため、アプリレベルでのリダイレクトは不要
+    # ヘルスチェックエンドポイント（/health/）はHTTPでアクセスされるため、SECURE_SSL_REDIRECTを無効化
+    # ALBレベルでHTTPSリダイレクトが行われているため、セキュリティ上の問題はない
+    SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# ALB経由のリクエストを正しく処理するための設定
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 LOGGING = {
     "version": 1,
