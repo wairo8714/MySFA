@@ -23,17 +23,11 @@ jobs:
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
 
     steps:
-    # -------------------------------
-    # 0. リポジトリのチェックアウト
-    # -------------------------------
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
-    # -------------------------------
-    # 1. .env.prod 作成
-    # -------------------------------
     - name: Create .env.prod
       run: |
         echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
@@ -54,47 +48,26 @@ jobs:
         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 2. AWS環境と認証デバッグ
+    # デバッグ + 手動ECRログイン
     # -------------------------------
-    - name: Deep AWS Credentials Debug
+    - name: Manual ECR login (debug mode)
       run: |
-        echo "=== AWS Environment Variables ==="
-        echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:0:4}********"
-        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
-        echo "AWS_REGION=$AWS_REGION"
-        echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
-        echo ""
-
-        echo "=== STS Identity (CLI level) ==="
-        aws sts get-caller-identity || echo "❌ CLI認証失敗"
+        echo "=== AWS Auth Check ==="
+        aws sts get-caller-identity
 
         echo ""
-        echo "=== ECR Describe (SDK level test) ==="
-        echo "Trying: aws ecr describe-registry"
-        aws ecr describe-registry || echo "❌ ECR describe 失敗"
-
-        echo ""
-        echo "=== Get-login-password (トークン検証) ==="
-        TOKEN=$(aws ecr get-login-password --region $AWS_REGION | tr -d '\n')
+        echo "=== Get Login Password ==="
+        TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
         echo "Token length: ${#TOKEN}"
-        if [ -z "$TOKEN" ]; then
-          echo "❌ トークンが空です！"
-          exit 1
-        fi
-        echo "✅ トークン取得成功 (length=${#TOKEN})"
+
+        echo ""
+        echo "=== Docker manual login ==="
+        docker login -u AWS -p "$TOKEN" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+        echo "✅ Docker login manual succeeded"
 
     # -------------------------------
-    # 3. ECR ログイン（デバッグ後に実行）
-    # -------------------------------
-    - name: Login to Amazon ECR
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-        username: AWS
-        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-    # -------------------------------
-    # 4. Docker イメージのビルドと push
+    # Docker build & push
     # -------------------------------
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -105,7 +78,7 @@ jobs:
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 5. ECS タスク定義の更新
+    # ECSタスク定義更新
     # -------------------------------
     - name: Register new ECS task definition
       id: ecs-task
@@ -113,10 +86,10 @@ jobs:
         TASK_DEF_JSON=$(aws ecs register-task-definition \
           --family my-ecs-task \
           --container-definitions "[{
-              \"name\": \"my-app\",
-              \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
-              \"essential\": true,
-              \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}]
+            \"name\": \"my-app\",
+            \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
+            \"essential\": true,
+            \"portMappings\": [{\"containerPort\": 8000,\"hostPort\": 8000}]
           }]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \
@@ -128,7 +101,7 @@ jobs:
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 6. ECS サービスのローリングデプロイ
+    # ECSサービス更新
     # -------------------------------
     - name: Update ECS service
       run: |
