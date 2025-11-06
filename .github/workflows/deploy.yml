@@ -33,29 +33,6 @@ jobs:
         ref: ${{ github.event.workflow_run.head_sha }}
 
     # -------------------------------
-    # 0.5 AWS 環境変数・認証情報デバッグ
-    # -------------------------------
-    - name: Debug AWS Environment Variables
-      run: |
-        echo "=== Check AWS Environment Variables ==="
-        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
-        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
-        echo "AWS_REGION: $AWS_REGION"
-
-        if [ -z "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is empty!"; fi
-        if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is empty!"; fi
-        if [ -z "$AWS_REGION" ]; then echo "AWS_REGION is empty!"; fi
-
-        echo ""
-        echo "=== Test AWS Credentials with STS ==="
-        aws sts get-caller-identity || echo "Failed to authenticate with AWS"
-
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-
-    # -------------------------------
     # 1. .env.prod 作成
     # -------------------------------
     - name: Create .env.prod
@@ -78,17 +55,25 @@ jobs:
         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 2. AWS ECR にログイン
+    # 2. AWS ECR ログイン用の一時パスワード取得
+    # -------------------------------
+    - name: Get ECR login password
+      id: ecr-login
+      run: |
+        echo "password=$(aws ecr get-login-password --region $AWS_REGION)" >> $GITHUB_OUTPUT
+
+    # -------------------------------
+    # 3. AWS ECR にログイン
     # -------------------------------
     - name: Login to Amazon ECR
       uses: docker/login-action@v3
       with:
         registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
         username: AWS
-        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        password: ${{ steps.ecr-login.outputs.password }}
 
     # -------------------------------
-    # 3. Docker イメージのビルドと push
+    # 4. Docker イメージのビルドと push
     # -------------------------------
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -99,7 +84,7 @@ jobs:
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 4. ECS タスク定義の更新
+    # 5. ECS タスク定義の更新
     # -------------------------------
     - name: Register new ECS task definition
       id: ecs-task
@@ -124,7 +109,7 @@ jobs:
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 5. ECS サービスのローリングデプロイ
+    # 6. ECS サービスのローリングデプロイ
     # -------------------------------
     - name: Update ECS service
       run: |
