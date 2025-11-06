@@ -87,15 +87,17 @@ resource "aws_instance" "main" {
 }
 
 # ECSタスク用セキュリティグループのルール（ALBからのHTTPアクセスを許可）
-resource "aws_security_group_rule" "ecs_from_alb" {
-  type                     = "ingress"
-  from_port                = 8000
-  to_port                  = 8000
-  protocol                 = "tcp"
-  source_security_group_id = data.aws_security_group.alb.id
-  security_group_id        = data.aws_security_group.ec2.id
-  description              = "HTTP access from ALB to ECS tasks on port 8000"
-}
+# 注意: このルールは既に手動で作成されているため、Terraformでは管理しない
+# 既存のルール: sg-04652f374cab72e64 (port 8000 from sg-091605ba82dc2720f)
+# resource "aws_security_group_rule" "ecs_from_alb" {
+#   type                     = "ingress"
+#   from_port                = 8000
+#   to_port                  = 8000
+#   protocol                 = "tcp"
+#   source_security_group_id = data.aws_security_group.alb.id
+#   security_group_id        = data.aws_security_group.ec2.id
+#   description              = "HTTP access from ALB to ECS tasks on port 8000"
+# }
 
 # ACM証明書（DNS検証）
 resource "aws_acm_certificate" "main" {
@@ -446,11 +448,13 @@ resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
 }
 
 # CloudWatch Logs ロググループ
-resource "aws_cloudwatch_log_group" "ecs_task" {
-  name              = "/ecs/${var.project_name}-task"
-  retention_in_days = 7
-
-  tags = {
-    Name = "${var.project_name}-ecs-logs"
-  }
-}
+# 注意: このロググループは既に作成されているため、Terraformでは管理しない
+# 既存のロググループ: /ecs/mysfa-task
+# resource "aws_cloudwatch_log_group" "ecs_task" {
+#   name              = "/ecs/${var.project_name}-task"
+#   retention_in_days = 7
+#
+#   tags = {
+#     Name = "${var.project_name}-ecs-logs"
+#   }
+# }
