@@ -140,25 +140,8 @@ jobs:
           name: terraform-plan
           path: infrastructure/terraform/
 
-      - name: 既存リソースを状態ファイルにインポート（必要に応じて）
-        continue-on-error: true
-        run: |
-          echo "既存のターゲットグループ（mysfa-tg-v2）を検索します..."
-          # 新しいターゲットグループ（mysfa-tg-v2）が存在するか確認
-          TG_ARN=$(aws elbv2 describe-target-groups \
-            --names mysfa-tg-v2 \
-            --query 'TargetGroups[0].TargetGroupArn' \
-            --output text 2>/dev/null || echo "")
-          
-          if [ -n "$TG_ARN" ] && [ "$TG_ARN" != "None" ]; then
-            echo "ターゲットグループが見つかりました: $TG_ARN"
-            echo "状態ファイルにインポートします..."
-            terraform import aws_lb_target_group.main "$TG_ARN" 2>&1 || echo "インポートに失敗しました（既に状態ファイルに存在する可能性があります）"
-          else
-            echo "ターゲットグループが見つかりませんでした。新規作成されます。"
-          fi
-
-      - name: Planファイルを再作成（状態ファイル変更後）
+      - name: Planファイルがない場合は新規作成
+        if: failure()
         run: terraform plan -out=tfplan -input=false -no-color
 
       - name: Terraform 適用
