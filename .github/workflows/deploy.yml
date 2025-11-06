@@ -74,18 +74,53 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # -------------------------------
-    # 4. Build and push Docker image
+    # 3a. Debug SSH Key and Environment
     # -------------------------------
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./docker/Dockerfile
-        push: true
-        tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+    - name: Debug SSH Key and Environment
+      run: |
+        echo "=== Check Environment Variables ==="
+        echo "EC2_HOST length: ${#EC2_HOST}"
+        echo "AWS_REGION: $AWS_REGION"
+        
+        echo ""
+        echo "=== Check SSH Private Key ==="
+        if [ -z "${SSH_PRIVATE_KEY}" ]; then
+          echo "SSH_PRIVATE_KEY is empty!"
+        else
+          echo "SSH_PRIVATE_KEY length: ${#SSH_PRIVATE_KEY}"
+          echo "First line of SSH_PRIVATE_KEY:"
+          echo "$SSH_PRIVATE_KEY" | head -n 1
+          echo "Last line of SSH_PRIVATE_KEY:"
+          echo "$SSH_PRIVATE_KEY" | tail -n 1
+        fi
+
+        echo ""
+        echo "=== Test SSH key format ==="
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/test_id_rsa
+        chmod 600 ~/.ssh/test_id_rsa
+        ssh-keygen -y -f ~/.ssh/test_id_rsa >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+          echo "SSH_PRIVATE_KEY format seems valid"
+        else
+          echo "SSH_PRIVATE_KEY format is invalid!"
+        fi
+
+        echo ""
+        echo "=== Test SSH Host reachability ==="
+        if [ -z "${EC2_HOST}" ]; then
+          echo "EC2_HOST is empty!"
+        else
+          ssh-keyscan -H "$EC2_HOST" >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "ssh-keyscan succeeded"
+          else
+            echo "ssh-keyscan failed"
+          fi
+        fi
 
     # -------------------------------
-    # 5. EC2へデプロイ
+    # 4. SSH鍵を設定
     # -------------------------------
     - name: SSH鍵を設定
       run: |
@@ -94,6 +129,9 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+    # -------------------------------
+    # 5. EC2へdocker-compose.prod.ymlと.env.prodを転送
+    # -------------------------------
     - name: EC2へdocker-compose.prod.ymlと.env.prodを転送
       run: |
         scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
@@ -101,6 +139,9 @@ jobs:
         scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa .env.prod \
           ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/.env.prod
 
+    # -------------------------------
+    # 6. Nginx設定ファイルを転送と設定（HTTPのみ、ALBでSSL終端）
+    # -------------------------------
     - name: Nginx設定ファイルを転送と設定（HTTPのみ、ALBでSSL終端）
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
@@ -115,12 +156,18 @@ jobs:
            chmod 644 /home/ec2-user/infrastructure/config/nginx.conf && \
            chown ec2-user:ec2-user /home/ec2-user/infrastructure/config/nginx.conf"
 
+    # -------------------------------
+    # 7. ECRログイン（EC2上）
+    # -------------------------------
     - name: ECRログイン（EC2上）
       run: |
         ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "echo '$ECR_PASSWORD' | sudo docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
+    # -------------------------------
+    # 8. 古いコンテナ停止と削除
+    # -------------------------------
     - name: 古いコンテナ停止と削除
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
@@ -130,6 +177,9 @@ jobs:
            sudo docker rm mysfa-app mysfa-db mysfa-nginx 2>/dev/null || true && \
            sudo docker network prune -f || true"
 
+    # -------------------------------
+    # 9. アプリとDBとNginxを起動
+    # -------------------------------
     - name: アプリとDBとNginxを起動
       run: |
         ECR_PASSWORD=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION }})
@@ -139,6 +189,9 @@ jobs:
         sudo docker-compose --env-file /home/ec2-user/.env.prod -f docker-compose.prod.yml up -d --pull always
         EOF
 
+    # -------------------------------
+    # 10. コンテナの状態確認
+    # -------------------------------
     - name: コンテナの状態確認
       run: |
         echo "=== Dockerコンテナの状態 ==="
@@ -149,6 +202,9 @@ jobs:
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "sudo docker network ls && sudo docker network inspect $(sudo docker network ls -q --filter name=mysfa) 2>/dev/null || echo 'No mysfa network found'"
 
+    # -------------------------------
+    # 11. アプリケーションコンテナのログ確認
+    # -------------------------------
     - name: アプリケーションコンテナのログ確認
       continue-on-error: true
       run: |
@@ -160,6 +216,9 @@ jobs:
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "sudo docker inspect mysfa-app --format '{{.State.Status}}' 2>/dev/null || echo 'container not found'"
 
+    # -------------------------------
+    # 12. データベースコンテナのログ確認
+    # -------------------------------
     - name: データベースコンテナのログ確認
       continue-on-error: true
       run: |
@@ -171,6 +230,9 @@ jobs:
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ secrets.EC2_HOST }} \
           "sudo docker inspect mysfa-db --format '{{.State.Status}}' 2>/dev/null || echo 'container not found'"
 
+    # -------------------------------
+    # 13. Nginxコンテナのログと設定確認
+    # -------------------------------
     - name: Nginxコンテナのログと設定確認
       continue-on-error: true
       run: |
