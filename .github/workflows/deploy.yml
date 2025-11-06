@@ -1,5 +1,6 @@
-name: Deploy to AWS ECR
+name: Deploy to AWS ECS
 
+# Terraform ワークフロー完了後に自動実行
 on:
   workflow_run:
     workflows: ["Terraform"]
@@ -12,84 +13,27 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    # Terraform 成功時のみ実行
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     env:
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      EC2_HOST: ${{ secrets.EC2_HOST }}
 
     steps:
+    # -------------------------------
+    # 0. リポジトリのチェックアウト
+    # -------------------------------
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
     # -------------------------------
-    # 0. Debug Secrets
-    # -------------------------------
-    - name: Debug Environment and Secrets
-      run: |
-        echo "=== Check Environment Variables ==="
-        echo "EC2_HOST length: ${#EC2_HOST}"
-        echo "AWS_REGION: $AWS_REGION"
-        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
-        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
-        
-        echo ""
-        echo "=== Check SSH Private Key ==="
-        if [ -z "${SSH_PRIVATE_KEY}" ]; then
-          echo "SSH_PRIVATE_KEY is empty!"
-        else
-          echo "SSH_PRIVATE_KEY length: ${#SSH_PRIVATE_KEY}"
-          echo "First line of SSH_PRIVATE_KEY:"
-          echo "$SSH_PRIVATE_KEY" | head -n 1
-          echo "Last line of SSH_PRIVATE_KEY:"
-          echo "$SSH_PRIVATE_KEY" | tail -n 1
-        fi
-        
-        echo ""
-        echo "=== Test SSH key format ==="
-        mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/test_id_rsa
-        chmod 600 ~/.ssh/test_id_rsa
-        ssh-keygen -y -f ~/.ssh/test_id_rsa >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-          echo "SSH_PRIVATE_KEY format seems valid"
-        else
-          echo "SSH_PRIVATE_KEY format is invalid!"
-        fi
-        
-        echo ""
-        echo "=== Test SSH Host reachability ==="
-        if [ -z "${EC2_HOST}" ]; then
-          echo "EC2_HOST is empty!"
-        else
-          ssh-keyscan -H "$EC2_HOST" >/dev/null 2>&1
-          if [ $? -eq 0 ]; then
-            echo "ssh-keyscan succeeded"
-          else
-            echo "ssh-keyscan failed"
-          fi
-        fi
-
-    # -------------------------------
-    # 1. Secrets 動作確認
-    # -------------------------------
-    - name: Check AWS secrets are set (length only)
-      run: |
-        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
-        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
-
-    - name: Test AWS credentials
-      run: |
-        echo "Testing AWS credentials..."
-        aws sts get-caller-identity
-
-    # -------------------------------
-    # 2. .env.prod 作成
+    # 1. .env.prod 作成
     # -------------------------------
     - name: Create .env.prod
       run: |
@@ -111,20 +55,17 @@ jobs:
         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 3. Login to AWS ECR
+    # 2. AWS ECR にログイン
     # -------------------------------
     - name: Login to Amazon ECR
       uses: docker/login-action@v3
       with:
         registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
         username: AWS
-      env:
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     # -------------------------------
-    # 4. Build and push Docker image
+    # 3. Docker イメージのビルドと push
     # -------------------------------
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -135,29 +76,38 @@ jobs:
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 5. SSH鍵を設定
+    # 4. ECS タスク定義の更新
     # -------------------------------
-    - name: Setup SSH Key
+    - name: Register new ECS task definition
+      id: ecs-task
       run: |
-        mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        EC2_HOST: ${{ secrets.EC2_HOST }}
+        TASK_DEF_JSON=$(aws ecs register-task-definition \
+          --family my-ecs-task \
+          --container-definitions "[
+            {
+              \"name\": \"my-app\",
+              \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
+              \"essential\": true,
+              \"portMappings\": [{\"containerPort\": 8000,\"hostPort\": 8000}]
+            }
+          ]" \
+          --requires-compatibilities FARGATE \
+          --network-mode awsvpc \
+          --memory 512 \
+          --cpu 256 \
+          --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+        echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 6. EC2へdocker-compose.prod.ymlと.env.prodを転送
+    # 5. ECS サービスのローリングデプロイ
     # -------------------------------
-    - name: Copy docker-compose.prod.yml and .env.prod to EC2
+    - name: Update ECS service
       run: |
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa docker-compose.prod.yml \
-          ec2-user@$EC2_HOST:/home/ec2-user/docker-compose.prod.yml
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa .env.prod \
-          ec2-user@$EC2_HOST:/home/ec2-user/.env.prod
-      env:
-        EC2_HOST: ${{ secrets.EC2_HOST }}
+        aws ecs update-service \
+          --cluster my-ecs-cluster \
+          --service my-ecs-service \
+          --task-definition $TASK_DEF_ARN \
+          --force-new-deployment
 
-# 以下、既存の Nginx 設定、ECRログイン、コンテナ操作のステップも同様に
-# 必要に応じて env で EC2_HOST と SSH_PRIVATE_KEY を設定する
