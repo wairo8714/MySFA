@@ -1,12 +1,14 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import include, path
 from django.views.generic.base import TemplateView
 
 from .views import HomeView
 
 urlpatterns = [
+    path("health/", lambda request: JsonResponse({"status": "healthy"}), name="health"),
     path("", HomeView.as_view(), name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
