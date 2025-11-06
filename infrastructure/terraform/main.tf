@@ -87,17 +87,25 @@ resource "aws_instance" "main" {
 }
 
 # ECSタスク用セキュリティグループのルール（ALBからのHTTPアクセスを許可）
-# 既存のセキュリティグループにルールが存在する場合は、このリソースは不要
-# 存在しない場合は手動で追加するか、このリソースを有効化する
-resource "aws_security_group_rule" "ecs_from_alb" {
-  type                     = "ingress"
-  from_port                = 8000
-  to_port                  = 8000
-  protocol                 = "tcp"
-  source_security_group_id = data.aws_security_group.alb.id
-  security_group_id        = data.aws_security_group.ec2.id
-  description              = "HTTP access from ALB to ECS tasks on port 8000"
-}
+# 注意: 既存のセキュリティグループにルールを追加する場合は、手動で追加してください
+# または、既存のルールをインポートしてからこのリソースを有効化してください
+# 
+# 手動で追加する場合の設定:
+# - タイプ: インバウンドルール
+# - ポート: 8000
+# - プロトコル: TCP
+# - ソース: ALBのセキュリティグループ (mysfa-alb-sg-8cb59333)
+# - 説明: HTTP access from ALB to ECS tasks on port 8000
+#
+# resource "aws_security_group_rule" "ecs_from_alb" {
+#   type                     = "ingress"
+#   from_port                = 8000
+#   to_port                  = 8000
+#   protocol                 = "tcp"
+#   source_security_group_id = data.aws_security_group.alb.id
+#   security_group_id        = data.aws_security_group.ec2.id
+#   description              = "HTTP access from ALB to ECS tasks on port 8000"
+# }
 
 # ACM証明書（DNS検証）
 resource "aws_acm_certificate" "main" {

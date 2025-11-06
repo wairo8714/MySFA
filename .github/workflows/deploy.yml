@@ -83,13 +83,35 @@ jobs:
     - name: Register new ECS task definition
       id: ecs-task
       run: |
+        MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
+        if [ -z "$MYSQL_PORT_VALUE" ]; then
+          MYSQL_PORT_VALUE="3306"
+        fi
         TASK_DEF_JSON=$(aws ecs register-task-definition \
           --family mysfa-task \
           --container-definitions "[{
             \"name\": \"web\",
             \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
             \"essential\": true,
-            \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}]
+            \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}],
+            \"environment\": [
+              {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
+              {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
+              {\"name\": \"ALLOWED_HOSTS\", \"value\": \"${{ secrets.ALLOWED_HOSTS }}\"},
+              {\"name\": \"MYSQL_DATABASE\", \"value\": \"${{ secrets.MYSQL_DATABASE }}\"},
+              {\"name\": \"MYSQL_USER\", \"value\": \"${{ secrets.MYSQL_USER }}\"},
+              {\"name\": \"MYSQL_PASSWORD\", \"value\": \"${{ secrets.MYSQL_PASSWORD }}\"},
+              {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
+              {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
+              {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+              {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+              {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
+              {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
+              {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},
+              {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
+              {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
+              {\"name\": \"USE_S3\", \"value\": \"true\"}
+            ]
           }]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \
