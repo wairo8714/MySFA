@@ -140,8 +140,13 @@ jobs:
           name: terraform-plan
           path: infrastructure/terraform/
 
-      - name: Planファイルがない場合は新規作成
-        if: failure()
+      - name: 古いターゲットグループを状態ファイルから削除（名前変更対応）
+        continue-on-error: true
+        run: |
+          echo "古いターゲットグループ（mysfa-tg）を状態ファイルから削除します..."
+          terraform state rm aws_lb_target_group.main 2>&1 || echo "状態ファイルに存在しないか、既に削除済みです"
+
+      - name: Planファイルを再作成（状態ファイル変更後）
         run: terraform plan -out=tfplan -input=false -no-color
 
       - name: Terraform 適用
