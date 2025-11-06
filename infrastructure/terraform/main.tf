@@ -174,11 +174,8 @@ resource "aws_lb_target_group" "main" {
 }
 
 # ターゲットグループへのEC2インスタンス登録
-resource "aws_lb_target_group_attachment" "main" {
-  target_group_arn = aws_lb_target_group.main.arn
-  target_id        = aws_instance.main.id
-  port             = 80
-}
+# 注意: ECSサービスを使用する場合、このリソースは不要です。
+# ECSサービスが自動的にターゲットグループにタスクを登録します。
 
 # Application Load Balancer
 resource "aws_lb" "main" {
