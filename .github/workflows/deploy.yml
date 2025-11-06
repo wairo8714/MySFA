@@ -84,18 +84,18 @@ jobs:
       id: ecs-task
       run: |
         TASK_DEF_JSON=$(aws ecs register-task-definition \
-          --family my-ecs-task \
+          --family mysfa-task \
           --container-definitions "[{
-            \"name\": \"my-app\",
+            \"name\": \"web\",
             \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
             \"essential\": true,
-            \"portMappings\": [{\"containerPort\": 8000,\"hostPort\": 8000}]
+            \"portMappings\": [{\"containerPort\": 80, \"hostPort\": 80}]
           }]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \
-          --memory 512 \
-          --cpu 256 \
-          --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole \
+          --memory 1024 \
+          --cpu 512 \
+          --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-ecs-task-execution-role \
           --query 'taskDefinition.taskDefinitionArn' \
           --output text)
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
@@ -106,7 +106,7 @@ jobs:
     - name: Update ECS service
       run: |
         aws ecs update-service \
-          --cluster my-ecs-cluster \
-          --service my-ecs-service \
+          --cluster mysfa-cluster \
+          --service mysfa-service \
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
