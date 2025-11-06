@@ -1,6 +1,5 @@
 name: Deploy to AWS ECS
 
-# Terraform ワークフロー完了後に自動実行
 on:
   workflow_run:
     workflows: ["Terraform"]
@@ -13,8 +12,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    # Terraform 成功時のみ実行
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     env:
@@ -22,6 +19,8 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
 
     steps:
     # -------------------------------
@@ -46,57 +45,52 @@ jobs:
         echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env.prod
         echo "MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}" >> .env.prod
         echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
-        echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
-        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
+        echo "ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> .env.prod
+        echo "ECR_REPOSITORY=${ECR_REPOSITORY}" >> .env.prod
         echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
         echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
         echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 2. AWS 環境変数チェック
+    # 2. AWS認証デバッグ
     # -------------------------------
-    - name: Check AWS Environment Variables
+    - name: Debug AWS Credentials
       run: |
-        echo "=== Check AWS Environment Variables ==="
+        echo "=== AWS ENV DEBUG ==="
         echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
         echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
         echo "AWS_REGION: $AWS_REGION"
-        if [ -z "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is empty!"; fi
-        if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is empty!"; fi
-        if [ -z "$AWS_REGION" ]; then echo "AWS_REGION is empty!"; fi
         echo ""
-        echo "=== Test AWS Credentials with STS ==="
-        aws sts get-caller-identity || echo "Failed to authenticate with AWS"
+        echo "=== STS check ==="
+        aws sts get-caller-identity
 
     # -------------------------------
-    # 3. ECR パスワード取得 & デバッグ
+    # 3. ECR トークン取得（デバッグ付き）
     # -------------------------------
     - name: Get ECR login password
-      id: ecr-login
+      id: ecr-pass
       run: |
-        echo "=== Getting ECR login password ==="
-        password=$(aws ecr get-login-password --region $AWS_REGION | tr -d '\n')
-        echo "Password length: ${#password}"
-        if [ -z "$password" ]; then
-          echo "Failed to get ECR login password!"
+        echo "=== Getting ECR token ==="
+        TOKEN=$(aws ecr get-login-password --region $AWS_REGION | tr -d '\n')
+        echo "TOKEN length: ${#TOKEN}"
+        if [ -z "$TOKEN" ]; then
+          echo "ERROR: Failed to retrieve ECR login token"
           exit 1
         fi
-        echo "password=$password" >> $GITHUB_OUTPUT
+        echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
     # -------------------------------
-    # 4. Docker ログイン
+    # 4. ECRログイン（get-login-password使用）
     # -------------------------------
     - name: Login to Amazon ECR
       uses: docker/login-action@v3
       with:
-        registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
         username: AWS
-        password: ${{ steps.ecr-login.outputs.password }}
+        password: ${{ steps.ecr-pass.outputs.token }}
 
     # -------------------------------
-    # 5. Docker イメージのビルドと push
+    # 5. Docker イメージビルド & Push
     # -------------------------------
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -104,10 +98,10 @@ jobs:
         context: .
         file: ./docker/Dockerfile
         push: true
-        tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+        tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 6. ECS タスク定義の更新
+    # 6. ECSタスク定義登録
     # -------------------------------
     - name: Register new ECS task definition
       id: ecs-task
@@ -117,22 +111,22 @@ jobs:
           --container-definitions "[
             {
               \"name\": \"my-app\",
-              \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
+              \"image\": \"${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest\",
               \"essential\": true,
-              \"portMappings\": [{\"containerPort\": 8000,\"hostPort\": 8000}]
+              \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}]
             }
           ]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \
           --memory 512 \
           --cpu 256 \
-          --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole \
+          --execution-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole \
           --query 'taskDefinition.taskDefinitionArn' \
           --output text)
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 7. ECS サービスのローリングデプロイ
+    # 7. ECSサービス更新（ローリングデプロイ）
     # -------------------------------
     - name: Update ECS service
       run: |
