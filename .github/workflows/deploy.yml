@@ -55,15 +55,38 @@ jobs:
         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 2. AWS ECR ログイン用の一時パスワード取得
+    # 2. AWS 環境変数チェック
+    # -------------------------------
+    - name: Check AWS Environment Variables
+      run: |
+        echo "=== Check AWS Environment Variables ==="
+        echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
+        echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+        echo "AWS_REGION: $AWS_REGION"
+        if [ -z "$AWS_ACCESS_KEY_ID" ]; then echo "AWS_ACCESS_KEY_ID is empty!"; fi
+        if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then echo "AWS_SECRET_ACCESS_KEY is empty!"; fi
+        if [ -z "$AWS_REGION" ]; then echo "AWS_REGION is empty!"; fi
+        echo ""
+        echo "=== Test AWS Credentials with STS ==="
+        aws sts get-caller-identity || echo "Failed to authenticate with AWS"
+
+    # -------------------------------
+    # 3. ECR パスワード取得 & デバッグ
     # -------------------------------
     - name: Get ECR login password
       id: ecr-login
       run: |
-        echo "password=$(aws ecr get-login-password --region $AWS_REGION)" >> $GITHUB_OUTPUT
+        echo "=== Getting ECR login password ==="
+        password=$(aws ecr get-login-password --region $AWS_REGION | tr -d '\n')
+        echo "Password length: ${#password}"
+        if [ -z "$password" ]; then
+          echo "Failed to get ECR login password!"
+          exit 1
+        fi
+        echo "password=$password" >> $GITHUB_OUTPUT
 
     # -------------------------------
-    # 3. AWS ECR にログイン
+    # 4. Docker ログイン
     # -------------------------------
     - name: Login to Amazon ECR
       uses: docker/login-action@v3
@@ -73,7 +96,7 @@ jobs:
         password: ${{ steps.ecr-login.outputs.password }}
 
     # -------------------------------
-    # 4. Docker イメージのビルドと push
+    # 5. Docker イメージのビルドと push
     # -------------------------------
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -84,7 +107,7 @@ jobs:
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     # -------------------------------
-    # 5. ECS タスク定義の更新
+    # 6. ECS タスク定義の更新
     # -------------------------------
     - name: Register new ECS task definition
       id: ecs-task
@@ -109,7 +132,7 @@ jobs:
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 6. ECS サービスのローリングデプロイ
+    # 7. ECS サービスのローリングデプロイ
     # -------------------------------
     - name: Update ECS service
       run: |
