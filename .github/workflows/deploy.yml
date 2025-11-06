@@ -89,7 +89,7 @@ jobs:
             \"name\": \"web\",
             \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
             \"essential\": true,
-            \"portMappings\": [{\"containerPort\": 80, \"hostPort\": 80}]
+            \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}]
           }]" \
           --requires-compatibilities FARGATE \
           --network-mode awsvpc \

@@ -147,5 +147,11 @@ jobs:
             terraform plan -out=tfplan -input=false -no-color
           fi
 
+      - name: 状態ファイルから手動削除済みターゲットグループを削除
+        continue-on-error: true
+        run: |
+          echo "手動削除済みのターゲットグループが状態ファイルに残っている場合、削除します..."
+          terraform state rm aws_lb_target_group.main 2>&1 || echo "ターゲットグループは状態ファイルに存在しないか、既に削除済みです"
+
       - name: Terraform 適用
         run: terraform apply -auto-approve tfplan
