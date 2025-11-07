@@ -8,11 +8,13 @@ from django.views.generic.base import TemplateView
 
 from .views import HomeView
 
+
 # ヘルスチェック用のビュー（ALLOWED_HOSTSのチェックをバイパス）
 @require_http_methods(["GET", "HEAD"])
 def health_check(request):
     # ヘルスチェックは常に成功を返す（ALLOWED_HOSTSのチェックをバイパス）
     return JsonResponse({"status": "healthy"}, status=200)
+
 
 urlpatterns = [
     path("health/", health_check, name="health"),
@@ -32,6 +34,7 @@ urlpatterns = [
     ),
     path("mysfa/", include("mysfa.urls")),
 ]
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
