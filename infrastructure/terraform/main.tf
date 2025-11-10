@@ -39,8 +39,7 @@ data "aws_subnets" "public" {
 
 # 既存のセキュリティグループを参照（ECSタスク用）
 data "aws_security_group" "ecs_tasks" {
-  name   = "mysfa-ecs-sg-8cb59333"
-  vpc_id = data.aws_vpc.default.id
+  id = "sg-04652f374cab72e64"
 }
 
 # 既存のセキュリティグループを参照（ALB用）
