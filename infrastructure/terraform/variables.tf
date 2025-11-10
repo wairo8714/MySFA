@@ -10,18 +10,6 @@ variable "project_name" {
   default     = "mysfa"
 }
 
-variable "instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t3.small"
-}
-
-variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed to SSH access"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-
 variable "dockerhub_username" {
   description = "Docker Hub username for image pulling"
   type        = string

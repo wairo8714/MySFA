@@ -1,8 +1,3 @@
-output "instance_id" {
-  description = "ID of the EC2 instance"
-  value       = aws_instance.main.id
-}
-
 output "alb_dns_name" {
   description = "DNS name of the Application Load Balancer"
   value       = aws_lb.main.dns_name
@@ -31,9 +26,4 @@ output "application_url_https" {
 output "application_url_http" {
   description = "HTTP URL to access the application (redirects to HTTPS via ALB)"
   value       = "http://${var.domain_name}"
-}
-
-output "ami_id" {
-  description = "AMI ID used for the instance"
-  value       = data.aws_ami.amazon_linux.id
 }

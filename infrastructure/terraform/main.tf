@@ -6,38 +6,17 @@ terraform {
       version = "~> 5.0"
     }
   }
-  
+
   backend "s3" {
-    bucket = "mysfa-terraform-state"  # tfstate保存用のS3バケット（手動作成が必要）
-    key    = "terraform.tfstate"
-    region = "ap-northeast-1"
+    bucket  = "mysfa-terraform-state"  # tfstate保存用のS3バケット（手動作成が必要）
+    key     = "terraform.tfstate"
+    region  = "ap-northeast-1"
     encrypt = true
   }
 }
 
 provider "aws" {
   region = var.aws_region
-}
-
-# 最新のAmazon Linux 2 AMIを動的取得
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
-# 既存のキーペアを参照
-data "aws_key_pair" "main" {
-  key_name = "${var.project_name}-keypair"
 }
 
 # デフォルトVPCを取得
@@ -58,9 +37,9 @@ data "aws_subnets" "public" {
   }
 }
 
-# 既存のセキュリティグループを参照（EC2用）
-data "aws_security_group" "ec2" {
-  name   = "mysfa-ec2-sg-8cb59333"
+# 既存のセキュリティグループを参照（ECSタスク用）
+data "aws_security_group" "ecs_tasks" {
+  name   = "mysfa-ecs-sg-8cb59333"
   vpc_id = data.aws_vpc.default.id
 }
 
@@ -69,35 +48,6 @@ data "aws_security_group" "alb" {
   name   = "mysfa-alb-sg-8cb59333"
   vpc_id = data.aws_vpc.default.id
 }
-
-# EC2インスタンス（セキュア構成）
-resource "aws_instance" "main" {
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = var.instance_type
-  key_name               = data.aws_key_pair.main.key_name  # 既存のキーペアを参照
-  vpc_security_group_ids = [data.aws_security_group.ec2.id]
-  subnet_id              = data.aws_subnets.public.ids[0]
-
-  # user_dataは削除（Nginx設定はdeploy.ymlで転送されるため不要）
-  # Docker/Docker Composeは既存インスタンスに手動でインストール済み、または別途インストールが必要
-
-  tags = {
-    Name = "${var.project_name}-server"
-  }
-}
-
-# ECSタスク用セキュリティグループのルール（ALBからのHTTPアクセスを許可）
-# 注意: このルールは既に手動で作成されているため、Terraformでは管理しない
-# 既存のルール: sg-04652f374cab72e64 (port 8000 from sg-091605ba82dc2720f)
-# resource "aws_security_group_rule" "ecs_from_alb" {
-#   type                     = "ingress"
-#   from_port                = 8000
-#   to_port                  = 8000
-#   protocol                 = "tcp"
-#   source_security_group_id = data.aws_security_group.alb.id
-#   security_group_id        = data.aws_security_group.ec2.id
-#   description              = "HTTP access from ALB to ECS tasks on port 8000"
-# }
 
 # ACM証明書（DNS検証）
 resource "aws_acm_certificate" "main" {
@@ -149,10 +99,10 @@ resource "aws_acm_certificate_validation" "main" {
 
 # ターゲットグループ
 resource "aws_lb_target_group" "main" {
-  name     = "${var.project_name}-tg-v2"
-  port     = 8000
-  protocol = "HTTP"
-  vpc_id   = data.aws_vpc.default.id
+  name        = "${var.project_name}-tg-v2"
+  port        = 8000
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.default.id
   target_type = "ip"
 
   health_check {
@@ -172,10 +122,6 @@ resource "aws_lb_target_group" "main" {
     Name = "${var.project_name}-tg-v2"
   }
 }
-
-# ターゲットグループへのEC2インスタンス登録
-# 注意: ECSサービスを使用する場合、このリソースは不要です。
-# ECSサービスが自動的にターゲットグループにタスクを登録します。
 
 # Application Load Balancer
 resource "aws_lb" "main" {
@@ -258,7 +204,7 @@ resource "aws_s3_bucket_ownership_controls" "mysfa_bucket_ownership" {
 # S3バケットACL
 resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
   depends_on = [aws_s3_bucket_ownership_controls.mysfa_bucket_ownership]
-  
+
   bucket = aws_s3_bucket.mysfa_bucket.id
   acl    = "private"
 }
@@ -283,7 +229,7 @@ resource "aws_s3_bucket_public_access_block" "mysfa_bucket_pab" {
 
 resource "aws_s3_bucket_policy" "mysfa_bucket_policy" {
   depends_on = [aws_s3_bucket_public_access_block.mysfa_bucket_pab]
-  
+
   bucket = aws_s3_bucket.mysfa_bucket.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -328,9 +274,9 @@ resource "aws_ecr_lifecycle_policy" "mysfa_policy" {
         rulePriority = 1
         description  = "Keep last 10 images"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"
@@ -366,13 +312,13 @@ resource "aws_ecs_cluster" "main" {
 # ECS タスク定義
 # ===============================
 resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}-task"
-  network_mode              = "awsvpc"
-  requires_compatibilities  = ["FARGATE"]
-  cpu                       = "512"
-  memory                    = "1024"
-  execution_role_arn        = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn             = aws_iam_role.ecs_task_execution_role.arn
+  family                  = "${var.project_name}-task"
+  network_mode            = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                     = "512"
+  memory                  = "1024"
+  execution_role_arn      = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn           = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([
     {
@@ -410,7 +356,7 @@ resource "aws_ecs_service" "main" {
   network_configuration {
     subnets         = data.aws_subnets.public.ids
     assign_public_ip = true
-    security_groups = [data.aws_security_group.ec2.id]
+    security_groups = [data.aws_security_group.ecs_tasks.id]
   }
 
   load_balancer {
