@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,17 +7,14 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
-
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS_STR = os.getenv(
     "ALLOWED_HOSTS",
-    "localhost,127.0.0.1," "mysfa.net,app",
+    "localhost,127.0.0.1,mysfa.net,app",
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STR.split(",") if host.strip()]
 
-# ALBからのヘルスチェックを許可するため、本番環境ではすべてのホストを許可
-# セキュリティはALBとセキュリティグループで確保
 if not DEBUG:
     ALLOWED_HOSTS = ["*"]
 
@@ -78,10 +74,7 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation."
-        "UserAttributeSimilarityValidator"
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -103,23 +96,16 @@ if USE_S3:
     AWS_QUERYSTRING_AUTH = False
 
     STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    STATIC_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-        f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-    )
-
+    STATIC_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/static/"
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-        f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
-    )
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
 else:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
     DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
     STATIC_URL = "/static/"
     MEDIA_URL = "/media/"
-    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
     STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"]
@@ -129,7 +115,6 @@ DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
 DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
 
 AUTH_USER_MODEL = "accounts.CustomUser"
-
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -149,44 +134,10 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
-    # ALBのHTTPリスナーがHTTPSにリダイレクトするため、アプリレベルでのリダイレクトは不要
-    # ヘルスチェックエンドポイント（/health/）はHTTPでアクセスされるため、SECURE_SSL_REDIRECTを無効化
-    # ALBレベルでHTTPSリダイレクトが行われているため、セキュリティ上の問題はない
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# ALB経由のリクエストを正しく処理するための設定
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} "
-            "{thread:d} {message}",
-            "style": "{",
-        },
-        "simple": {"format": "{levelname} {message}", "style": "{"},
-    },
-    "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "django.log",
-            "formatter": "verbose",
-        },
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
-    "root": {"handlers": ["console", "file"], "level": "INFO"},
-    "loggers": {
-        "django": {"handlers": ["console", "file"], "level": "INFO", "propagate": False}
-    },
-}
