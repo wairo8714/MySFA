@@ -76,6 +76,7 @@ jobs:
         file: ./docker/Dockerfile
         push: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+        build-args: USE_S3=True
 
     # -------------------------------
     # ECSタスク定義更新

@@ -18,10 +18,12 @@ RUN poetry install --no-root
 
 COPY . /app/
 
-# collectstatic は USE_S3=False の場合のみ
-ARG USE_S3
-RUN if [ "$USE_S3" = "False" ]; then \
+# collectstatic は USE_S3=True の場合に実行（S3へ静的ファイルを配置）
+ARG USE_S3=False
+RUN if [ "$USE_S3" = "True" ]; then \
         poetry run python manage.py collectstatic --noinput; \
+    else \
+        echo "Skipping collectstatic (USE_S3=$USE_S3)"; \
     fi
 
 WORKDIR /app/src
