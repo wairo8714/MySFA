@@ -42,10 +42,13 @@ jobs:
         echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
         echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
         echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
+        echo "AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
         echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
         echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
         echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
+        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env.prod
+        echo "USE_S3=true" >> .env.prod
 
     # -------------------------------
     # デバッグ + 手動ECRログイン
@@ -75,8 +78,15 @@ jobs:
         context: .
         file: ./docker/Dockerfile
         push: true
+        load: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
-        build-args: USE_S3=True
+
+    - name: Collect static files to S3
+      run: |
+        docker run --rm \
+          --env-file .env.prod \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest \
+          poetry run python manage.py collectstatic --noinput
 
     # -------------------------------
     # ECSタスク定義更新
