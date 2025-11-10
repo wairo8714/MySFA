@@ -92,6 +92,10 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = False
 
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
 USE_S3 = os.getenv("USE_S3", "False").lower() == "true"
 
 if USE_S3:
@@ -99,15 +103,18 @@ if USE_S3:
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
     AWS_S3_REGION_NAME = os.getenv("AWS_REGION", "ap-northeast-1")
-    AWS_QUERYSTRING_AUTH = False
-
-    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    aws_s3_endpoint = (
+    AWS_S3_ENDPOINT_URL = (
         f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
     )
-    STATIC_URL = f"{aws_s3_endpoint}/static/"
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = f"{aws_s3_endpoint}/media/"
+    AWS_QUERYSTRING_AUTH = False
+    AWS_DEFAULT_ACL = "public-read"
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+
+    STATICFILES_STORAGE = "config.storage_backends.StaticStorage"
+    DEFAULT_FILE_STORAGE = "config.storage_backends.MediaStorage"
+
+    STATIC_URL = f"{AWS_S3_ENDPOINT_URL}/static/"
+    MEDIA_URL = f"{AWS_S3_ENDPOINT_URL}/media/"
 else:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
     DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
