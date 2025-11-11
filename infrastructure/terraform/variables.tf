@@ -10,9 +10,10 @@ variable "project_name" {
   default     = "mysfa"
 }
 
-variable "dockerhub_username" {
-  description = "Docker Hub username for image pulling"
+variable "environment" {
+  description = "Application environment (dev/staging/prod)"
   type        = string
+  default     = "prod"
 }
 
 variable "mysql_host" {
