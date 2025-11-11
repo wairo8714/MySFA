@@ -30,6 +30,13 @@ jobs:
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
     - name: Create .env.prod
       run: |
         echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
@@ -52,24 +59,8 @@ jobs:
         echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env.prod
         echo "USE_S3=true" >> .env.prod
 
-    # -------------------------------
-    # デバッグ + 手動ECRログイン
-    # -------------------------------
-    - name: Manual ECR login (debug mode)
-      run: |
-        echo "=== AWS Auth Check ==="
-        aws sts get-caller-identity
-
-        echo ""
-        echo "=== Get Login Password ==="
-        TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
-        echo "Token length: ${#TOKEN}"
-
-        echo ""
-        echo "=== Docker manual login ==="
-        docker login -u AWS -p "$TOKEN" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
-        echo "✅ Docker login manual succeeded"
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v2
 
     # -------------------------------
     # Docker build & push
@@ -81,6 +72,9 @@ jobs:
         file: ./docker/Dockerfile
         push: true
         load: true
+        provenance: false
+        cache-from: type=gha,scope=${{ github.ref }}
+        cache-to: type=gha,mode=max,scope=${{ github.ref }}
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     - name: Collect static files to S3

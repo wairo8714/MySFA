@@ -28,6 +28,8 @@ RUN if [ "$ENVIRONMENT" = "prod" ]; then \
         cp nginx/nginx.dev.conf /etc/nginx/conf.d/default.conf; \
     fi
 
+RUN chmod +x /app/start.sh
+
 WORKDIR /app/src
 EXPOSE 8000
 
