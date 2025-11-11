@@ -149,6 +149,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
+    if ALLOWED_HOSTS != ["*"]:
+        ALLOWED_HOSTS.append("127.0.0.1")
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
