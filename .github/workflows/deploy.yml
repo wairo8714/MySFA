@@ -21,6 +21,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
+      AWS_PAGER: ""
 
     steps:
     - name: Checkout repository
@@ -151,3 +153,17 @@ jobs:
           --service mysfa-service \
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
+
+    - name: ECSサービス安定化待ち
+      run: |
+        aws ecs wait services-stable \
+          --cluster mysfa-cluster \
+          --services mysfa-service
+
+    - name: 本番ドメインHTTPS疎通確認
+      run: |
+        for i in {1..5}; do
+          curl --fail --retry 5 --retry-connrefused --retry-delay 5 "https://${DOMAIN_NAME}/health/" && exit 0
+          sleep 10
+        done
+        exit 1

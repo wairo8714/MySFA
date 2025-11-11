@@ -26,6 +26,7 @@ env:
   TF_VAR_domain_name: ${{ secrets.DOMAIN_NAME }}
   TF_VAR_s3_bucket_name: ${{ secrets.S3_BUCKET_NAME }}
   TF_VAR_project_name: mysfa
+  AWS_PAGER: ""
 
 jobs:
   terraform-plan:
@@ -145,4 +146,31 @@ jobs:
         run: terraform plan -out=tfplan -input=false -no-color
 
       - name: Terraform 適用
+        id: apply
         run: terraform apply -auto-approve tfplan
+
+      - name: Terraform 出力の取得
+        if: success()
+        id: outputs
+        run: |
+          echo "ALB_DNS_NAME=$(terraform output -raw alb_dns_name)" >> $GITHUB_ENV
+          echo "TARGET_GROUP_ARN=$(terraform output -raw target_group_arn)" >> $GITHUB_ENV
+          echo "ACM_CERT_ARN=$(terraform output -raw acm_certificate_arn)" >> $GITHUB_ENV
+          echo "APP_URL=$(terraform output -raw application_url_https)" >> $GITHUB_ENV
+
+      - name: ACM 検証完了待ち
+        if: success()
+        run: aws acm wait certificate-validated --certificate-arn "$ACM_CERT_ARN"
+
+      - name: ターゲットグループのHealthy待ち
+        if: success()
+        run: aws elbv2 wait target-in-service --target-group-arn "$TARGET_GROUP_ARN"
+
+      - name: ALB HTTPSヘルスチェック
+        if: success()
+        run: |
+          for i in {1..5}; do
+            curl -k --fail --retry 5 --retry-connrefused --retry-delay 5 "https://$ALB_DNS_NAME/health/" && exit 0
+            sleep 10
+          done
+          exit 1
