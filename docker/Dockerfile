@@ -1,38 +1,35 @@
-# ベースイメージ
-FROM python:3.12-slim
+# 1. ベースイメージ
+FROM python:3.11-slim
 
-# 環境変数
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-WORKDIR /app
-
-# システム依存パッケージのインストール
+# 2. 必要パッケージのインストール
 RUN apt-get update && apt-get install -y \
-    build-essential pkg-config libmariadb-dev libmariadb-dev-compat curl nginx \
+    build-essential \
+    libpq-dev \
+    nginx \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Poetry インストール
+# 3. 作業ディレクトリ作成
+WORKDIR /app
+
+# 4. Poetry インストール
 RUN curl -sSL https://install.python-poetry.org | python3 -
+
 ENV PATH="/root/.local/bin:$PATH"
-RUN poetry config virtualenvs.create false
 
-# アプリ依存関係インストール
-COPY pyproject.toml poetry.lock /app/
-RUN poetry install --no-root
+# 5. プロジェクト依存関係コピー
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --no-dev
 
-# アプリケーションコードをコピー
-COPY . /app/
+# 6. アプリケーションコードコピー
+COPY . .
 
-# start.sh を追加
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+# 7. Nginx 設定をコンテナ内にコピー
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# 作業ディレクトリ
-WORKDIR /app/src
+# 8. start.sh をコンテナにコピーして実行権限付与
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# ポート 80 を開放
-EXPOSE 80
-
-# コンテナ起動時に start.sh を実行
-CMD ["/app/start.sh"]
+# 9. コンテナ起動コマンド
+CMD ["/start.sh"]
