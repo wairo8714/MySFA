@@ -72,9 +72,6 @@ jobs:
         file: ./docker/Dockerfile
         push: true
         load: true
-        provenance: false
-        cache-from: type=gha,scope=${{ github.ref }}
-        cache-to: type=gha,mode=max,scope=${{ github.ref }}
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
 
     - name: Collect static files to S3
