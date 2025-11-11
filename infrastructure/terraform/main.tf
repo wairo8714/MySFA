@@ -8,7 +8,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "mysfa-terraform-state"  # tfstate保存用のS3バケット（手動作成が必要）
+    bucket  = "mysfa-terraform-state"
     key     = "terraform.tfstate"
     region  = "ap-northeast-1"
     encrypt = true
@@ -19,12 +19,13 @@ provider "aws" {
   region = var.aws_region
 }
 
-# デフォルトVPCを取得
+# ============================================
+# ネットワーク & セキュリティ設定
+# ============================================
 data "aws_vpc" "default" {
   default = true
 }
 
-# デフォルトVPCのパブリックサブネットを取得（ALB用に最低2つ必要）
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
@@ -37,22 +38,21 @@ data "aws_subnets" "public" {
   }
 }
 
-# 既存のセキュリティグループを参照（ECSタスク用）
 data "aws_security_group" "ecs_tasks" {
   id = "sg-04652f374cab72e64"
 }
 
-# 既存のセキュリティグループを参照（ALB用）
 data "aws_security_group" "alb" {
   name   = "mysfa-alb-sg-8cb59333"
   vpc_id = data.aws_vpc.default.id
 }
 
-# ACM証明書（DNS検証）
+# ============================================
+# ACM / Route53 / ALB
+# ============================================
 resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
-
   lifecycle {
     create_before_destroy = true
   }
@@ -62,13 +62,11 @@ resource "aws_acm_certificate" "main" {
   }
 }
 
-# Route 53 Hosted Zone
 data "aws_route53_zone" "main" {
   name         = var.domain_name
   private_zone = false
 }
 
-# ACM証明書のDNS検証レコード
 resource "aws_route53_record" "cert_validation" {
   for_each = {
     for dvo in aws_acm_certificate.main.domain_validation_options : dvo.domain_name => {
@@ -86,17 +84,11 @@ resource "aws_route53_record" "cert_validation" {
   zone_id         = data.aws_route53_zone.main.zone_id
 }
 
-# ACM証明書の検証
 resource "aws_acm_certificate_validation" "main" {
   certificate_arn         = aws_acm_certificate.main.arn
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
-
-  timeouts {
-    create = "5m"
-  }
 }
 
-# ターゲットグループ
 resource "aws_lb_target_group" "main" {
   name        = "${var.project_name}-tg-v2"
   port        = 8000
@@ -105,47 +97,29 @@ resource "aws_lb_target_group" "main" {
   target_type = "ip"
 
   health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    unhealthy_threshold = 3
-    timeout             = 10
-    interval            = 30
-    path                = "/health/"
-    protocol            = "HTTP"
-    matcher             = "200"
-  }
-
-  deregistration_delay = 30
-
-  tags = {
-    Name = "${var.project_name}-tg-v2"
+    enabled   = true
+    path      = "/health/"
+    matcher   = "200"
+    interval  = 30
+    timeout   = 10
   }
 }
 
-# Application Load Balancer
 resource "aws_lb" "main" {
   name               = "${var.project_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [data.aws_security_group.alb.id]
   subnets            = data.aws_subnets.public.ids
-
-  enable_deletion_protection = false
-
-  tags = {
-    Name = "${var.project_name}-alb"
-  }
 }
 
-# ALB HTTPリスナー（HTTPSへリダイレクト）
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
-  port              = "80"
+  port              = 80
   protocol          = "HTTP"
 
   default_action {
     type = "redirect"
-
     redirect {
       port        = "443"
       protocol    = "HTTPS"
@@ -154,10 +128,9 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ALB HTTPSリスナー
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
-  port              = "443"
+  port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = aws_acm_certificate_validation.main.certificate_arn
@@ -168,12 +141,10 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-# Route 53 A Record（ALBのDNS名を指す）
 resource "aws_route53_record" "main" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "A"
-
   alias {
     name                   = aws_lb.main.dns_name
     zone_id                = aws_lb.main.zone_id
@@ -181,143 +152,67 @@ resource "aws_route53_record" "main" {
   }
 }
 
-# S3バケット（静的・メディア用）
+# ============================================
+# S3 / ECR / IAM / ECS
+# ============================================
 resource "aws_s3_bucket" "mysfa_bucket" {
   bucket = var.s3_bucket_name
-
-  tags = {
-    Name        = "${var.project_name}-bucket"
-    Environment = "production"
-  }
 }
 
-# S3バケットの所有権制御（ACLを有効にするため）
 resource "aws_s3_bucket_ownership_controls" "mysfa_bucket_ownership" {
   bucket = aws_s3_bucket.mysfa_bucket.id
-
   rule {
     object_ownership = "BucketOwnerPreferred"
   }
 }
 
-# S3バケットACL
 resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
   depends_on = [aws_s3_bucket_ownership_controls.mysfa_bucket_ownership]
-
-  bucket = aws_s3_bucket.mysfa_bucket.id
-  acl    = "private"
+  bucket     = aws_s3_bucket.mysfa_bucket.id
+  acl        = "private"
 }
 
 resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
   bucket = aws_s3_bucket.mysfa_bucket.id
-
   versioning_configuration {
     status = "Enabled"
   }
 }
 
-# S3バケットのPublic Access Block設定
-resource "aws_s3_bucket_public_access_block" "mysfa_bucket_pab" {
-  bucket = aws_s3_bucket.mysfa_bucket.id
-
-  block_public_acls       = true
-  block_public_policy     = false  # ポリシーを許可するためfalse
-  ignore_public_acls      = true
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_policy" "mysfa_bucket_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.mysfa_bucket_pab]
-
-  bucket = aws_s3_bucket.mysfa_bucket.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowDjangoAccess"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = "${aws_s3_bucket.mysfa_bucket.arn}/*"
-      }
-    ]
-  })
-}
-
-# ECRリポジトリを作成
 resource "aws_ecr_repository" "mysfa" {
-  name                 = "mysfa_ver2"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = {
-    Name        = "${var.project_name}-ecr"
-    Environment = "production"
-  }
+  name = "mysfa_ver2"
 }
 
-# 古いDockerイメージを自動削除するライフサイクルポリシー
-resource "aws_ecr_lifecycle_policy" "mysfa_policy" {
-  repository = aws_ecr_repository.mysfa.name
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "${var.project_name}-ecs-task-execution-role"
 
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Keep last 10 images"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = {
-          type = "expire"
-        }
-      }
-    ]
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Principal = { Service = "ecs-tasks.amazonaws.com" },
+      Effect = "Allow"
+    }]
   })
 }
 
-# ECRリポジトリURLを出力
-output "ecr_repository_url" {
-  value       = aws_ecr_repository.mysfa.repository_url
-  description = "ECR repository URL for Docker image pushes"
+resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ===============================
-# ECS クラスタ
-# ===============================
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-cluster"
-
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-
-  tags = {
-    Name = "${var.project_name}-ecs-cluster"
-  }
 }
 
-# ===============================
-# ECS タスク定義
-# ===============================
 resource "aws_ecs_task_definition" "app" {
-  family                  = "${var.project_name}-task"
-  network_mode            = "awsvpc"
+  family                   = "${var.project_name}-task"
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                     = "512"
-  memory                  = "1024"
-  execution_role_arn      = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn           = aws_iam_role.ecs_task_execution_role.arn
+  cpu                      = "512"
+  memory                   = "1024"
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([
     {
@@ -325,16 +220,29 @@ resource "aws_ecs_task_definition" "app" {
       image     = "${aws_ecr_repository.mysfa.repository_url}:latest"
       essential = true
       portMappings = [
-        {
-          containerPort = 8000
-          hostPort      = 8000
-        }
+        { containerPort = 8000, hostPort = 8000 }
       ]
+
+      environment = [
+        { name = "ENVIRONMENT", value = var.environment },
+        { name = "DEBUG", value = "False" },
+        { name = "FORCE_HTTPS", value = "True" },
+        { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
+        { name = "MYSQL_HOST", value = var.mysql_host },
+        { name = "MYSQL_DATABASE", value = var.mysql_database },
+        { name = "MYSQL_USER", value = var.mysql_user },
+        { name = "MYSQL_PASSWORD", value = var.mysql_password },
+        { name = "SECRET_KEY", value = var.secret_key },
+        { name = "USE_S3", value = "True" },
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "AWS_STORAGE_BUCKET_NAME", value = var.s3_bucket_name }
+      ]
+
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awslogs",
         options = {
-          "awslogs-group"         = "/ecs/${var.project_name}-task"
-          "awslogs-region"        = var.aws_region
+          "awslogs-group"         = "/ecs/${var.project_name}-task",
+          "awslogs-region"        = var.aws_region,
           "awslogs-stream-prefix" = "ecs"
         }
       }
@@ -342,9 +250,6 @@ resource "aws_ecs_task_definition" "app" {
   ])
 }
 
-# ===============================
-# ECS サービス
-# ===============================
 resource "aws_ecs_service" "main" {
   name            = "${var.project_name}-service"
   cluster         = aws_ecs_cluster.main.id
@@ -366,40 +271,3 @@ resource "aws_ecs_service" "main" {
 
   depends_on = [aws_lb_listener.https]
 }
-
-# ===============================
-# ECS タスク実行ロール
-# ===============================
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.project_name}-ecs-task-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        },
-        Effect = "Allow"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-# CloudWatch Logs ロググループ
-# 注意: このロググループは既に作成されているため、Terraformでは管理しない
-# 既存のロググループ: /ecs/mysfa-task
-# resource "aws_cloudwatch_log_group" "ecs_task" {
-#   name              = "/ecs/${var.project_name}-task"
-#   retention_in_days = 7
-#
-#   tags = {
-#     Name = "${var.project_name}-ecs-logs"
-#   }
-# }
