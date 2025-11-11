@@ -1,35 +1,33 @@
-# 1. ベースイメージ
-FROM python:3.11-slim
+# ベースイメージ
+FROM python:3.12-slim
 
-# 2. 必要パッケージのインストール
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    nginx \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV ENVIRONMENT=prod  # デフォルトは prod
 
-# 3. 作業ディレクトリ作成
 WORKDIR /app
 
-# 4. Poetry インストール
+RUN apt-get update && apt-get install -y \
+    build-essential pkg-config libmariadb-dev libmariadb-dev-compat curl \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN curl -sSL https://install.python-poetry.org | python3 -
-
 ENV PATH="/root/.local/bin:$PATH"
+RUN poetry config virtualenvs.create false
 
-# 5. プロジェクト依存関係コピー
-COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-root --no-dev
+COPY pyproject.toml poetry.lock /app/
+RUN poetry install --no-root
 
-# 6. アプリケーションコードコピー
-COPY . .
+COPY . /app/
 
-# 7. Nginx 設定をコンテナ内にコピー
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 環境に応じて nginx.conf をコピー
+RUN if [ "$ENVIRONMENT" = "prod" ]; then \
+        cp nginx/nginx.prod.conf /etc/nginx/conf.d/default.conf; \
+    else \
+        cp nginx/nginx.dev.conf /etc/nginx/conf.d/default.conf; \
+    fi
 
-# 8. start.sh をコンテナにコピーして実行権限付与
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+WORKDIR /app/src
+EXPOSE 8000
 
-# 9. コンテナ起動コマンド
-CMD ["/start.sh"]
+CMD ["/app/start.sh"]
