@@ -24,17 +24,11 @@ jobs:
       AWS_PAGER: ""
 
     steps:
-    # -------------------------------
-    # 1. リポジトリのチェックアウト
-    # -------------------------------
     - name: リポジトリを取得
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
-    # -------------------------------
-    # 2. AWS 認証情報を設定
-    # -------------------------------
     - name: AWS 認証を設定
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -42,9 +36,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    # -------------------------------
-    # 3. 本番環境用 .env ファイル作成
-    # -------------------------------
     - name: .env.prod を作成
       run: |
         cat <<EOF > .env.prod
@@ -69,34 +60,22 @@ jobs:
         USE_S3=true
         EOF
 
-    # -------------------------------
-    # 4. Amazon ECR にログイン
-    # -------------------------------
     - name: ECR にログイン
       uses: aws-actions/amazon-ecr-login@v2
 
-    # -------------------------------
-    # 5. start.sh に実行権限を付与
-    # -------------------------------
     - name: start.sh の実行権限を付与
       run: chmod +x start.sh
 
-    # -------------------------------
-    # 6. Docker イメージをビルド・プッシュ（キャッシュ対応）
-    # -------------------------------
-    - name: Docker イメージをビルドしてプッシュ
+    - name: Docker イメージをビルドしてプッシュ（キャッシュ対応）
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./docker/Dockerfile
         push: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache
+        cache-to: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache,mode=max
 
-    # -------------------------------
-    # 7. 同一イメージの場合は ECS 更新をスキップ
-    # -------------------------------
     - name: 同一イメージかを確認
       id: check_image
       run: |
@@ -117,9 +96,6 @@ jobs:
         echo "イメージに変更がないため、ECS 更新をスキップします。"
         exit 0
 
-    # -------------------------------
-    # 8. 新しい ECS タスク定義を登録
-    # -------------------------------
     - name: 新しいタスク定義を登録
       id: ecs-task
       run: |
@@ -171,9 +147,6 @@ jobs:
 
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
-    # -------------------------------
-    # 9. ECS サービスを更新
-    # -------------------------------
     - name: ECS サービスを更新
       run: |
         aws ecs update-service \
@@ -182,30 +155,18 @@ jobs:
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
 
-    # -------------------------------
-    # 10. サービスの安定化を待機
-    # -------------------------------
     - name: サービスの安定化を待機
       run: |
-        echo "ECS サービスの安定化を待機中..."
         aws ecs wait services-stable \
           --cluster mysfa-cluster \
           --services mysfa-service
-        echo "ECS サービスが安定しました。"
 
-    # -------------------------------
-    # 11. ヘルスチェック
-    # -------------------------------
     - name: 本番環境のヘルスチェック
       run: |
-        echo "アプリケーションのヘルスチェックを開始します..."
         for i in {1..5}; do
           if curl --fail -s "https://${DOMAIN_NAME}/ping/" > /dev/null; then
-            echo "アプリケーションは正常に稼働しています。"
             exit 0
           fi
-          echo "再試行します...(10秒後)"
           sleep 10
         done
-        echo "ヘルスチェックに失敗しました。"
         exit 1
