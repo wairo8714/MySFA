@@ -208,7 +208,7 @@ jobs:
       run: |
         echo "アプリケーションのヘルスチェックを開始します..."
         for i in {1..5}; do
-          if curl --fail -s "https://${DOMAIN_NAME}/ping/" > /dev/null; then
+          if curl --fail -s "https://${DOMAIN_NAME}/health/" > /dev/null; then
             echo "アプリケーションは正常に稼働しています。"
             exit 0
           fi
