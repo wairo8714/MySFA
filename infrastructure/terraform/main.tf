@@ -172,6 +172,26 @@ resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
   acl        = "private"
 }
 
+resource "aws_s3_bucket_policy" "mysfa_bucket_static_read" {
+  bucket = aws_s3_bucket.mysfa_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid       = "AllowPublicReadForStaticAndMedia",
+        Effect    = "Allow",
+        Principal = "*",
+        Action    = ["s3:GetObject"],
+        Resource = [
+          "${aws_s3_bucket.mysfa_bucket.arn}/static/*",
+          "${aws_s3_bucket.mysfa_bucket.arn}/media/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
   bucket = aws_s3_bucket.mysfa_bucket.id
   versioning_configuration {
