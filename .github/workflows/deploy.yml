@@ -1,10 +1,9 @@
-name: Deploy to AWS ECS
+name: AWS ECS へのデプロイ
 
 on:
   workflow_run:
     workflows: ["Terraform"]
-    types:
-      - completed
+    types: [completed]
     branches:
       - main
       - deploy/*
@@ -25,75 +24,110 @@ jobs:
       AWS_PAGER: ""
 
     steps:
-    - name: Checkout repository
+    # -------------------------------
+    # 1. リポジトリのチェックアウト
+    # -------------------------------
+    - name: リポジトリを取得
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
-    - name: Configure AWS credentials
+    # -------------------------------
+    # 2. AWS 認証情報を設定
+    # -------------------------------
+    - name: AWS 認証を設定
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Create .env.prod
+    # -------------------------------
+    # 3. 本番環境用 .env ファイル作成
+    # -------------------------------
+    - name: .env.prod を作成
       run: |
-        echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
-        echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env.prod
-        echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env.prod
-        echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env.prod
-        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env.prod
-        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env.prod
-        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env.prod
-        echo "MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}" >> .env.prod
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
-        echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
-        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
-        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
-        echo "AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
-        echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
-        echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
-        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env.prod
-        echo "USE_S3=true" >> .env.prod
+        cat <<EOF > .env.prod
+        DEBUG=${{ secrets.DEBUG }}
+        ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+        MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+        MYSQL_HOST=${{ secrets.MYSQL_HOST }}
+        MYSQL_USER=${{ secrets.MYSQL_USER }}
+        MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+        MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+        MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}
+        S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+        AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+        FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
+        DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
+        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION=${{ secrets.AWS_REGION }}
+        USE_S3=true
+        EOF
 
-    - name: Login to Amazon ECR
+    # -------------------------------
+    # 4. Amazon ECR にログイン
+    # -------------------------------
+    - name: ECR にログイン
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Ensure start.sh is executable
+    # -------------------------------
+    # 5. start.sh に実行権限を付与
+    # -------------------------------
+    - name: start.sh の実行権限を付与
       run: chmod +x start.sh
 
     # -------------------------------
-    # Docker build & push
+    # 6. Docker イメージをビルド・プッシュ（キャッシュ対応）
     # -------------------------------
-    - name: Build and push Docker image
+    - name: Docker イメージをビルドしてプッシュ
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./docker/Dockerfile
         push: true
-        load: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
-    - name: Collect static files to S3
+    # -------------------------------
+    # 7. 同一イメージの場合は ECS 更新をスキップ
+    # -------------------------------
+    - name: 同一イメージかを確認
+      id: check_image
       run: |
-        docker run --rm \
-          --env-file .env.prod \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest \
-          poetry run python manage.py collectstatic --noinput
+        IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest"
+        DIGEST_LOCAL=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE_URI | cut -d'@' -f2)
+        DIGEST_REMOTE=$(aws ecr describe-images --repository-name ${{ secrets.ECR_REPOSITORY }} --image-ids imageTag=latest --query 'imageDetails[0].imageDigest' --output text || echo "NONE")
+        echo "ローカルのイメージハッシュ: $DIGEST_LOCAL"
+        echo "リモートのイメージハッシュ: $DIGEST_REMOTE"
+        if [ "$DIGEST_LOCAL" = "$DIGEST_REMOTE" ]; then
+          echo "SAME_IMAGE=true" >> $GITHUB_ENV
+        else
+          echo "SAME_IMAGE=false" >> $GITHUB_ENV
+        fi
+
+    - name: イメージが同一の場合はデプロイをスキップ
+      if: env.SAME_IMAGE == 'true'
+      run: |
+        echo "イメージに変更がないため、ECS 更新をスキップします。"
+        exit 0
 
     # -------------------------------
-    # ECSタスク定義更新
+    # 8. 新しい ECS タスク定義を登録
     # -------------------------------
-    - name: Register new ECS task definition
+    - name: 新しいタスク定義を登録
       id: ecs-task
       run: |
         MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
         if [ -z "$MYSQL_PORT_VALUE" ]; then
           MYSQL_PORT_VALUE="3306"
         fi
+
         TASK_DEF_JSON=$(aws ecs register-task-definition \
           --family mysfa-task \
           --container-definitions "[{
@@ -111,7 +145,6 @@ jobs:
               {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
               {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
               {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
-              {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
               {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
               {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
               {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},
@@ -135,12 +168,13 @@ jobs:
           --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-ecs-task-execution-role \
           --query 'taskDefinition.taskDefinitionArn' \
           --output text)
+
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # ECSサービス更新
+    # 9. ECS サービスを更新
     # -------------------------------
-    - name: Update ECS service
+    - name: ECS サービスを更新
       run: |
         aws ecs update-service \
           --cluster mysfa-cluster \
@@ -148,16 +182,30 @@ jobs:
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
 
-    - name: ECSサービス安定化待ち
+    # -------------------------------
+    # 10. サービスの安定化を待機
+    # -------------------------------
+    - name: サービスの安定化を待機
       run: |
+        echo "ECS サービスの安定化を待機中..."
         aws ecs wait services-stable \
           --cluster mysfa-cluster \
           --services mysfa-service
+        echo "ECS サービスが安定しました。"
 
-    - name: 本番ドメインHTTPS疎通確認
+    # -------------------------------
+    # 11. ヘルスチェック
+    # -------------------------------
+    - name: 本番環境のヘルスチェック
       run: |
+        echo "アプリケーションのヘルスチェックを開始します..."
         for i in {1..5}; do
-          curl --fail --retry 5 --retry-connrefused --retry-delay 5 "https://${DOMAIN_NAME}/health/" && exit 0
+          if curl --fail -s "https://${DOMAIN_NAME}/ping/" > /dev/null; then
+            echo "アプリケーションは正常に稼働しています。"
+            exit 0
+          fi
+          echo "再試行します...(10秒後)"
           sleep 10
         done
+        echo "ヘルスチェックに失敗しました。"
         exit 1
