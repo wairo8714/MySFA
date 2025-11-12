@@ -214,40 +214,38 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_execution_role.arn
 
-  container_definitions = jsonencode([
-    {
-      name      = "web"
-      image     = "${aws_ecr_repository.mysfa.repository_url}:latest"
-      essential = true
-      portMappings = [
-        { containerPort = 8000, hostPort = 8000 }
-      ]
+  container_definitions = jsonencode([{
+    name      = "web"
+    image     = "${aws_ecr_repository.mysfa.repository_url}:latest"
+    essential = true
+    portMappings = [
+      { containerPort = 8000, hostPort = 8000 }
+    ]
 
-      environment = [
-        { name = "ENVIRONMENT", value = var.environment },
-        { name = "DEBUG", value = "False" },
-        { name = "FORCE_HTTPS", value = "True" },
-        { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
-        { name = "MYSQL_HOST", value = var.mysql_host },
-        { name = "MYSQL_DATABASE", value = var.mysql_database },
-        { name = "MYSQL_USER", value = var.mysql_user },
-        { name = "MYSQL_PASSWORD", value = var.mysql_password },
-        { name = "SECRET_KEY", value = var.secret_key },
-        { name = "USE_S3", value = "True" },
-        { name = "AWS_REGION", value = var.aws_region },
-        { name = "AWS_STORAGE_BUCKET_NAME", value = var.s3_bucket_name }
-      ]
+    environment = [
+      { name = "ENVIRONMENT", value = var.environment },
+      { name = "DEBUG", value = "False" },
+      { name = "FORCE_HTTPS", value = "True" },
+      { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
+      { name = "MYSQL_HOST", value = var.mysql_host },
+      { name = "MYSQL_DATABASE", value = var.mysql_database },
+      { name = "MYSQL_USER", value = var.mysql_user },
+      { name = "MYSQL_PASSWORD", value = var.mysql_password },
+      { name = "SECRET_KEY", value = var.secret_key },
+      { name = "USE_S3", value = "True" },
+      { name = "AWS_REGION", value = var.aws_region },
+      { name = "AWS_STORAGE_BUCKET_NAME", value = var.s3_bucket_name }
+    ]
 
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          "awslogs-group"         = "/ecs/${var.project_name}-task",
-          "awslogs-region"        = var.aws_region,
-          "awslogs-stream-prefix" = "ecs"
-        }
+    logConfiguration = {
+      logDriver = "awslogs",
+      options = {
+        "awslogs-group"         = "/ecs/${var.project_name}-task",
+        "awslogs-region"        = var.aws_region,
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }])
 }
 
 resource "aws_ecs_service" "main" {
@@ -258,9 +256,9 @@ resource "aws_ecs_service" "main" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = data.aws_subnets.public.ids
+    subnets          = data.aws_subnets.public.ids
     assign_public_ip = true
-    security_groups = [data.aws_security_group.ecs_tasks.id]
+    security_groups  = [data.aws_security_group.ecs_tasks.id]
   }
 
   load_balancer {
@@ -268,6 +266,8 @@ resource "aws_ecs_service" "main" {
     container_name   = "web"
     container_port   = 8000
   }
+
+  enable_execute_command = true   # ← ECS Exec を有効化
 
   depends_on = [aws_lb_listener.https]
 }
