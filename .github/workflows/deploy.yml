@@ -114,8 +114,12 @@ jobs:
         file: ./docker/Dockerfile
         push: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
-        cache-from: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache
+        cache-from: |
+          type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache
+          type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
         cache-to: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache,mode=max
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
 
     # -------------------------------
     # 9. 同一イメージの場合は ECS 更新をスキップ
@@ -123,13 +127,22 @@ jobs:
     - name: 同一イメージかを確認
       id: check_image
       run: |
-        # ビルド後にECRから最新のイメージのダイジェストを取得（少し待機してから）
-        sleep 3
-        DIGEST_AFTER=$(aws ecr describe-images \
-          --repository-name ${{ secrets.ECR_REPOSITORY }} \
-          --image-ids imageTag=latest \
-          --query 'imageDetails[0].imageDigest' \
-          --output text 2>/dev/null || echo "NONE")
+        # ビルド後にECRから最新のイメージのダイジェストを取得（ECRの反映を待つ）
+        echo "ECRへのイメージ反映を待機中..."
+        for i in {1..10}; do
+          DIGEST_AFTER=$(aws ecr describe-images \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --image-ids imageTag=latest \
+            --query 'imageDetails[0].imageDigest' \
+            --output text 2>/dev/null || echo "NONE")
+          
+          if [ "$DIGEST_AFTER" != "NONE" ]; then
+            echo "イメージがECRに反映されました。"
+            break
+          fi
+          echo "再試行中... ($i/10)"
+          sleep 2
+        done
         
         DIGEST_BEFORE="${{ steps.digest_before.outputs.digest }}"
         
@@ -217,18 +230,96 @@ jobs:
           --force-new-deployment
 
     # -------------------------------
-    # 11. サービスの安定化を待機
+    # 11. jq をインストール（JSON処理用）
     # -------------------------------
-    - name: サービスの安定化を待機
-      run: |
-        echo "ECS サービスの安定化を待機中..."
-        aws ecs wait services-stable \
-          --cluster mysfa-cluster \
-          --services mysfa-service
-        echo "ECS サービスが安定しました。"
+    - name: jq をインストール
+      run: sudo apt-get update && sudo apt-get install -y jq
 
     # -------------------------------
-    # 12. ヘルスチェック
+    # 12. サービスの安定化を待機
+    # -------------------------------
+    - name: サービスの安定化を待機
+      timeout-minutes: 15
+      run: |
+        echo "ECS サービスの安定化を待機中..."
+        
+        # タスクの起動状況を確認
+        echo "現在のタスク状態を確認中..."
+        aws ecs list-tasks \
+          --cluster mysfa-cluster \
+          --service-name mysfa-service \
+          --desired-status RUNNING \
+          --output json || true
+        
+        # サービスの安定化を待機（最大15分）
+        MAX_ATTEMPTS=90
+        ATTEMPT=0
+        
+        while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          SERVICE_STATUS=$(aws ecs describe-services \
+            --cluster mysfa-cluster \
+            --services mysfa-service \
+            --query 'services[0].{runningCount:runningCount,desiredCount:desiredCount,status:status}' \
+            --output json)
+          
+          RUNNING_COUNT=$(echo $SERVICE_STATUS | jq -r '.runningCount // 0')
+          DESIRED_COUNT=$(echo $SERVICE_STATUS | jq -r '.desiredCount // 0')
+          STATUS=$(echo $SERVICE_STATUS | jq -r '.status // "UNKNOWN"')
+          
+          echo "試行 $((ATTEMPT + 1))/$MAX_ATTEMPTS: 実行中=$RUNNING_COUNT, 希望=$DESIRED_COUNT, ステータス=$STATUS"
+          
+          if [ "$RUNNING_COUNT" = "$DESIRED_COUNT" ] && [ "$RUNNING_COUNT" -gt 0 ]; then
+            # タスクが起動しているか確認
+            TASKS=$(aws ecs list-tasks \
+              --cluster mysfa-cluster \
+              --service-name mysfa-service \
+              --desired-status RUNNING \
+              --output json | jq -r '.taskArns[] // empty')
+            
+            if [ -n "$TASKS" ]; then
+              echo "タスクが起動しました。安定化を確認中..."
+              sleep 10
+              
+              # 最終確認: aws ecs wait services-stable を使用
+              if aws ecs wait services-stable \
+                --cluster mysfa-cluster \
+                --services mysfa-service \
+                --max-attempts 30 \
+                --delay 10 2>/dev/null; then
+                echo "✅ ECS サービスが安定しました。"
+                exit 0
+              fi
+            fi
+          fi
+          
+          ATTEMPT=$((ATTEMPT + 1))
+          sleep 10
+        done
+        
+        echo "❌ サービスの安定化がタイムアウトしました。"
+        echo "現在のサービス状態:"
+        aws ecs describe-services \
+          --cluster mysfa-cluster \
+          --services mysfa-service \
+          --output json | jq '.services[0]'
+        
+        echo "タスクの詳細:"
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster mysfa-cluster \
+          --service-name mysfa-service \
+          --output json | jq -r '.taskArns[0] // empty')
+        
+        if [ -n "$TASK_ARN" ]; then
+          aws ecs describe-tasks \
+            --cluster mysfa-cluster \
+            --tasks $TASK_ARN \
+            --output json | jq '.tasks[0] | {lastStatus, desiredStatus, containers[0].{name, lastStatus, reason}}'
+        fi
+        
+        exit 1
+
+    # -------------------------------
+    # 13. ヘルスチェック
     # -------------------------------
     - name: 本番環境のヘルスチェック
       run: |

@@ -97,11 +97,13 @@ resource "aws_lb_target_group" "main" {
   target_type = "ip"
 
   health_check {
-    enabled   = true
-    path      = "/health/"
-    matcher   = "200"
-    interval  = 30
-    timeout   = 10
+    enabled             = true
+    path                = "/health/"
+    matcher             = "200"
+    interval            = 15      # 30秒→15秒に短縮（安定化を早める）
+    timeout             = 5       # 10秒→5秒に短縮（より迅速な判定）
+    healthy_threshold   = 2       # デフォルト3→2に変更（30秒で正常判定可能）
+    unhealthy_threshold = 2       # デフォルト3→2に変更（より迅速な異常検知）
   }
 }
 
@@ -200,7 +202,51 @@ resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
 }
 
 resource "aws_ecr_repository" "mysfa" {
-  name = "mysfa_ver2"
+  name                 = "mysfa_ver2"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+}
+
+# ECRリポジトリのライフサイクルポリシー（古いイメージを自動削除）
+resource "aws_ecr_lifecycle_policy" "mysfa" {
+  repository = aws_ecr_repository.mysfa.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "最新の10イメージを保持し、それ以外は削除"
+        selection = {
+          tagStatus     = "any"
+          countType     = "imageCountMoreThan"
+          countNumber   = 10
+        }
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2
+        description  = "タグなしイメージを7日後に削除"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }
 
 # ============================================
@@ -254,6 +300,18 @@ resource "aws_iam_role_policy_attachment" "ecs_task_exec_ssm" {
 }
 
 # ============================================
+# CloudWatch Logs グループ
+# ============================================
+resource "aws_cloudwatch_log_group" "ecs_task" {
+  name              = "/ecs/${var.project_name}-task"
+  retention_in_days = 7
+
+  tags = {
+    Name = "${var.project_name}-ecs-logs"
+  }
+}
+
+# ============================================
 # ECS クラスター
 # ============================================
 resource "aws_ecs_cluster" "main" {
@@ -295,11 +353,19 @@ resource "aws_ecs_task_definition" "app" {
       { name = "AWS_STORAGE_BUCKET_NAME", value = var.s3_bucket_name }
     ]
 
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:80/health/ || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
+
     logConfiguration = {
       logDriver = "awslogs",
       options = {
-        "awslogs-group"         = "/ecs/${var.project_name}-task",
-        "awslogs-region"        = var.aws_region,
+        "awslogs-group"         = aws_cloudwatch_log_group.ecs_task.name
+        "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "ecs"
       }
     }
