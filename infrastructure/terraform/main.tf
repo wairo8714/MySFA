@@ -91,7 +91,7 @@ resource "aws_acm_certificate_validation" "main" {
 
 resource "aws_lb_target_group" "main" {
   name        = "${var.project_name}-tg-v2"
-  port        = 8000
+  port        = 80      # 修正版
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
   target_type = "ip"
@@ -211,21 +211,19 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
+    Statement = [ {
       Action = "sts:AssumeRole",
       Principal = { Service = "ecs-tasks.amazonaws.com" },
       Effect = "Allow"
-    }]
+    } ]
   })
 }
 
-# ECS 実行用ポリシー
 resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ECS Exec 用の SSM ポリシー
 resource "aws_iam_policy" "ecs_exec_ssm_policy" {
   name        = "${var.project_name}-ecs-exec-ssm-policy"
   description = "Allow ECS Exec to use SSM Session Manager"
@@ -279,7 +277,7 @@ resource "aws_ecs_task_definition" "app" {
     image     = "${aws_ecr_repository.mysfa.repository_url}:latest"
     essential = true
     portMappings = [
-      { containerPort = 8000, hostPort = 8000 }
+      { containerPort = 80, hostPort = 80 }  # 修正版
     ]
 
     environment = [
@@ -309,7 +307,7 @@ resource "aws_ecs_task_definition" "app" {
 }
 
 # ============================================
-# ECS サービス（ECS Exec 有効）
+# ECS サービス（ECS Exec 有効、修正版 port 80）
 # ============================================
 resource "aws_ecs_service" "main" {
   name            = "${var.project_name}-service"
@@ -327,10 +325,25 @@ resource "aws_ecs_service" "main" {
   load_balancer {
     target_group_arn = aws_lb_target_group.main.arn
     container_name   = "web"
-    container_port   = 8000
+    container_port   = 80  # 修正版
   }
 
   enable_execute_command = true
 
   depends_on = [aws_lb_listener.https]
 }
+
+# ============================================
+# 変数定義
+# ============================================
+variable "project_name" {}
+variable "aws_region" {}
+variable "domain_name" {}
+variable "s3_bucket_name" {}
+variable "environment" {}
+variable "allowed_hosts" {}
+variable "mysql_host" {}
+variable "mysql_database" {}
+variable "mysql_user" {}
+variable "mysql_password" {}
+variable "secret_key" {}
