@@ -199,6 +199,13 @@ jobs:
               {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
               {\"name\": \"USE_S3\", \"value\": \"true\"}
             ],
+            \"healthCheck\": {
+              \"command\": [\"CMD-SHELL\", \"curl -f http://localhost:80/health/ || exit 1\"],
+              \"interval\": 30,
+              \"timeout\": 5,
+              \"retries\": 3,
+              \"startPeriod\": 60
+            },
             \"logConfiguration\": {
               \"logDriver\": \"awslogs\",
               \"options\": {
