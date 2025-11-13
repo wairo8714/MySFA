@@ -31,6 +31,9 @@ RUN poetry install --no-root
 # アプリケーションコードをコピー
 COPY . /app/
 
+# 静的ファイルは起動時にS3にアップロードするため、ビルド時はスキップ
+# （環境変数がビルド時には利用できないため）
+
 # Nginx 設定ファイルをコンテナに配置
 RUN mkdir -p /etc/nginx/conf.d
 COPY nginx/nginx.prod.conf /etc/nginx/conf.d/default.conf

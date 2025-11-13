@@ -192,6 +192,7 @@ jobs:
               {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
               {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
               {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+              {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
               {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
               {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
               {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},

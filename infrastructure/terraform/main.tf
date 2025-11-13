@@ -47,6 +47,17 @@ data "aws_security_group" "alb" {
   vpc_id = data.aws_vpc.default.id
 }
 
+# ECSタスクのセキュリティグループにALBからのポート80アクセスを許可
+resource "aws_security_group_rule" "ecs_tasks_alb_http" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  source_security_group_id = data.aws_security_group.alb.id
+  security_group_id        = data.aws_security_group.ecs_tasks.id
+  description              = "Allow HTTP traffic from ALB to ECS tasks"
+}
+
 # ============================================
 # ACM / Route53 / ALB
 # ============================================
