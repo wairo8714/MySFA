@@ -332,18 +332,3 @@ resource "aws_ecs_service" "main" {
 
   depends_on = [aws_lb_listener.https]
 }
-
-# ============================================
-# 変数定義
-# ============================================
-variable "project_name" {}
-variable "aws_region" {}
-variable "domain_name" {}
-variable "s3_bucket_name" {}
-variable "environment" {}
-variable "allowed_hosts" {}
-variable "mysql_host" {}
-variable "mysql_database" {}
-variable "mysql_user" {}
-variable "mysql_password" {}
-variable "secret_key" {}
