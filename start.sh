@@ -3,6 +3,9 @@ set -e
 
 echo "🚀 Starting Gunicorn and Nginx..."
 
+# srcディレクトリに移動
+cd /app/src
+
 # Gunicorn をバックグラウンドで起動
 poetry run gunicorn config.wsgi:application \
     --bind 127.0.0.1:8000 \
