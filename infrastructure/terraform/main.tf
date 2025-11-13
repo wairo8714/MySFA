@@ -203,6 +203,9 @@ resource "aws_ecr_repository" "mysfa" {
   name = "mysfa_ver2"
 }
 
+# ============================================
+# IAM ロールとポリシー（ECS Exec 用含む）
+# ============================================
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.project_name}-ecs-task-execution-role"
 
@@ -216,15 +219,52 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 }
 
+# ECS 実行用ポリシー
 resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# ECS Exec 用の SSM ポリシー
+resource "aws_iam_policy" "ecs_exec_ssm_policy" {
+  name        = "${var.project_name}-ecs-exec-ssm-policy"
+  description = "Allow ECS Exec to use SSM Session Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = [
+          "ssm:StartSession",
+          "ssm:DescribeSessions",
+          "ssm:GetConnectionStatus",
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_exec_ssm" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = aws_iam_policy.ecs_exec_ssm_policy.arn
+}
+
+# ============================================
+# ECS クラスター
+# ============================================
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-cluster"
 }
 
+# ============================================
+# ECS タスク定義
+# ============================================
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.project_name}-task"
   network_mode             = "awsvpc"
@@ -268,6 +308,9 @@ resource "aws_ecs_task_definition" "app" {
   }])
 }
 
+# ============================================
+# ECS サービス（ECS Exec 有効）
+# ============================================
 resource "aws_ecs_service" "main" {
   name            = "${var.project_name}-service"
   cluster         = aws_ecs_cluster.main.id
@@ -287,7 +330,7 @@ resource "aws_ecs_service" "main" {
     container_port   = 8000
   }
 
-  enable_execute_command = true   # ← ECS Exec を有効化
+  enable_execute_command = true
 
   depends_on = [aws_lb_listener.https]
 }
