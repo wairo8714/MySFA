@@ -90,9 +90,24 @@ jobs:
       run: chmod +x start.sh
 
     # -------------------------------
-    # 7. Docker イメージをビルド・プッシュ（ECR キャッシュ対応）
+    # 7. ビルド前のECRイメージダイジェストを取得
+    # -------------------------------
+    - name: ビルド前のイメージダイジェストを取得
+      id: digest_before
+      run: |
+        DIGEST_BEFORE=$(aws ecr describe-images \
+          --repository-name ${{ secrets.ECR_REPOSITORY }} \
+          --image-ids imageTag=latest \
+          --query 'imageDetails[0].imageDigest' \
+          --output text 2>/dev/null || echo "NONE")
+        echo "digest=$DIGEST_BEFORE" >> $GITHUB_OUTPUT
+        echo "ビルド前のイメージダイジェスト: $DIGEST_BEFORE"
+
+    # -------------------------------
+    # 8. Docker イメージをビルド・プッシュ（ECR キャッシュ対応）
     # -------------------------------
     - name: Docker イメージをビルドしてプッシュ
+      id: build_image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -103,24 +118,35 @@ jobs:
         cache-to: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache,mode=max
 
     # -------------------------------
-    # 8. 同一イメージの場合は ECS 更新をスキップ
+    # 9. 同一イメージの場合は ECS 更新をスキップ
     # -------------------------------
     - name: 同一イメージかを確認
       id: check_image
       run: |
-        IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest"
-        DIGEST_LOCAL=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE_URI | cut -d'@' -f2)
-        DIGEST_REMOTE=$(aws ecr describe-images --repository-name ${{ secrets.ECR_REPOSITORY }} --image-ids imageTag=latest --query 'imageDetails[0].imageDigest' --output text || echo "NONE")
-        echo "ローカルのイメージハッシュ: $DIGEST_LOCAL"
-        echo "リモートのイメージハッシュ: $DIGEST_REMOTE"
-        if [ "$DIGEST_LOCAL" = "$DIGEST_REMOTE" ]; then
-          echo "SAME_IMAGE=true" >> $GITHUB_ENV
+        # ビルド後にECRから最新のイメージのダイジェストを取得（少し待機してから）
+        sleep 3
+        DIGEST_AFTER=$(aws ecr describe-images \
+          --repository-name ${{ secrets.ECR_REPOSITORY }} \
+          --image-ids imageTag=latest \
+          --query 'imageDetails[0].imageDigest' \
+          --output text 2>/dev/null || echo "NONE")
+        
+        DIGEST_BEFORE="${{ steps.digest_before.outputs.digest }}"
+        
+        echo "ビルド前のイメージダイジェスト: $DIGEST_BEFORE"
+        echo "ビルド後のイメージダイジェスト: $DIGEST_AFTER"
+        
+        # ダイジェストを比較
+        if [ "$DIGEST_BEFORE" = "$DIGEST_AFTER" ] && [ "$DIGEST_BEFORE" != "NONE" ]; then
+          echo "イメージに変更がないため、ECS 更新をスキップします。"
+          echo "same_image=true" >> $GITHUB_OUTPUT
         else
-          echo "SAME_IMAGE=false" >> $GITHUB_ENV
+          echo "新しいイメージが検出されました。ECS を更新します。"
+          echo "same_image=false" >> $GITHUB_OUTPUT
         fi
 
     - name: イメージが同一の場合はデプロイをスキップ
-      if: env.SAME_IMAGE == 'true'
+      if: steps.check_image.outputs.same_image == 'true'
       run: |
         echo "イメージに変更がないため、ECS 更新をスキップします。"
         exit 0
