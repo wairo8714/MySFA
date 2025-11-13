@@ -34,6 +34,8 @@ COPY . /app/
 # Nginx 設定ファイルをコンテナに配置
 RUN mkdir -p /etc/nginx/conf.d
 COPY nginx/nginx.prod.conf /etc/nginx/conf.d/default.conf
+# デフォルトのnginx設定を無効化（競合を防ぐ）
+RUN rm -f /etc/nginx/sites-enabled/default
 
 # 起動スクリプトに実行権限を付与
 RUN chmod +x /app/start.sh
