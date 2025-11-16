@@ -49,6 +49,7 @@ data "aws_security_group" "alb" {
 
 # ECSタスクのセキュリティグループにALBからのポート80アクセスを許可
 resource "aws_security_group_rule" "ecs_tasks_alb_http" {
+  count                    = 0 # 既存ルール重複回避のため一時的に無効化
   type                     = "ingress"
   from_port                = 80
   to_port                  = 80
@@ -101,11 +102,16 @@ resource "aws_acm_certificate_validation" "main" {
 }
 
 resource "aws_lb_target_group" "main" {
-  name        = "${var.project_name}-tg-v2"
+  # 置換時の並行作成を許可するため固定名は避け、短いprefixに変更（最大6文字制限）
+  name_prefix = "tg-"
   port        = 80      # 修正版
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
   target_type = "ip"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   health_check {
     enabled             = true
@@ -244,11 +250,12 @@ resource "aws_ecr_lifecycle_policy" "mysfa" {
     rules = [
       {
         rulePriority = 1
-        description  = "最新の10イメージを保持し、それ以外は削除"
+        description  = "タグなしイメージを7日後に削除"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
         }
         action = {
           type = "expire"
@@ -256,12 +263,11 @@ resource "aws_ecr_lifecycle_policy" "mysfa" {
       },
       {
         rulePriority = 2
-        description  = "タグなしイメージを7日後に削除"
+        description  = "最新の10イメージを保持し、それ以外は削除"
         selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 7
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"
@@ -325,6 +331,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_exec_ssm" {
 # CloudWatch Logs グループ
 # ============================================
 resource "aws_cloudwatch_log_group" "ecs_task" {
+  count             = 0 # 既存のロググループがあるため作成を抑止
   name              = "/ecs/${var.project_name}-task"
   retention_in_days = 7
 
@@ -386,7 +393,7 @@ resource "aws_ecs_task_definition" "app" {
     logConfiguration = {
       logDriver = "awslogs",
       options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.ecs_task.name
+        "awslogs-group"         = "/ecs/${var.project_name}-task"
         "awslogs-region"        = var.aws_region
         "awslogs-stream-prefix" = "ecs"
       }

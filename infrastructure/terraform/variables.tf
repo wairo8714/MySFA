@@ -37,12 +37,6 @@ variable "mysql_password" {
   sensitive   = true
 }
 
-variable "mysql_root_password" {
-  description = "MySQL root password"
-  type        = string
-  sensitive   = true
-}
-
 variable "secret_key" {
   description = "Django secret key"
   type        = string
@@ -52,11 +46,13 @@ variable "secret_key" {
 variable "allowed_hosts" {
   description = "Django ALLOWED_HOSTS"
   type        = string
+  default     = "mysfa.net,www.mysfa.net"
 }
 
 variable "domain_name" {
   description = "Domain name for the application"
   type        = string
+  default     = "mysfa.net"
 }
 
 variable "s3_bucket_name" {
