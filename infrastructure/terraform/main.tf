@@ -190,26 +190,27 @@ resource "aws_route53_record" "www" {
 # ============================================
 # ECS サービス（既存 Fargate SG を利用）
 # ============================================
-resource "aws_ecs_service" "main" {
-  name            = "${var.project_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets          = data.aws_subnets.public.ids
-    assign_public_ip = true
-    security_groups  = [data.aws_security_group.ecs_tasks.id]  # 既存 SG を使用
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.main.arn
-    container_name   = "web"
-    container_port   = 80
-  }
-
-  enable_execute_command = true
-
-  depends_on = [aws_lb_listener.https]
-}
+# 注意: aws_ecs_cluster.main と aws_ecs_task_definition.app の定義が必要
+# resource "aws_ecs_service" "main" {
+#   name            = "${var.project_name}-service"
+#   cluster         = aws_ecs_cluster.main.id
+#   task_definition = aws_ecs_task_definition.app.arn
+#   desired_count   = 1
+#   launch_type     = "FARGATE"
+#
+#   network_configuration {
+#     subnets          = data.aws_subnets.public.ids
+#     assign_public_ip = true
+#     security_groups  = [data.aws_security_group.ecs_tasks.id]  # 既存 SG を使用
+#   }
+#
+#   load_balancer {
+#     target_group_arn = aws_lb_target_group.main.arn
+#     container_name   = "web"
+#     container_port   = 80
+#   }
+#
+#   enable_execute_command = true
+#
+#   depends_on = [aws_lb_listener.https]
+# }
