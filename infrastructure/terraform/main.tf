@@ -51,7 +51,6 @@ data "aws_security_group" "alb" {
 
 # ECSタスクのセキュリティグループにALBからのポート80アクセスを許可
 resource "aws_security_group_rule" "ecs_tasks_alb_http" {
-  count                    = 0 # 既存ルール重複回避のため無効化中
   type                     = "ingress"
   from_port                = 80
   to_port                  = 80
