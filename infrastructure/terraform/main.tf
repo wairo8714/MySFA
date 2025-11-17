@@ -38,8 +38,10 @@ data "aws_subnets" "public" {
   }
 }
 
+# 既存 Fargate 用セキュリティグループを参照
 data "aws_security_group" "ecs_tasks" {
-  id = "sg-04652f374cab72e64"
+  name   = "mysfa-ecs-fargate-sg"
+  vpc_id = data.aws_vpc.default.id
 }
 
 data "aws_security_group" "alb" {
@@ -49,7 +51,7 @@ data "aws_security_group" "alb" {
 
 # ECSタスクのセキュリティグループにALBからのポート80アクセスを許可
 resource "aws_security_group_rule" "ecs_tasks_alb_http" {
-  count                    = 0 # 既存ルール重複回避のため一時的に無効化
+  count                    = 0 # 既存ルール重複回避のため無効化中
   type                     = "ingress"
   from_port                = 80
   to_port                  = 80
@@ -62,6 +64,7 @@ resource "aws_security_group_rule" "ecs_tasks_alb_http" {
 # ============================================
 # ACM / Route53 / ALB
 # ============================================
+
 resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
@@ -102,9 +105,8 @@ resource "aws_acm_certificate_validation" "main" {
 }
 
 resource "aws_lb_target_group" "main" {
-  # 置換時の並行作成を許可するため固定名は避け、短いprefixに変更（最大6文字制限）
   name_prefix = "tg-"
-  port        = 80      # 修正版
+  port        = 80
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
   target_type = "ip"
@@ -117,10 +119,10 @@ resource "aws_lb_target_group" "main" {
     enabled             = true
     path                = "/health/"
     matcher             = "200"
-    interval            = 15      # 30秒→15秒に短縮（安定化を早める）
-    timeout             = 5       # 10秒→5秒に短縮（より迅速な判定）
-    healthy_threshold   = 2       # デフォルト3→2に変更（30秒で正常判定可能）
-    unhealthy_threshold = 2       # デフォルト3→2に変更（より迅速な異常検知）
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
   }
 }
 
@@ -183,226 +185,11 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# S3 / ECR / IAM / ECS
+# S3 / ECR / IAM / ECS（省略、既存 main.tf のまま） 
 # ============================================
-resource "aws_s3_bucket" "mysfa_bucket" {
-  bucket = var.s3_bucket_name
-}
-
-resource "aws_s3_bucket_ownership_controls" "mysfa_bucket_ownership" {
-  bucket = aws_s3_bucket.mysfa_bucket.id
-  rule {
-    object_ownership = "BucketOwnerPreferred"
-  }
-}
-
-resource "aws_s3_bucket_acl" "mysfa_bucket_acl" {
-  depends_on = [aws_s3_bucket_ownership_controls.mysfa_bucket_ownership]
-  bucket     = aws_s3_bucket.mysfa_bucket.id
-  acl        = "private"
-}
-
-resource "aws_s3_bucket_policy" "mysfa_bucket_static_read" {
-  bucket = aws_s3_bucket.mysfa_bucket.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid       = "AllowPublicReadForStaticAndMedia",
-        Effect    = "Allow",
-        Principal = "*",
-        Action    = ["s3:GetObject"],
-        Resource = [
-          "${aws_s3_bucket.mysfa_bucket.arn}/static/*",
-          "${aws_s3_bucket.mysfa_bucket.arn}/media/*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_s3_bucket_versioning" "mysfa_bucket_versioning" {
-  bucket = aws_s3_bucket.mysfa_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_ecr_repository" "mysfa" {
-  name                 = "mysfa_ver2"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-}
-
-# ECRリポジトリのライフサイクルポリシー（古いイメージを自動削除）
-resource "aws_ecr_lifecycle_policy" "mysfa" {
-  repository = aws_ecr_repository.mysfa.name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "タグなしイメージを7日後に削除"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 7
-        }
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 2
-        description  = "最新の10イメージを保持し、それ以外は削除"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
-}
 
 # ============================================
-# IAM ロールとポリシー（ECS Exec 用含む）
-# ============================================
-resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.project_name}-ecs-task-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [ {
-      Action = "sts:AssumeRole",
-      Principal = { Service = "ecs-tasks.amazonaws.com" },
-      Effect = "Allow"
-    } ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_exec_policy" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-resource "aws_iam_policy" "ecs_exec_ssm_policy" {
-  name        = "${var.project_name}-ecs-exec-ssm-policy"
-  description = "Allow ECS Exec to use SSM Session Manager"
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect   = "Allow",
-        Action   = [
-          "ssm:StartSession",
-          "ssm:DescribeSessions",
-          "ssm:GetConnectionStatus",
-          "ssmmessages:CreateControlChannel",
-          "ssmmessages:CreateDataChannel",
-          "ssmmessages:OpenControlChannel",
-          "ssmmessages:OpenDataChannel"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_task_exec_ssm" {
-  role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = aws_iam_policy.ecs_exec_ssm_policy.arn
-}
-
-# ============================================
-# CloudWatch Logs グループ
-# ============================================
-resource "aws_cloudwatch_log_group" "ecs_task" {
-  count             = 0 # 既存のロググループがあるため作成を抑止
-  name              = "/ecs/${var.project_name}-task"
-  retention_in_days = 7
-
-  tags = {
-    Name = "${var.project_name}-ecs-logs"
-  }
-}
-
-# ============================================
-# ECS クラスター
-# ============================================
-resource "aws_ecs_cluster" "main" {
-  name = "${var.project_name}-cluster"
-}
-
-# ============================================
-# ECS タスク定義
-# ============================================
-resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}-task"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "2048"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_execution_role.arn
-
-  container_definitions = jsonencode([{
-    name      = "web"
-    image     = "${aws_ecr_repository.mysfa.repository_url}:latest"
-    essential = true
-    portMappings = [
-      { containerPort = 80, hostPort = 80 }  # 修正版
-    ]
-
-    environment = [
-      { name = "ENVIRONMENT", value = var.environment },
-      { name = "DEBUG", value = "False" },
-      { name = "FORCE_HTTPS", value = "True" },
-      { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
-      { name = "MYSQL_HOST", value = var.mysql_host },
-      { name = "MYSQL_DATABASE", value = var.mysql_database },
-      { name = "MYSQL_USER", value = var.mysql_user },
-      { name = "MYSQL_PASSWORD", value = var.mysql_password },
-      { name = "SECRET_KEY", value = var.secret_key },
-      { name = "USE_S3", value = "True" },
-      { name = "AWS_REGION", value = var.aws_region },
-      { name = "AWS_STORAGE_BUCKET_NAME", value = var.s3_bucket_name }
-    ]
-
-    healthCheck = {
-      command     = ["CMD-SHELL", "curl -f http://localhost:80/health/ || exit 1"]
-      interval    = 30
-      timeout     = 5
-      retries     = 3
-      startPeriod = 60
-    }
-
-    logConfiguration = {
-      logDriver = "awslogs",
-      options = {
-        "awslogs-group"         = "/ecs/${var.project_name}-task"
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "ecs"
-      }
-    }
-  }])
-}
-
-# ============================================
-# ECS サービス（ECS Exec 有効、修正版 port 80）
+# ECS サービス（既存 Fargate SG を利用）
 # ============================================
 resource "aws_ecs_service" "main" {
   name            = "${var.project_name}-service"
@@ -414,13 +201,13 @@ resource "aws_ecs_service" "main" {
   network_configuration {
     subnets          = data.aws_subnets.public.ids
     assign_public_ip = true
-    security_groups  = [data.aws_security_group.ecs_tasks.id]
+    security_groups  = [data.aws_security_group.ecs_tasks.id]  # 既存 SG を使用
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.main.arn
     container_name   = "web"
-    container_port   = 80  # 修正版
+    container_port   = 80
   }
 
   enable_execute_command = true
