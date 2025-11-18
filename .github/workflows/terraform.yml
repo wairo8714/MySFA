@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - deploy/*
+
   push:
     branches:
       - main
@@ -25,7 +26,6 @@ env:
   TF_VAR_domain_name: ${{ secrets.DOMAIN_NAME }}
   TF_VAR_s3_bucket_name: ${{ secrets.S3_BUCKET_NAME }}
   TF_VAR_project_name: mysfa
-  AWS_PAGER: ""
 
 jobs:
   terraform-plan:
@@ -42,54 +42,20 @@ jobs:
       - name: コードチェックアウト
         uses: actions/checkout@v4
 
-      # ------------------------------------
-      # Terraform プラグインキャッシュを利用
-      # ------------------------------------
-      - name: Terraform プラグインキャッシュ復元
-        uses: actions/cache@v4
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: terraform-plugins-${{ runner.os }}-${{ hashFiles('**/*.tf*') }}
-          restore-keys: |
-            terraform-plugins-${{ runner.os }}-
-
       - name: Terraform インストール
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.6.6"
           terraform_wrapper: true
 
-      # plugin-cache の有効化
-      - name: Terraform プラグインキャッシュ設定
-        run: |
-          mkdir -p ~/.terraform.d/plugin-cache
-          echo 'plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"' > ~/.terraformrc
-
-      # ------------------------------------
-      # Terraform 初期化（キャッシュ再利用あり）
-      # ------------------------------------
       - name: Terraform 初期化
-        run: terraform init -input=false -no-color
-
-      # ------------------------------------
-      # 差分がない場合はスキップ
-      # ------------------------------------
-      - name: 差分チェック
-        id: diff
-        run: |
-          CHANGED=$(git diff --name-only HEAD^ HEAD | grep '^infrastructure/terraform/' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "skip_plan=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip_plan=false" >> $GITHUB_OUTPUT
-          fi
+        run: terraform init
 
       - name: Terraform プラン作成
-        if: steps.diff.outputs.skip_plan == 'false'
         id: plan
         run: |
           terraform plan -out=tfplan -input=false -no-color | tee plan_output.txt
-          if [ ${PIPESTATUS[0]} -eq 0 ]; then
+          if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f tfplan ]; then
             terraform show -no-color tfplan > plan_details.txt || true
             echo "plan_succeeded=true" >> $GITHUB_OUTPUT
           else
@@ -98,7 +64,6 @@ jobs:
         continue-on-error: true
 
       - name: 変更の有無を確認
-        if: steps.diff.outputs.skip_plan == 'false'
         id: check-changes
         run: |
           if [ -f plan_output.txt ] && grep -q "No changes" plan_output.txt; then
@@ -108,15 +73,15 @@ jobs:
           fi
 
       - name: Plan結果の表示
-        if: steps.diff.outputs.skip_plan == 'false'
         run: |
           echo "## Terraform Plan結果" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat plan_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          [ ! -f plan_details.txt ] || (echo "## 詳細な変更内容" >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY && cat plan_details.txt >> $GITHUB_STEP_SUMMARY && echo '```' >> $GITHUB_STEP_SUMMARY)
 
       - name: Plan結果をPRにコメント
-        if: github.event_name == 'pull_request' && steps.diff.outputs.skip_plan == 'false'
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -145,14 +110,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # Terraform の .terraform ディレクトリもキャッシュして apply に再利用
-      - name: Terraform 状態キャッシュ保存
-        uses: actions/cache@v4
-        with:
-          path: infrastructure/terraform/.terraform
-          key: terraform-state-${{ runner.os }}-${{ hashFiles('**/*.tf*') }}
-          restore-keys: terraform-state-${{ runner.os }}-
-
   terraform-apply:
     name: Terraform 適用
     needs: terraform-plan
@@ -167,13 +124,6 @@ jobs:
       - name: コードチェックアウト
         uses: actions/checkout@v4
 
-      - name: Terraform プラグインキャッシュ復元
-        uses: actions/cache@v4
-        with:
-          path: ~/.terraform.d/plugin-cache
-          key: terraform-plugins-${{ runner.os }}-${{ hashFiles('**/*.tf*') }}
-          restore-keys: terraform-plugins-${{ runner.os }}-
-
       - name: Terraform インストール
         uses: hashicorp/setup-terraform@v3
         with:
@@ -181,7 +131,7 @@ jobs:
           terraform_wrapper: true
 
       - name: Terraform 初期化
-        run: terraform init -input=false -no-color
+        run: terraform init
 
       - name: Planファイルをダウンロード
         continue-on-error: true
@@ -195,23 +145,4 @@ jobs:
         run: terraform plan -out=tfplan -input=false -no-color
 
       - name: Terraform 適用
-        id: apply
         run: terraform apply -auto-approve tfplan
-
-      - name: Terraform 出力を取得
-        if: success()
-        id: outputs
-        run: |
-          echo "ALB_DNS_NAME=$(terraform output -raw alb_dns_name)" >> $GITHUB_ENV
-          echo "TARGET_GROUP_ARN=$(terraform output -raw target_group_arn)" >> $GITHUB_ENV
-          echo "ACM_CERT_ARN=$(terraform output -raw acm_certificate_arn)" >> $GITHUB_ENV
-          echo "APP_URL=$(terraform output -raw application_url_https)" >> $GITHUB_ENV
-
-      - name: ALB ヘルスチェック
-        if: success()
-        run: |
-          for i in {1..3}; do
-            curl -k --fail -s "https://$ALB_DNS_NAME/health/" && exit 0
-            sleep 10
-          done
-          exit 1

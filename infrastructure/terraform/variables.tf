@@ -10,10 +10,21 @@ variable "project_name" {
   default     = "mysfa"
 }
 
-variable "environment" {
-  description = "Application environment (dev/staging/prod)"
+variable "instance_type" {
+  description = "EC2 instance type"
   type        = string
-  default     = "prod"
+  default     = "t3.small"
+}
+
+variable "allowed_ssh_cidrs" {
+  description = "CIDR blocks allowed to SSH access"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "dockerhub_username" {
+  description = "Docker Hub username for image pulling"
+  type        = string
 }
 
 variable "mysql_host" {
@@ -37,6 +48,12 @@ variable "mysql_password" {
   sensitive   = true
 }
 
+variable "mysql_root_password" {
+  description = "MySQL root password"
+  type        = string
+  sensitive   = true
+}
+
 variable "secret_key" {
   description = "Django secret key"
   type        = string
@@ -46,13 +63,11 @@ variable "secret_key" {
 variable "allowed_hosts" {
   description = "Django ALLOWED_HOSTS"
   type        = string
-  default     = "mysfa.net,www.mysfa.net"
 }
 
 variable "domain_name" {
   description = "Domain name for the application"
   type        = string
-  default     = "mysfa.net"
 }
 
 variable "s3_bucket_name" {

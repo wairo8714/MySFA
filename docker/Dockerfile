@@ -1,50 +1,29 @@
-# ベースイメージ
 FROM python:3.12-slim
 
-# Python の基本環境変数設定
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV ENVIRONMENT=prod
 
 WORKDIR /app
 
-# 必要なシステムパッケージのインストール
-# → MySQLクライアント関連, nginx, curl, build-essential など
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    pkg-config \
-    libmariadb-dev \
-    libmariadb-dev-compat \
-    curl \
-    nginx \
+    build-essential pkg-config libmariadb-dev libmariadb-dev-compat curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Poetry のインストール
 RUN curl -sSL https://install.python-poetry.org | python3 -
 ENV PATH="/root/.local/bin:$PATH"
 RUN poetry config virtualenvs.create false
 
-# Poetry の依存関係インストール
 COPY pyproject.toml poetry.lock /app/
 RUN poetry install --no-root
 
-# アプリケーションコードをコピー
 COPY . /app/
 
-# 静的ファイルは起動時にS3にアップロードするため、ビルド時はスキップ
-# （環境変数がビルド時には利用できないため）
+# collectstatic は USE_S3=False の場合のみ
+ARG USE_S3
+RUN if [ "$USE_S3" = "False" ]; then \
+        poetry run python manage.py collectstatic --noinput; \
+    fi
 
-# Nginx 設定ファイルをコンテナに配置
-RUN mkdir -p /etc/nginx/conf.d
-COPY nginx/nginx.prod.conf /etc/nginx/conf.d/default.conf
-# デフォルトのnginx設定を無効化（競合を防ぐ）
-RUN rm -f /etc/nginx/sites-enabled/default
-
-# 起動スクリプトに実行権限を付与
-RUN chmod +x /app/start.sh
-
-# ポート80を公開 (NginxがListen)
-EXPOSE 80
-
-# 最終実行コマンド
-CMD ["/app/start.sh"]
+WORKDIR /app/src
+EXPOSE 8000
+CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
