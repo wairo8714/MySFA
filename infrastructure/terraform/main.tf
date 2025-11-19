@@ -20,44 +20,80 @@ provider "aws" {
 }
 
 # ============================================
-# ネットワーク & セキュリティ設定
+# VPC モジュール呼び出し
 # ============================================
-data "aws_vpc" "default" {
-  default = true
+module "vpc" {
+  source = "./modules/vpc"
+
+  project_name        = var.project_name
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidrs = var.public_subnet_cidrs
 }
 
-data "aws_subnets" "public" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+# ============================================
+# セキュリティグループ
+# （デフォルトVPCの既存SGではなく、自作VPC用に新規作成）
+# ============================================
+
+# ALB用セキュリティグループ
+resource "aws_security_group" "alb" {
+  name        = "${var.project_name}-alb-sg"
+  description = "Security group for ALB"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "HTTP from Internet"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  filter {
-    name   = "default-for-az"
-    values = ["true"]
+  ingress {
+    description = "HTTPS from Internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-alb-sg"
   }
 }
 
-# 既存 Fargate 用セキュリティグループを参照
-data "aws_security_group" "ecs_tasks" {
-  name   = "mysfa-ecs-fargate-sg"
-  vpc_id = data.aws_vpc.default.id
-}
+# ECSタスク用セキュリティグループ
+resource "aws_security_group" "ecs_tasks" {
+  name        = "${var.project_name}-ecs-tasks-sg"
+  description = "Security group for ECS tasks"
+  vpc_id      = module.vpc.vpc_id
 
-data "aws_security_group" "alb" {
-  name   = "mysfa-alb-sg-8cb59333"
-  vpc_id = data.aws_vpc.default.id
-}
+  # ALB からのHTTP(80)のみ許可
+  ingress {
+    description     = "HTTP from ALB"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
 
-# ECSタスクのセキュリティグループにALBからのポート80アクセスを許可
-resource "aws_security_group_rule" "ecs_tasks_alb_http" {
-  type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
-  protocol                 = "tcp"
-  source_security_group_id = data.aws_security_group.alb.id
-  security_group_id        = data.aws_security_group.ecs_tasks.id
-  description              = "Allow HTTP traffic from ALB to ECS tasks"
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-ecs-tasks-sg"
+  }
 }
 
 # ============================================
@@ -107,7 +143,7 @@ resource "aws_lb_target_group" "main" {
   name_prefix = "tg-"
   port        = 80
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = module.vpc.vpc_id
   target_type = "ip"
 
   lifecycle {
@@ -129,8 +165,8 @@ resource "aws_lb" "main" {
   name               = "${var.project_name}-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [data.aws_security_group.alb.id]
-  subnets            = data.aws_subnets.public.ids
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = module.vpc.public_subnet_ids
 }
 
 resource "aws_lb_listener" "http" {
@@ -184,11 +220,11 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# S3 / ECR / IAM / ECS（省略、既存 main.tf のまま） 
+# S3 / ECR / IAM / ECS（省略、既存 main.tf のまま）
 # ============================================
 
 # ============================================
-# ECS サービス（既存 Fargate SG を利用）
+# ECS サービス（モジュール化したVPC/SecurityGroupを利用）
 # ============================================
 # 注意: aws_ecs_cluster.main と aws_ecs_task_definition.app の定義が必要
 # resource "aws_ecs_service" "main" {
@@ -199,9 +235,9 @@ resource "aws_route53_record" "www" {
 #   launch_type     = "FARGATE"
 #
 #   network_configuration {
-#     subnets          = data.aws_subnets.public.ids
+#     subnets          = module.vpc.public_subnet_ids
 #     assign_public_ip = true
-#     security_groups  = [data.aws_security_group.ecs_tasks.id]  # 既存 SG を使用
+#     security_groups  = [aws_security_group.ecs_tasks.id]  # モジュール配下のVPC用SGを使用
 #   }
 #
 #   load_balancer {
