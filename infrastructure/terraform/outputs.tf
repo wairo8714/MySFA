@@ -37,7 +37,7 @@ output "ecr_app_repository_url" {
   value       = module.ecr_app.repository_url
 }
 
-#IAM
+# IAM
 output "ecs_task_execution_role_arn" {
   description = "ARN of ECS task execution role"
   value       = module.ecs_iam.task_execution_role_arn
@@ -47,3 +47,13 @@ output "ecs_task_role_arn" {
   description = "ARN of ECS task role"
   value       = module.ecs_iam.task_role_arn
 }
+
+# ECS
+output "ecs_cluster_id" {
+  value = module.ecs_app.cluster_id
+}
+
+output "ecs_service_name" {
+  value = module.ecs_app.service_name
+}
+
