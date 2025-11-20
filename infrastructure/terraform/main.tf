@@ -279,6 +279,19 @@ module "ecr_app" {
 # IAM
 # ============================================
 
+module "ecs_iam" {
+  source = "./modules/ecs_iam"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  app_bucket_arn  = module.s3_app.bucket_arn
+  app_bucket_name = module.s3_app.bucket_name
+
+  # ロググループ名は、このあと作る CloudWatch Logs モジュールと合わせる想定
+  cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
+}
+
 # ============================================
 # ECS（このあと順次モジュール化予定）
 # ============================================
