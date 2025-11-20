@@ -1,29 +1,84 @@
-output "alb_dns_name" {
-  description = "DNS name of the Application Load Balancer"
-  value       = aws_lb.main.dns_name
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "ap-northeast-1"
 }
 
-output "alb_arn" {
-  description = "ARN of the Application Load Balancer"
-  value       = aws_lb.main.arn
+variable "project_name" {
+  description = "Project name"
+  type        = string
+  default     = "mysfa"
 }
 
-output "target_group_arn" {
-  description = "ARN of the target group"
-  value       = aws_lb_target_group.main.arn
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "prod"
 }
 
-output "acm_certificate_arn" {
-  description = "ARN of the ACM certificate"
-  value       = aws_acm_certificate.main.arn
+# ドメイン
+variable "domain_name" {
+  description = "Primary domain name for the application"
+  type        = string
 }
 
-output "application_url_https" {
-  description = "HTTPS URL to access the application (via ALB)"
-  value       = "https://${var.domain_name}"
+variable "allowed_hosts" {
+  description = "Django ALLOWED_HOSTS (comma-separated string)"
+  type        = string
 }
 
-output "application_url_http" {
-  description = "HTTP URL to access the application (redirects to HTTPS via ALB)"
-  value       = "http://${var.domain_name}"
+# VPC 設定
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+# S3（static / media 用）
+variable "s3_bucket_name" {
+  description = "S3 bucket name for static and media files"
+  type        = string
+}
+
+# ====== 以下は ECS / アプリ側で使う想定の変数（既存設定を踏襲） ======
+
+# Django
+variable "secret_key" {
+  description = "Django secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "debug" {
+  description = "Django DEBUG mode"
+  type        = bool
+  default     = false
+}
+
+# MySQL / RDS
+variable "mysql_host" {
+  description = "MySQL host"
+  type        = string
+}
+
+variable "mysql_database" {
+  description = "MySQL database name"
+  type        = string
+}
+
+variable "mysql_user" {
+  description = "MySQL user"
+  type        = string
+}
+
+variable "mysql_password" {
+  description = "MySQL password"
+  type        = string
+  sensitive   = true
 }
