@@ -30,3 +30,10 @@ output "s3_app_bucket_arn" {
   description = "S3 bucket ARN for static and media files"
   value       = module.s3_app.bucket_arn
 }
+
+# ECR
+output "ecr_app_repository_url" {
+  description = "ECR repository URL for the app"
+  value       = module.ecr_app.repository_url
+}
+
