@@ -1,43 +1,23 @@
+#############################################
+# modules/s3_app/variables.tf
+#############################################
+
 variable "project_name" {
-  description = "Project name (e.g. mysfa)"
+  description = "Project name"
   type        = string
 }
 
 variable "environment" {
-  description = "Environment name (e.g. prod, staging)"
+  description = "Environment name (e.g., dev, stg, prod)"
   type        = string
 }
 
-# アプリ用 (static / media) バケット名
-variable "app_bucket_name" {
-  description = "S3 bucket name for application static/media files"
+variable "bucket_name" {
+  description = "S3 bucket name for static and media files"
   type        = string
 }
 
-# tfstate 用バケットをこのモジュールで管理するかどうか
-variable "create_state_bucket" {
-  description = "Whether to manage a Terraform state bucket from this module"
-  type        = bool
-  default     = false
-}
-
-# tfstate 用バケット名（省略時は ${project_name}-terraform-state）
-variable "state_bucket_name" {
-  description = "S3 bucket name for Terraform remote state (optional)"
+variable "domain_name" {
+  description = "Primary domain name (used for CORS)"
   type        = string
-  default     = null
-}
-
-# app バケットを destroy するとき、中身ごと消せるようにするか
-variable "app_bucket_force_destroy" {
-  description = "Allow destroying the app bucket even if it contains objects"
-  type        = bool
-  default     = true
-}
-
-# state バケットは基本削除したくないので別フラグ
-variable "state_bucket_force_destroy" {
-  description = "Allow destroying the state bucket even if it contains objects (not recommended in production)"
-  type        = bool
-  default     = false
 }
