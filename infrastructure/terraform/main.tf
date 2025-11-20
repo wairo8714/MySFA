@@ -256,7 +256,31 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# S3 / ECR / IAM / ECS（このあと順次モジュール化予定）
+# ECR / ECS（このあと順次モジュール化予定）
+# ============================================
+
+module "ecr_app" {
+  source = "./modules/ecr_app"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # 例: mysfa-app など
+  repository_name = "${var.project_name}-app"
+
+  # 必要なら変える
+  image_tag_mutability    = "IMMUTABLE"
+  scan_on_push            = true
+  lifecycle_policy_enabled = true
+  lifecycle_keep_last      = 10
+}
+
+# ============================================
+# IAM
+# ============================================
+
+# ============================================
+# ECS（このあと順次モジュール化予定）
 # ============================================
 
 # ============================================
