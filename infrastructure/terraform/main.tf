@@ -296,6 +296,50 @@ module "ecs_iam" {
 # ECS（このあと順次モジュール化予定）
 # ============================================
 
+module "ecs_app" {
+  source = "./modules/ecs_app"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  cluster_name = "${var.project_name}-${var.environment}-cluster"
+
+  subnet_ids         = module.vpc.public_subnet_ids
+  security_group_ids = [aws_security_group.ecs_tasks.id]
+
+  alb_target_group_arn = aws_lb_target_group.main.arn
+
+  task_role_arn      = module.ecs_iam.task_role_arn
+  execution_role_arn = module.ecs_iam.task_execution_role_arn
+
+  # コンテナイメージ（とりあえず latest タグ想定）
+  container_image = "${module.ecr_app.repository_url}:latest"
+  container_port  = 80
+
+  task_cpu    = "256"
+  task_memory = "512"
+
+  desired_count = 1
+
+  aws_region = var.aws_region
+
+  # ===== Django env =====
+  secret_key    = var.secret_key
+  debug         = var.debug
+  allowed_hosts = var.allowed_hosts
+
+  mysql_host     = var.mysql_host
+  mysql_database = var.mysql_database
+  mysql_user     = var.mysql_user
+  mysql_password = var.mysql_password
+
+  s3_bucket_name = module.s3_app.bucket_name
+  use_s3         = true
+
+  log_group_name        = "/ecs/${var.project_name}-${var.environment}"
+  log_retention_in_days = 30
+}
+
 # ============================================
 # ECS サービスの例（別ファイルに切り出し予定）
 # ============================================
