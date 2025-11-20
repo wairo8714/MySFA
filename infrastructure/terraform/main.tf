@@ -1,5 +1,6 @@
 terraform {
   required_version = ">= 1.0"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -7,11 +8,13 @@ terraform {
     }
   }
 
+  # ★ Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
   backend "s3" {
-    bucket  = "mysfa-terraform-state"
-    key     = "terraform.tfstate"
-    region  = "ap-northeast-1"
-    encrypt = true
+    bucket         = "mysfa-terraform-state" # すでにコンソールで作成済み
+    key            = "terraform.tfstate"
+    region         = "ap-northeast-1"
+    encrypt        = true
+    dynamodb_table = "mysfa-terraform-lock" # すでにコンソールで作成済み（名前は実際のテーブル名に合わせて要調整）
   }
 }
 
@@ -20,7 +23,7 @@ provider "aws" {
 }
 
 # ============================================
-# VPC モジュール呼び出し
+# VPC モジュール呼び出し（既存のまま利用）
 # ============================================
 module "vpc" {
   source = "./modules/vpc"
@@ -28,6 +31,22 @@ module "vpc" {
   project_name        = var.project_name
   vpc_cidr            = var.vpc_cidr
   public_subnet_cidrs = var.public_subnet_cidrs
+}
+
+# ============================================
+# S3（static / media 用）モジュール呼び出し
+# ============================================
+module "s3_app" {
+  source = "./modules/s3_app"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # 例: mysfa-deploy-files
+  bucket_name = var.s3_bucket_name
+
+  # CORS 用に使用（https://mysfa.net, https://www.mysfa.net を許可）
+  domain_name = var.domain_name
 }
 
 # ============================================
@@ -65,7 +84,8 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name = "${var.project_name}-alb-sg"
+    Name        = "${var.project_name}-alb-sg"
+    Environment = var.environment
   }
 }
 
@@ -92,7 +112,8 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   tags = {
-    Name = "${var.project_name}-ecs-tasks-sg"
+    Name        = "${var.project_name}-ecs-tasks-sg"
+    Environment = var.environment
   }
 }
 
@@ -103,12 +124,14 @@ resource "aws_security_group" "ecs_tasks" {
 resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
+
   lifecycle {
     create_before_destroy = true
   }
 
   tags = {
-    Name = "${var.project_name}-cert"
+    Name        = "${var.project_name}-cert"
+    Environment = var.environment
   }
 }
 
@@ -159,6 +182,11 @@ resource "aws_lb_target_group" "main" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }
+
+  tags = {
+    Name        = "${var.project_name}-tg"
+    Environment = var.environment
+  }
 }
 
 resource "aws_lb" "main" {
@@ -167,6 +195,11 @@ resource "aws_lb" "main" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = module.vpc.public_subnet_ids
+
+  tags = {
+    Name        = "${var.project_name}-alb"
+    Environment = var.environment
+  }
 }
 
 resource "aws_lb_listener" "http" {
@@ -176,6 +209,7 @@ resource "aws_lb_listener" "http" {
 
   default_action {
     type = "redirect"
+
     redirect {
       port        = "443"
       protocol    = "HTTPS"
@@ -201,6 +235,7 @@ resource "aws_route53_record" "main" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = var.domain_name
   type    = "A"
+
   alias {
     name                   = aws_lb.main.dns_name
     zone_id                = aws_lb.main.zone_id
@@ -212,6 +247,7 @@ resource "aws_route53_record" "www" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
+
   alias {
     name                   = aws_lb.main.dns_name
     zone_id                = aws_lb.main.zone_id
@@ -220,33 +256,12 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# S3 / ECR / IAM / ECS（省略、既存 main.tf のまま）
+# S3 / ECR / IAM / ECS（このあと順次モジュール化予定）
 # ============================================
 
 # ============================================
-# ECS サービス（モジュール化したVPC/SecurityGroupを利用）
+# ECS サービスの例（別ファイルに切り出し予定）
 # ============================================
-# 注意: aws_ecs_cluster.main と aws_ecs_task_definition.app の定義が必要
 # resource "aws_ecs_service" "main" {
-#   name            = "${var.project_name}-service"
-#   cluster         = aws_ecs_cluster.main.id
-#   task_definition = aws_ecs_task_definition.app.arn
-#   desired_count   = 1
-#   launch_type     = "FARGATE"
-#
-#   network_configuration {
-#     subnets          = module.vpc.public_subnet_ids
-#     assign_public_ip = true
-#     security_groups  = [aws_security_group.ecs_tasks.id]  # モジュール配下のVPC用SGを使用
-#   }
-#
-#   load_balancer {
-#     target_group_arn = aws_lb_target_group.main.arn
-#     container_name   = "web"
-#     container_port   = 80
-#   }
-#
-#   enable_execute_command = true
-#
-#   depends_on = [aws_lb_listener.https]
+#   ...
 # }
