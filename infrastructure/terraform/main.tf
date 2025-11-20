@@ -8,13 +8,13 @@ terraform {
     }
   }
 
-  # ★ Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
+  # Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
   backend "s3" {
-    bucket         = "mysfa-terraform-state" # すでにコンソールで作成済み
+    bucket         = "mysfa-terraform-state"
     key            = "terraform.tfstate"
     region         = "ap-northeast-1"
     encrypt        = true
-    dynamodb_table = "mysfa-terraform-lock" # すでにコンソールで作成済み（名前は実際のテーブル名に合わせて要調整）
+    dynamodb_table = "mysfa-terraform-lock"
   }
 }
 
@@ -51,7 +51,6 @@ module "s3_app" {
 
 # ============================================
 # セキュリティグループ
-# （デフォルトVPCの既存SGではなく、自作VPC用に新規作成）
 # ============================================
 
 # ALB用セキュリティグループ
@@ -256,7 +255,7 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# ECR / ECS（このあと順次モジュール化予定）
+# ECR
 # ============================================
 
 module "ecr_app" {
@@ -269,14 +268,14 @@ module "ecr_app" {
   repository_name = "${var.project_name}-app"
 
   # 必要なら変える
-  image_tag_mutability    = "IMMUTABLE"
-  scan_on_push            = true
+  image_tag_mutability     = "IMMUTABLE"
+  scan_on_push             = true
   lifecycle_policy_enabled = true
   lifecycle_keep_last      = 10
 }
 
 # ============================================
-# IAM
+# IAM（ECS 用ロール）
 # ============================================
 
 module "ecs_iam" {
@@ -288,12 +287,12 @@ module "ecs_iam" {
   app_bucket_arn  = module.s3_app.bucket_arn
   app_bucket_name = module.s3_app.bucket_name
 
-  # ロググループ名は、このあと作る CloudWatch Logs モジュールと合わせる想定
+  # ロググループ名は、ECS モジュール側と合わせる
   cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
 }
 
 # ============================================
-# ECS（このあと順次モジュール化予定）
+# ECS
 # ============================================
 
 module "ecs_app" {
@@ -312,12 +311,15 @@ module "ecs_app" {
   task_role_arn      = module.ecs_iam.task_role_arn
   execution_role_arn = module.ecs_iam.task_execution_role_arn
 
-  # コンテナイメージ（とりあえず latest タグ想定）
-  container_image = "${module.ecr_app.repository_url}:latest"
-  container_port  = 80
+  # コンテナイメージ
+  container_image = "${module.ecr_app.repository_url}:latest" # web(Django) 用
+  mysql_image     = "mysql:8.0"
+
+  container_port = 80
+  mysql_port     = 3306
 
   task_cpu    = "256"
-  task_memory = "512"
+  task_memory = "1024"
 
   desired_count = 1
 
@@ -328,10 +330,11 @@ module "ecs_app" {
   debug         = var.debug
   allowed_hosts = var.allowed_hosts
 
-  mysql_host     = var.mysql_host
-  mysql_database = var.mysql_database
-  mysql_user     = var.mysql_user
-  mysql_password = var.mysql_password
+  mysql_host          = "127.0.0.1" # 同一タスク内
+  mysql_database      = var.mysql_database
+  mysql_user          = var.mysql_user
+  mysql_password      = var.mysql_password
+  mysql_root_password = var.mysql_root_password
 
   s3_bucket_name = module.s3_app.bucket_name
   use_s3         = true
@@ -340,9 +343,5 @@ module "ecs_app" {
   log_retention_in_days = 30
 }
 
-# ============================================
-# ECS サービスの例（別ファイルに切り出し予定）
-# ============================================
-# resource "aws_ecs_service" "main" {
-#   ...
 # }
+```
