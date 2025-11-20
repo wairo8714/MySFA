@@ -11,11 +11,57 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Application environment (dev/staging/prod)"
+  description = "Environment name"
   type        = string
   default     = "prod"
 }
 
+# ドメイン
+variable "domain_name" {
+  description = "Primary domain name for the application"
+  type        = string
+}
+
+variable "allowed_hosts" {
+  description = "Django ALLOWED_HOSTS (comma-separated string)"
+  type        = string
+}
+
+# VPC 設定
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidrs" {
+  description = "CIDR blocks for public subnets"
+  type        = list(string)
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
+}
+
+# S3（static / media 用）
+variable "s3_bucket_name" {
+  description = "S3 bucket name for static and media files"
+  type        = string
+}
+
+# ====== 以下は ECS / アプリ側で使う想定の変数（既存設定を踏襲） ======
+
+# Django
+variable "secret_key" {
+  description = "Django secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "debug" {
+  description = "Django DEBUG mode"
+  type        = bool
+  default     = false
+}
+
+# MySQL / RDS
 variable "mysql_host" {
   description = "MySQL host"
   type        = string
@@ -35,27 +81,4 @@ variable "mysql_password" {
   description = "MySQL password"
   type        = string
   sensitive   = true
-}
-
-variable "secret_key" {
-  description = "Django secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "allowed_hosts" {
-  description = "Django ALLOWED_HOSTS"
-  type        = string
-  default     = "mysfa.net,www.mysfa.net"
-}
-
-variable "domain_name" {
-  description = "Domain name for the application"
-  type        = string
-  default     = "mysfa.net"
-}
-
-variable "s3_bucket_name" {
-  description = "S3 bucket name for static and media files"
-  type        = string
 }
