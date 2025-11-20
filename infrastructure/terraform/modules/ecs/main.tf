@@ -8,12 +8,10 @@ locals {
   use_s3_string = var.use_s3 ? "True" : "False"
 
   # ロググループ名（指定が空ならデフォルト）
-  log_group_name = var.log_group_name != "" ?
-    var.log_group_name :
-    "/ecs/${var.project_name}-${var.environment}"
+  log_group_name = var.log_group_name != "" ? var.log_group_name : "/ecs/${var.project_name}-${var.environment}"
 
   # web コンテナに渡す環境変数（Django 用）
-  container_environment_web = [
+  container_environment = [
     {
       name  = "SECRET_KEY"
       value = var.secret_key
@@ -59,26 +57,6 @@ locals {
       value = local.use_s3_string
     },
   ]
-
-  # mysql コンテナに渡す環境変数（公式 mysql イメージ想定）
-  container_environment_mysql = [
-    {
-      name  = "MYSQL_DATABASE"
-      value = var.mysql_database
-    },
-    {
-      name  = "MYSQL_USER"
-      value = var.mysql_user
-    },
-    {
-      name  = "MYSQL_PASSWORD"
-      value = var.mysql_password
-    },
-    {
-      name  = "MYSQL_ROOT_PASSWORD"
-      value = var.mysql_root_password
-    }
-  ]
 }
 
 # ============================================
@@ -109,7 +87,7 @@ resource "aws_cloudwatch_log_group" "app" {
 }
 
 # ============================================
-# ECS タスク定義（web + mysql 同居）
+# ECS タスク定義（web のみ）
 # ============================================
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.project_name}-${var.environment}-task"
@@ -125,13 +103,6 @@ resource "aws_ecs_task_definition" "app" {
     cpu_architecture        = "X86_64"
   }
 
-  # MySQL データ用のエフェメラルボリューム
-  volume {
-    name = "mysql_data"
-    # Fargate では host / efsVolumeConfiguration を指定しないと
-    # タスクのエフェメラルストレージが使われる
-  }
-
   container_definitions = jsonencode([
     {
       name      = "web"
@@ -145,15 +116,7 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      environment = local.container_environment_web
-
-      # MySQL コンテナが START するまで待ってから起動
-      dependsOn = [
-        {
-          containerName = "mysql"
-          condition     = "START"
-        }
-      ]
+      environment = local.container_environment
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -163,47 +126,6 @@ resource "aws_ecs_task_definition" "app" {
           awslogs-stream-prefix = "web"
         }
       }
-    },
-    {
-      name      = "mysql"
-      image     = var.mysql_image
-      essential = true
-
-      portMappings = [
-        {
-          containerPort = var.mysql_port
-          protocol      = "tcp"
-        }
-      ]
-
-      environment = local.container_environment_mysql
-
-      # MySQL データディレクトリにボリュームをマウント
-      mountPoints = [
-        {
-          sourceVolume  = "mysql_data"
-          containerPath = "/var/lib/mysql"
-          readOnly      = false
-        }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.app.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "mysql"
-        }
-      }
-
-      # 必要に応じて healthCheck を追加することも可能
-      # healthCheck = {
-      #   command     = ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -P 3306 || exit 1"]
-      #   interval    = 30
-      #   timeout     = 5
-      #   retries     = 3
-      #   startPeriod = 60
-      # }
     }
   ])
 

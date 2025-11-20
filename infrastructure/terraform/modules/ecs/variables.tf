@@ -44,15 +44,8 @@ variable "execution_role_arn" {
 
 # ===== コンテナイメージ =====
 
-# web(Django) 用
 variable "container_image" {
   description = "Docker image for the app (e.g., ECR URL + tag)"
-  type        = string
-}
-
-# MySQL コンテナ用（公式イメージなど）
-variable "mysql_image" {
-  description = "Docker image for MySQL (e.g., mysql:8.0)"
   type        = string
 }
 
@@ -60,13 +53,6 @@ variable "container_port" {
   description = "Container port for the web app (e.g., 80)"
   type        = number
   default     = 80
-}
-
-# MySQL ポート（通常 3306）
-variable "mysql_port" {
-  description = "MySQL port inside the container"
-  type        = number
-  default     = 3306
 }
 
 # ===== Fargate リソース設定 =====
@@ -80,7 +66,7 @@ variable "task_cpu" {
 variable "task_memory" {
   description = "Fargate task memory (valid Fargate value, e.g., 512, 1024...)"
   type        = string
-  default     = "1024"
+  default     = "512"
 }
 
 variable "desired_count" {
@@ -114,8 +100,14 @@ variable "allowed_hosts" {
 }
 
 variable "mysql_host" {
-  description = "MySQL host for Django (for pattern B usually 127.0.0.1)"
+  description = "MySQL host for Django (RDS endpoint)"
   type        = string
+}
+
+variable "mysql_port" {
+  description = "MySQL port"
+  type        = number
+  default     = 3306
 }
 
 variable "mysql_database" {
@@ -130,12 +122,6 @@ variable "mysql_user" {
 
 variable "mysql_password" {
   description = "MySQL password"
-  type        = string
-  sensitive   = true
-}
-
-variable "mysql_root_password" {
-  description = "MySQL root password (for mysql container)"
   type        = string
   sensitive   = true
 }

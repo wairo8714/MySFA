@@ -21,39 +21,39 @@ output "application_url_https" {
 }
 
 # S3（static / media）
-output "s3_app_bucket_name" {
+output "s3_bucket_name" {
   description = "S3 bucket name for static and media files"
-  value       = module.s3_app.bucket_name
+  value       = module.s3.bucket_name
 }
 
-output "s3_app_bucket_arn" {
+output "s3_bucket_arn" {
   description = "S3 bucket ARN for static and media files"
-  value       = module.s3_app.bucket_arn
+  value       = module.s3.bucket_arn
 }
 
 # ECR
-output "ecr_app_repository_url" {
+output "ecr_repository_url" {
   description = "ECR repository URL for the app"
-  value       = module.ecr_app.repository_url
+  value       = module.ecr.repository_url
 }
 
 # IAM
 output "ecs_task_execution_role_arn" {
   description = "ARN of ECS task execution role"
-  value       = module.ecs_iam.task_execution_role_arn
+  value       = module.iam.task_execution_role_arn
 }
 
 output "ecs_task_role_arn" {
   description = "ARN of ECS task role"
-  value       = module.ecs_iam.task_role_arn
+  value       = module.iam.task_role_arn
 }
 
 # ECS
 output "ecs_cluster_id" {
-  value = module.ecs_app.cluster_id
+  value = module.ecs.cluster_id
 }
 
 output "ecs_service_name" {
-  value = module.ecs_app.service_name
+  value = module.ecs.service_name
 }
 

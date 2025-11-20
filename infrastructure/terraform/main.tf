@@ -23,7 +23,7 @@ provider "aws" {
 }
 
 # ============================================
-# VPC モジュール呼び出し（既存のまま利用）
+# VPC
 # ============================================
 module "vpc" {
   source = "./modules/vpc"
@@ -34,10 +34,10 @@ module "vpc" {
 }
 
 # ============================================
-# S3（static / media 用）モジュール呼び出し
+# S3
 # ============================================
-module "s3_app" {
-  source = "./modules/s3_app"
+module "s3" {
+  source = "./modules/s3"
 
   project_name = var.project_name
   environment  = var.environment
@@ -258,16 +258,14 @@ resource "aws_route53_record" "www" {
 # ECR
 # ============================================
 
-module "ecr_app" {
-  source = "./modules/ecr_app"
+module "ecr" {
+  source = "./modules/ecr"
 
   project_name = var.project_name
   environment  = var.environment
 
-  # 例: mysfa-app など
   repository_name = "${var.project_name}-app"
 
-  # 必要なら変える
   image_tag_mutability     = "IMMUTABLE"
   scan_on_push             = true
   lifecycle_policy_enabled = true
@@ -278,25 +276,54 @@ module "ecr_app" {
 # IAM（ECS 用ロール）
 # ============================================
 
-module "ecs_iam" {
-  source = "./modules/ecs_iam"
+module "iam" {
+  source = "./modules/iam"
 
   project_name = var.project_name
   environment  = var.environment
 
-  app_bucket_arn  = module.s3_app.bucket_arn
-  app_bucket_name = module.s3_app.bucket_name
-
-  # ロググループ名は、ECS モジュール側と合わせる
+  app_bucket_arn  = module.s3.bucket_arn
+  app_bucket_name = module.s3.bucket_name
+ 
   cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
 }
 
 # ============================================
-# ECS
+# RDS (MySQL)
 # ============================================
 
-module "ecs_app" {
-  source = "./modules/ecs_app"
+module "rds" {
+  source = "./modules/rds"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id     = module.vpc.vpc_id
+  # 将来privateサブネットを作ったらそちらに差し替え予定
+  subnet_ids = module.vpc.public_subnet_ids
+
+   allowed_security_group_ids = [aws_security_group.ecs_tasks.id]
+
+  db_name  = var.mysql_database
+  username = var.mysql_user
+  password = var.mysql_password
+
+  engine_version          = "8.0"
+  instance_class          = "db.t4g.micro"
+  allocated_storage       = 20
+  backup_retention_period = 7
+  multi_az                = false
+  publicly_accessible     = false
+  deletion_protection     = false
+  apply_immediately       = true
+}
+
+# ============================================
+# ECS（RDS 接続版・web コンテナのみ）
+# ============================================
+
+module "ecs" {
+  source = "./modules/ecs"
 
   project_name = var.project_name
   environment  = var.environment
@@ -308,18 +335,14 @@ module "ecs_app" {
 
   alb_target_group_arn = aws_lb_target_group.main.arn
 
-  task_role_arn      = module.ecs_iam.task_role_arn
-  execution_role_arn = module.ecs_iam.task_execution_role_arn
+  task_role_arn      = module.iam.task_role_arn
+  execution_role_arn = module.iam.task_execution_role_arn
 
-  # コンテナイメージ
-  container_image = "${module.ecr_app.repository_url}:latest" # web(Django) 用
-  mysql_image     = "mysql:8.0"
-
-  container_port = 80
-  mysql_port     = 3306
+  container_image = "${module.ecr.repository_url}:latest"
+  container_port  = 80
 
   task_cpu    = "256"
-  task_memory = "1024"
+  task_memory = "512"
 
   desired_count = 1
 
@@ -330,18 +353,15 @@ module "ecs_app" {
   debug         = var.debug
   allowed_hosts = var.allowed_hosts
 
-  mysql_host          = "127.0.0.1" # 同一タスク内
-  mysql_database      = var.mysql_database
-  mysql_user          = var.mysql_user
-  mysql_password      = var.mysql_password
-  mysql_root_password = var.mysql_root_password
+  mysql_host     = module.rds.db_endpoint
+  mysql_port     = module.rds.db_port
+  mysql_database = var.mysql_database
+  mysql_user     = var.mysql_user
+  mysql_password = var.mysql_password
 
-  s3_bucket_name = module.s3_app.bucket_name
+  s3_bucket_name = module.s3.bucket_name
   use_s3         = true
 
   log_group_name        = "/ecs/${var.project_name}-${var.environment}"
   log_retention_in_days = 30
 }
-
-# }
-```
