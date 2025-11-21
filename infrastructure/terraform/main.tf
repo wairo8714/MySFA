@@ -8,6 +8,7 @@ terraform {
     }
   }
 
+  # Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
   backend "s3" {
     bucket         = "mysfa-terraform-state"
     key            = "terraform.tfstate"
@@ -22,7 +23,7 @@ provider "aws" {
 }
 
 # ============================================
-# VPC モジュール呼び出し
+# VPC
 # ============================================
 module "vpc" {
   source = "./modules/vpc"
@@ -33,10 +34,10 @@ module "vpc" {
 }
 
 # ============================================
-# S3（static / media 用）モジュール呼び出し
+# S3
 # ============================================
-module "s3_app" {
-  source = "./modules/s3_app"
+module "s3" {
+  source = "./modules/s3"
 
   project_name = var.project_name
   environment  = var.environment
@@ -254,12 +255,113 @@ resource "aws_route53_record" "www" {
 }
 
 # ============================================
-# ECR / IAM / ECS（このあと順次モジュール化予定）
+# ECR
 # ============================================
 
+module "ecr" {
+  source = "./modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  repository_name = "${var.project_name}-app"
+
+  image_tag_mutability     = "IMMUTABLE"
+  scan_on_push             = true
+  lifecycle_policy_enabled = true
+  lifecycle_keep_last      = 10
+}
+
 # ============================================
-# ECS サービスの例（別ファイルに切り出し予定）
+# IAM（ECS 用ロール）
 # ============================================
-# resource "aws_ecs_service" "main" {
-#   ...
-# }
+
+module "iam" {
+  source = "./modules/iam"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  app_bucket_arn  = module.s3.bucket_arn
+  app_bucket_name = module.s3.bucket_name
+ 
+  cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
+}
+
+# ============================================
+# RDS (MySQL)
+# ============================================
+
+module "rds" {
+  source = "./modules/rds"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id     = module.vpc.vpc_id
+  # 将来privateサブネットを作ったらそちらに差し替え予定
+  subnet_ids = module.vpc.public_subnet_ids
+
+   allowed_security_group_ids = [aws_security_group.ecs_tasks.id]
+
+  db_name  = var.mysql_database
+  username = var.mysql_user
+  password = var.mysql_password
+
+  engine_version          = "8.0"
+  instance_class          = "db.t4g.micro"
+  allocated_storage       = 20
+  backup_retention_period = 7
+  multi_az                = false
+  publicly_accessible     = false
+  deletion_protection     = false
+  apply_immediately       = true
+}
+
+# ============================================
+# ECS（RDS 接続版・web コンテナのみ）
+# ============================================
+
+module "ecs" {
+  source = "./modules/ecs"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  cluster_name = "${var.project_name}-${var.environment}-cluster"
+
+  subnet_ids         = module.vpc.public_subnet_ids
+  security_group_ids = [aws_security_group.ecs_tasks.id]
+
+  alb_target_group_arn = aws_lb_target_group.main.arn
+
+  task_role_arn      = module.iam.task_role_arn
+  execution_role_arn = module.iam.task_execution_role_arn
+
+  container_image = "${module.ecr.repository_url}:latest"
+  container_port  = 80
+
+  task_cpu    = "256"
+  task_memory = "512"
+
+  desired_count = 1
+
+  aws_region = var.aws_region
+
+  # ===== Django env =====
+  secret_key    = var.secret_key
+  debug         = var.debug
+  allowed_hosts = var.allowed_hosts
+
+  mysql_host     = module.rds.db_endpoint
+  mysql_port     = module.rds.db_port
+  mysql_database = var.mysql_database
+  mysql_user     = var.mysql_user
+  mysql_password = var.mysql_password
+
+  s3_bucket_name = module.s3.bucket_name
+  use_s3         = true
+
+  log_group_name        = "/ecs/${var.project_name}-${var.environment}"
+  log_retention_in_days = 30
+}

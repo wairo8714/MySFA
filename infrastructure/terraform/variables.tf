@@ -16,6 +16,7 @@ variable "environment" {
   default     = "prod"
 }
 
+# ドメイン
 variable "domain_name" {
   description = "Primary domain name for the application"
   type        = string
