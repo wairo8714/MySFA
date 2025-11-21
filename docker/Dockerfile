@@ -25,5 +25,5 @@ RUN if [ "$USE_S3" = "False" ]; then \
     fi
 
 WORKDIR /app/src
-EXPOSE 8000
-CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+EXPOSE 80
+CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:80"]
