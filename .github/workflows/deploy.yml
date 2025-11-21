@@ -117,7 +117,7 @@ jobs:
               \"logConfiguration\": {
                 \"logDriver\": \"awslogs\",
                 \"options\": {
-                  \"awslogs-group\": \"/ecs/mysfa-task\",
+                  \"awslogs-group\": \"/ecs/mysfa-prod\",
                   \"awslogs-region\": \"${{ secrets.AWS_REGION }}\",
                   \"awslogs-stream-prefix\": \"ecs\"
                 }
