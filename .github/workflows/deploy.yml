@@ -46,6 +46,10 @@ jobs:
           echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
+          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env.prod
+          # Django-storages 用にバケット名＆USE_S3も入れておく
+          echo "AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
+          echo "USE_S3=true" >> .env.prod
 
       # -------------------------------
       # デバッグ + 手動ECRログイン
@@ -76,6 +80,21 @@ jobs:
           file: ./docker/Dockerfile
           push: true
           tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+
+      # -------------------------------
+      # collectstatic を毎回実行（S3 に static アップロード）
+      # -------------------------------
+      - name: Run collectstatic (upload static to S3)
+        run: |
+          IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest
+          echo "Using image: $IMAGE_URI"
+          # 念のため ECR から pull
+          docker pull "$IMAGE_URI"
+          # 本番と同じコンテナイメージ＋.env.prod で collectstatic 実行
+          docker run --rm \
+            --env-file .env.prod \
+            "$IMAGE_URI" \
+            poetry run python manage.py collectstatic --noinput
 
       # -------------------------------
       # ECSタスク定義更新
