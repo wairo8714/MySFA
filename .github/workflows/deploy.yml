@@ -89,6 +89,8 @@ jobs:
           fi
           TASK_DEF_JSON=$(aws ecs register-task-definition \
             --family mysfa-task \
+            --task-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-prod-ecs-task-role \
+            --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-prod-ecs-task-execution-role \
             --container-definitions "[{
               \"name\": \"web\",
               \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
@@ -125,7 +127,6 @@ jobs:
             --network-mode awsvpc \
             --memory 1024 \
             --cpu 512 \
-            --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-prod-ecs-task-execution-role \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
           echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
