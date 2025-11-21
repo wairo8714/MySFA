@@ -1,9 +1,10 @@
-name: AWS ECS へのデプロイ
+name: Deploy to AWS ECS
 
 on:
   workflow_run:
     workflows: ["Terraform"]
-    types: [completed]
+    types:
+      - completed
     branches:
       - main
       - deploy/*
@@ -20,185 +21,79 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-      DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
-      AWS_PAGER: ""
 
     steps:
-    # -------------------------------
-    # 1. リポジトリのチェックアウト
-    # -------------------------------
-    - name: リポジトリを取得
+    - name: Checkout repository
       uses: actions/checkout@v3
       with:
         ref: ${{ github.event.workflow_run.head_sha }}
 
-    # -------------------------------
-    # 2. AWS 認証情報を設定
-    # -------------------------------
-    - name: AWS 認証を設定
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
-
-    # -------------------------------
-    # 3. 本番環境用 .env ファイル作成
-    # -------------------------------
-    - name: .env.prod を作成
+    - name: Create .env.prod
       run: |
-        cat <<EOF > .env.prod
-        DEBUG=${{ secrets.DEBUG }}
-        ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-        MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-        MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-        MYSQL_USER=${{ secrets.MYSQL_USER }}
-        MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-        MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
-        MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-        ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}
-        S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-        AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-        FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
-        DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
-        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION=${{ secrets.AWS_REGION }}
-        USE_S3=true
-        EOF
+        echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
+        echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env.prod
+        echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env.prod
+        echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env.prod
+        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env.prod
+        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env.prod
+        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env.prod
+        echo "MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}" >> .env.prod
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
+        echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
+        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
+        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
+        echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
+        echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
 
     # -------------------------------
-    # 3.1 追加：Poetry セットアップ & collectstatic（最重要）
+    # デバッグ + 手動ECRログイン
     # -------------------------------
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-
-    - name: Install Poetry
+    - name: Manual ECR login (debug mode)
       run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "=== AWS Auth Check ==="
+        aws sts get-caller-identity
 
-    - name: Install dependencies
-      run: |
-        poetry install --no-root
-        echo "Python dependencies installed."
+        echo ""
+        echo "=== Get Login Password ==="
+        TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
+        echo "Token length: ${#TOKEN}"
 
-    - name: Collect static files to S3 (CI/CD)
-      env:
-        USE_S3: "true"
-        AWS_STORAGE_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-        DJANGO_SETTINGS_MODULE: config.settings
-      run: |
-        cd src
-        poetry run python manage.py collectstatic --noinput --clear --verbosity 2
+        echo ""
+        echo "=== Docker manual login ==="
+        docker login -u AWS -p "$TOKEN" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
+        echo "✅ Docker login manual succeeded"
 
     # -------------------------------
-    # 4. Amazon ECR にログイン
+    # Docker build & push
     # -------------------------------
-    - name: ECR にログイン
-      uses: aws-actions/amazon-ecr-login@v2
-
-    # -------------------------------
-    # 5. Buildx をセットアップ（docker-container ドライバ）
-    # -------------------------------
-    - name: Buildx セットアップ
-      uses: docker/setup-buildx-action@v3
-      with:
-        driver: docker-container
-
-    # -------------------------------
-    # 6. start.sh に実行権限を付与
-    # -------------------------------
-    - name: start.sh の実行権限を付与
-      run: chmod +x start.sh
-
-    # -------------------------------
-    # 7. ビルド前のECRイメージダイジェストを取得
-    # -------------------------------
-    - name: ビルド前のイメージダイジェストを取得
-      id: digest_before
-      run: |
-        DIGEST_BEFORE=$(aws ecr describe-images \
-          --repository-name ${{ secrets.ECR_REPOSITORY }} \
-          --image-ids imageTag=latest \
-          --query 'imageDetails[0].imageDigest' \
-          --output text 2>/dev/null || echo "NONE")
-        echo "digest=$DIGEST_BEFORE" >> $GITHUB_OUTPUT
-        echo "ビルド前のイメージダイジェスト: $DIGEST_BEFORE"
-
-    # -------------------------------
-    # 8. Docker イメージをビルド・プッシュ
-    # -------------------------------
-    - name: Docker イメージをビルドしてプッシュ
-      id: build_image
+    - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./docker/Dockerfile
         push: true
         tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
-        cache-from: |
-          type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache
-          type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
-        cache-to: type=registry,ref=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:cache,mode=max
-        build-args: |
-          BUILDKIT_INLINE_CACHE=1
 
     # -------------------------------
-    # 9. 同一イメージの場合は ECS 更新をスキップ
+    # ECSタスク定義更新
     # -------------------------------
-    - name: 同一イメージかを確認
-      id: check_image
-      run: |
-        echo "ECRへのイメージ反映を待機中..."
-        for i in {1..10}; do
-          DIGEST_AFTER=$(aws ecr describe-images \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --image-ids imageTag=latest \
-            --query 'imageDetails[0].imageDigest' \
-            --output text 2>/dev/null || echo "NONE")
-          if [ "$DIGEST_AFTER" != "NONE" ]; then
-            echo "イメージがECRに反映されました。"
-            break
-          fi
-          sleep 2
-        done
-
-        DIGEST_BEFORE="${{ steps.digest_before.outputs.digest }}"
-        echo "ビルド前: $DIGEST_BEFORE"
-        echo "ビルド後: $DIGEST_AFTER"
-
-        if [ "$DIGEST_BEFORE" = "$DIGEST_AFTER" ] && [ "$DIGEST_BEFORE" != "NONE" ]; then
-          echo "same_image=true" >> $GITHUB_OUTPUT
-        else
-          echo "same_image=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: イメージが同一の場合はデプロイをスキップ
-      if: steps.check_image.outputs.same_image == 'true'
-      run: exit 0
-
-    # -------------------------------
-    # 10. 新しい ECS タスク定義を登録
-    # -------------------------------
-    - name: 新しいタスク定義を登録
+    - name: Register new ECS task definition
       id: ecs-task
       run: |
         MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
-        if [ -z "$MYSQL_PORT_VALUE" ]; then MYSQL_PORT_VALUE="3306"; fi
-
+        if [ -z "$MYSQL_PORT_VALUE" ]; then
+          MYSQL_PORT_VALUE="3306"
+        fi
         TASK_DEF_JSON=$(aws ecs register-task-definition \
           --family mysfa-task \
           --container-definitions "[{
             \"name\": \"web\",
             \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
             \"essential\": true,
-            \"portMappings\": [{\"containerPort\": 80, \"hostPort\": 80}],
+            \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}],
             \"environment\": [
               {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
               {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
@@ -217,13 +112,6 @@ jobs:
               {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
               {\"name\": \"USE_S3\", \"value\": \"true\"}
             ],
-            \"healthCheck\": {
-              \"command\": [\"CMD-SHELL\", \"curl -f http://localhost:80/health/ || exit 1\"],
-              \"interval\": 30,
-              \"timeout\": 5,
-              \"retries\": 3,
-              \"startPeriod\": 60
-            },
             \"logConfiguration\": {
               \"logDriver\": \"awslogs\",
               \"options\": {
@@ -238,51 +126,17 @@ jobs:
           --memory 1024 \
           --cpu 512 \
           --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-ecs-task-execution-role \
-          --task-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-ecs-task-role \
           --query 'taskDefinition.taskDefinitionArn' \
           --output text)
-
         echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
 
     # -------------------------------
-    # 11. ECS サービスを更新
+    # ECSサービス更新
     # -------------------------------
-    - name: ECS サービスを更新
+    - name: Update ECS service
       run: |
         aws ecs update-service \
           --cluster mysfa-cluster \
           --service mysfa-service \
           --task-definition $TASK_DEF_ARN \
           --force-new-deployment
-
-    # -------------------------------
-    # 12. jq インストール
-    # -------------------------------
-    - name: jq をインストール
-      run: sudo apt-get update && sudo apt-get install -y jq
-
-    # -------------------------------
-    # 13. サービスの安定化待機
-    # -------------------------------
-    - name: サービスの安定化を待機
-      timeout-minutes: 15
-      run: |
-        echo "ECS サービスの安定化を待機中..."
-        aws ecs wait services-stable \
-          --cluster mysfa-cluster \
-          --services mysfa-service
-
-    # -------------------------------
-    # 14. ヘルスチェック
-    # -------------------------------
-    - name: 本番環境のヘルスチェック
-      run: |
-        echo "アプリケーションのヘルスチェックを開始します..."
-        for i in {1..5}; do
-          if curl --fail -s "https://${DOMAIN_NAME}/health/" > /dev/null; then
-            echo "アプリケーションは正常に稼働しています。"
-            exit 0
-          fi
-          sleep 10
-        done
-        exit 1
