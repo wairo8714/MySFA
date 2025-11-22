@@ -18,10 +18,10 @@ RUN poetry install --no-root
 
 COPY . /app/
 
+WORKDIR /app/src
+
 # 常に collectstatic を実行して S3/ローカルへ反映
 ARG USE_S3
 RUN poetry run python manage.py collectstatic --noinput
-
-WORKDIR /app/src
 EXPOSE 80
 CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:80"]
