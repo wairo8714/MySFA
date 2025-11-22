@@ -1,22 +1,24 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Gunicorn and Nginx..."
+echo "🚀 Preparing Django application..."
 
-# Run migrations on startup (only once)
+cd /app/src
+
+# Run migrations on cold start
 if [ ! -f /tmp/migrations_done ]; then
     echo "📦 Running database migrations..."
-    cd /app/src
     poetry run python manage.py migrate --noinput || true
     touch /tmp/migrations_done
 fi
 
-# Start NGINX first
-nginx
+# Always sync static assets (no-op if unchanged)
+echo "🗂  Collecting static files..."
+poetry run python manage.py collectstatic --noinput || true
 
-# Start Gunicorn
+echo "🔥 Starting Gunicorn..."
 poetry run gunicorn src.config.wsgi:application \
-    --bind 127.0.0.1:8000 \
+    --bind 0.0.0.0:80 \
     --workers 1 \
     --access-logfile - \
     --error-logfile - \

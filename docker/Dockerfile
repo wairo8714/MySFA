@@ -17,13 +17,8 @@ COPY pyproject.toml poetry.lock /app/
 RUN poetry install --no-root
 
 COPY . /app/
+RUN chmod +x /app/start.sh
 
-# collectstatic は USE_S3=False の場合のみ
-ARG USE_S3
-RUN if [ "$USE_S3" = "False" ]; then \
-        poetry run python manage.py collectstatic --noinput; \
-    fi
-
-WORKDIR /app/src
+WORKDIR /app
 EXPOSE 80
-CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:80"]
+CMD ["/app/start.sh"]
