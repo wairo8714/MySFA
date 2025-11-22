@@ -18,11 +18,9 @@ RUN poetry install --no-root
 
 COPY . /app/
 
-# collectstatic は USE_S3=False の場合のみ実行
+# 常に collectstatic を実行して S3/ローカルへ反映
 ARG USE_S3
-RUN if [ "$USE_S3" = "False" ]; then \
-        poetry run python manage.py collectstatic --noinput; \
-    fi
+RUN poetry run python manage.py collectstatic --noinput
 
 WORKDIR /app/src
 EXPOSE 80
