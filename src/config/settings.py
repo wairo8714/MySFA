@@ -7,6 +7,10 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
