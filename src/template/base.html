@@ -110,7 +110,11 @@
                         {% if request.user.is_authenticated %}
                             <li id="account">
                                 <a href="{% url 'mysfa:mypost' request.user.custom_user_id %}">
-                                    <img src="{% if request.user.profile_image and request.user.profile_image.name != 'default_images/ic013.png' %}{{ request.user.profile_image.url }}{% else %}{{ MEDIA_URL }}default_images/ic013.png{% endif %}" alt="User Icon">
+                                    <img src="{% if request.user.profile_image and request.user.profile_image.name != 'default_images/ic013.png' %}
+                                                {{ request.user.profile_image.url }}
+                                              {% else %}
+                                                {% static 'images/default_image/ic013.png' %}
+                                              {% endif %}" alt="User Icon">
                                     <p class="user-id">@{{ request.user.custom_user_id }}</p>
                                 </a>
                             </li>
