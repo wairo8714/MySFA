@@ -97,7 +97,7 @@ jobs:
                 \"image\": \"${IMAGE_URI}\",
                 \"essential\": true,
                 \"portMappings\": [
-                  {\"containerPort\": 8000, \"protocol\": \"tcp\"}
+                  {\"containerPort\": 80, \"protocol\": \"tcp\"}
                 ],
                 \"environment\": [
                   {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
