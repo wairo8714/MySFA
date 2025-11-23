@@ -44,42 +44,65 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('.signup-input-area');
     if (form) {
         form.addEventListener('submit', function(event) {
-            const password1 = document.getElementById('registeringPassword1').value;
-            const password2 = document.getElementById('registeringPassword2').value;
-            const userID = document.getElementById('registeringUserID').value;
+            event.preventDefault();
+
+            const password1Input = document.getElementById('registeringPassword1');
+            const password2Input = document.getElementById('registeringPassword2');
+            const userIdInput = document.getElementById('registeringUserID');
+
+            if (!password1Input || !password2Input || !userIdInput) {
+                console.warn('Signup inputs are missing, aborting validation.');
+                form.submit();
+                return;
+            }
+
+            const password1 = password1Input.value;
+            const password2 = password2Input.value;
+            const userID = userIdInput.value;
 
             if (password1 !== password2) {
-                event.preventDefault();
                 alert('パスワードが一致しません。');
                 return;
             }
 
             fetch(`/accounts/check_user_id/?custom_user_id=${encodeURIComponent(userID)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.exists) {
-                        event.preventDefault();
                         alert('このユーザーIDはすでに別のユーザーによって使用されています。');
                     } else {
                         form.submit();
                     }
                 })
                 .catch(error => {
-                    event.preventDefault();
-                    console.error('Error:', error);
-                    alert('ユーザーIDの確認中にエラーが発生しました。');
+                    console.error('Error checking user ID:', error);
+                    alert('ユーザーIDの確認中にエラーが発生しました。時間をおいて再度お試しください。');
                 });
-
-            event.preventDefault();
         });
     }
 
     function checkUserId() {
-        const userId = document.getElementById('registeringUserID').value;
-        fetch(`/accounts/check_user_id/?custom_user_id=${userId}`)
-            .then(response => response.json())
+        const userIdInput = document.getElementById('registeringUserID');
+        const messageElement = document.getElementById('user-id-message');
+        if (!userIdInput || !messageElement) {
+            console.warn('User ID inputs or message element not found.');
+            return;
+        }
+        const userId = userIdInput.value;
+
+        fetch(`/accounts/check_user_id/?custom_user_id=${encodeURIComponent(userId)}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
-                const messageElement = document.getElementById('user-id-message');
                 if (data.error) {
                     messageElement.textContent = data.error;
                     messageElement.style.color = 'red';
@@ -89,7 +112,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('Error checking user ID:', error);
+                messageElement.textContent = 'ユーザーIDの確認中にエラーが発生しました。';
+                messageElement.style.color = 'red';
             });
     }
 
@@ -132,17 +157,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const charCounter = document.querySelector('#char-counter');
     const maxChars = 100;
 
-    textarea.addEventListener('input', function() {
-        const currentLength = textarea.value.length;
-        charCounter.textContent = `${currentLength}/${maxChars}`;
+    if (textarea && charCounter) {
+        textarea.addEventListener('input', function() {
+            const currentLength = textarea.value.length;
+            charCounter.textContent = `${currentLength}/${maxChars}`;
 
-        if (currentLength >= maxChars) {
-            charCounter.style.color = 'red';
-            alert('文字数の上限に達しました。');
-        } else {
-            charCounter.style.color = '#707070';
-        }
-    });
+            if (currentLength >= maxChars) {
+                charCounter.style.color = 'red';
+                alert('文字数の上限に達しました。');
+            } else {
+                charCounter.style.color = '#707070';
+            }
+        });
+    }
 
     function adjustHeight() {
         const receptionContainer = document.querySelector('.reception-container');
@@ -190,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 if (typeof customUserId !== 'undefined') {
-    fetch('/check_user_id/?custom_user_id=' + customUserId)
+    fetch('/accounts/check_user_id/?custom_user_id=' + encodeURIComponent(customUserId))
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -215,6 +242,13 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('No like buttons found!');
         return;
     }
+
+    const csrfInput = document.querySelector('input[name=csrfmiddlewaretoken]');
+    if (!csrfInput) {
+        console.warn('CSRF token not found. Like feature disabled.');
+        return;
+    }
+    const csrfToken = csrfInput.value;
     
     likeButtons.forEach((button, index) => {
         console.log(`Button ${index}:`, button);
@@ -230,7 +264,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Post ID:', postId);
             console.log('Current count:', likeCount.textContent);
             
-            const csrfToken = document.querySelector('input[name=csrfmiddlewaretoken]').value;
             console.log('CSRF Token:', csrfToken ? 'Found' : 'Not found');
             
             const url = `/mysfa/like-post/${postId}/`;
@@ -306,8 +339,16 @@ function initializeSalesReport() {
 
 function loadSalesReport() {
     console.log('=== LOADING SALES REPORT ===');
-    const startDate = document.getElementById('start-date').value;
-    const endDate = document.getElementById('end-date').value;
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+    
+    if (!startDateInput || !endDateInput) {
+        console.log('Date inputs not present, skipping report load.');
+        return;
+    }
+
+    const startDate = startDateInput.value;
+    const endDate = endDateInput.value;
     
     console.log('Start date:', startDate);
     console.log('End date:', endDate);
