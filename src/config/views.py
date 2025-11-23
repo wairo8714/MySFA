@@ -9,7 +9,7 @@ class HomeView(View):
             request.user.groups.all() if request.user.is_authenticated else None
         )
 
-        if request.user.is_authenticated and user_groups and user_groups.exists():
+        if request.user.is_authenticated and user_groups.exists():
             return redirect("mysfa:timeline")
 
         return render(
