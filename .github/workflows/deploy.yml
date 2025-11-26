@@ -29,6 +29,16 @@ jobs:
           lfs: true
 
       # ======================
+      # 🔥 必須：AWS 認証
+      # ======================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ======================
       # Create .env.prod
       # ======================
       - name: Create .env.prod
@@ -62,7 +72,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile   # ←元のファイルから確認済
+          file: ./docker/Dockerfile   # ←元ファイルの仕様をそのまま維持
           push: true
           tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
