@@ -24,13 +24,18 @@ jobs:
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
     steps:
+      # ======================
+      # ソース取得
+      # ======================
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           lfs: true
 
-      # AWS CLI / ECR / ECS 用の認証設定
+      # ======================
+      # AWS 認証
+      # ======================
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -38,31 +43,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # ======================
+      # .env.prod 作成（RDS / S3 / Django 用）
+      # ======================
       - name: Create .env.prod
         run: |
           cat << 'EOF' > .env.prod
           DEBUG=${{ secrets.DEBUG }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+
           MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
           MYSQL_HOST=${{ secrets.MYSQL_HOST }}
           MYSQL_USER=${{ secrets.MYSQL_USER }}
           MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}
+          MYSQL_PORT=${{ secrets.MYSQL_PORT }}
+
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+          # S3 / AWS
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION=${{ secrets.AWS_REGION }}
+
           FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
           DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
+
           USE_S3=true
           EOF
 
+      # ======================
+      # ECR ログイン
+      # ======================
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # ======================
+      # イメージ Build & Push
+      # ======================
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -75,6 +95,9 @@ jobs:
         run: |
           echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
 
+      # ======================
+      # collectstatic（本番と同じ env で 1 回だけ実行）
+      # ======================
       - name: Run collectstatic in container
         run: |
           docker run --rm \
@@ -82,6 +105,19 @@ jobs:
             "$IMAGE_URI" \
             poetry run python manage.py collectstatic --noinput
 
+      # ======================
+      # migrate（RDS に対してテーブル作成）
+      # ======================
+      - name: Run migrations in container
+        run: |
+          docker run --rm \
+            --env-file .env.prod \
+            "$IMAGE_URI" \
+            poetry run python manage.py migrate --noinput
+
+      # ======================
+      # ECS TaskDefinition 登録
+      # ======================
       - name: Register new ECS task definition
         id: ecs-task
         run: |
@@ -90,56 +126,68 @@ jobs:
             MYSQL_PORT_VALUE="3306"
           fi
 
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --family mysfa-task \
-            --network-mode awsvpc \
-            --requires-compatibilities FARGATE \
-            --cpu 512 \
-            --memory 1024 \
-            --execution-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-execution-role \
-            --task-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-role \
-            --container-definitions "[
+          cat > task-def.json << EOF
+          {
+            "family": "mysfa-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-execution-role",
+            "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-role",
+            "containerDefinitions": [
               {
-                \"name\": \"web\",
-                \"image\": \"${IMAGE_URI}\",
-                \"essential\": true,
-                \"portMappings\": [
-                  {\"containerPort\": 80, \"protocol\": \"tcp\"}
+                "name": "web",
+                "image": "${IMAGE_URI}",
+                "essential": true,
+                "portMappings": [
+                  { "containerPort": 80, "protocol": "tcp" }
                 ],
-                \"environment\": [
-                  {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
-                  {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
-                  {\"name\": \"ALLOWED_HOSTS\", \"value\": \"${{ secrets.ALLOWED_HOSTS }}\"},
-                  {\"name\": \"MYSQL_DATABASE\", \"value\": \"${{ secrets.MYSQL_DATABASE }}\"},
-                  {\"name\": \"MYSQL_USER\", \"value\": \"${{ secrets.MYSQL_USER }}\"},
-                  {\"name\": \"MYSQL_PASSWORD\", \"value\": \"${{ secrets.MYSQL_PASSWORD }}\"},
-                  {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
-                  {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
-                  {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
-                  {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
-                  {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
-                  {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
-                  {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},
-                  {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
-                  {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
-                  {\"name\": \"USE_S3\", \"value\": \"true\"}
+                "environment": [
+                  { "name": "SECRET_KEY",            "value": "${{ secrets.SECRET_KEY }}" },
+                  { "name": "DEBUG",                 "value": "${{ secrets.DEBUG }}" },
+                  { "name": "ALLOWED_HOSTS",         "value": "${{ secrets.ALLOWED_HOSTS }}" },
+
+                  { "name": "MYSQL_DATABASE",        "value": "${{ secrets.MYSQL_DATABASE }}" },
+                  { "name": "MYSQL_USER",            "value": "${{ secrets.MYSQL_USER }}" },
+                  { "name": "MYSQL_PASSWORD",        "value": "${{ secrets.MYSQL_PASSWORD }}" },
+                  { "name": "MYSQL_HOST",            "value": "${{ secrets.MYSQL_HOST }}" },
+                  { "name": "MYSQL_PORT",            "value": "${MYSQL_PORT_VALUE}" },
+
+                  { "name": "S3_BUCKET_NAME",        "value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_STORAGE_BUCKET_NAME","value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_ACCESS_KEY_ID",     "value": "${{ secrets.AWS_ACCESS_KEY_ID }}" },
+                  { "name": "AWS_SECRET_ACCESS_KEY", "value": "${{ secrets.AWS_SECRET_ACCESS_KEY }}" },
+                  { "name": "AWS_REGION",            "value": "${{ secrets.AWS_REGION }}" },
+
+                  { "name": "FORCE_HTTPS",           "value": "${{ secrets.FORCE_HTTPS }}" },
+                  { "name": "DOMAIN_NAME",           "value": "${{ secrets.DOMAIN_NAME }}" },
+                  { "name": "USE_S3",                "value": "true" }
                 ],
-                \"logConfiguration\": {
-                  \"logDriver\": \"awslogs\",
-                  \"options\": {
-                    \"awslogs-group\": \"/ecs/mysfa-prod\",
-                    \"awslogs-region\": \"${AWS_REGION}\",
-                    \"awslogs-stream-prefix\": \"ecs\"
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/mysfa-prod",
+                    "awslogs-region": "${AWS_REGION}",
+                    "awslogs-stream-prefix": "ecs"
                   }
                 }
               }
-            ]" \
+            ]
+          }
+          EOF
+
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def.json \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
           echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
           echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
+      # ======================
+      # ECS service 更新
+      # ======================
       - name: Update ECS service
         run: |
           aws ecs update-service \
