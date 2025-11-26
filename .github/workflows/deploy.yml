@@ -17,6 +17,8 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
@@ -28,9 +30,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           lfs: true
 
-      # ======================
-      # 🔥 必須：AWS 認証
-      # ======================
+      # AWS CLI / ECR / ECS 用の認証設定
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -38,32 +38,27 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ======================
-      # Create .env.prod
-      # ======================
       - name: Create .env.prod
         run: |
           cat << 'EOF' > .env.prod
           DEBUG=${{ secrets.DEBUG }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-
           MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
           MYSQL_HOST=${{ secrets.MYSQL_HOST }}
           MYSQL_USER=${{ secrets.MYSQL_USER }}
           MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_PORT=${{ secrets.MYSQL_PORT }}
-
+          MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
           DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
           USE_S3=true
           EOF
 
-      # ======================
-      # Build / Push image
-      # ======================
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -72,7 +67,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile   # ←元ファイルの仕様をそのまま維持
+          file: ./docker/Dockerfile
           push: true
           tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
@@ -80,9 +75,6 @@ jobs:
         run: |
           echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
 
-      # ======================
-      # Collectstatic (Docker内)
-      # ======================
       - name: Run collectstatic in container
         run: |
           docker run --rm \
@@ -90,9 +82,6 @@ jobs:
             "$IMAGE_URI" \
             poetry run python manage.py collectstatic --noinput
 
-      # ======================
-      # Register ECS TaskDefinition
-      # ======================
       - name: Register new ECS task definition
         id: ecs-task
         run: |
@@ -109,7 +98,8 @@ jobs:
             --memory 1024 \
             --execution-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-execution-role \
             --task-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-role \
-            --container-definitions "[{
+            --container-definitions "[
+              {
                 \"name\": \"web\",
                 \"image\": \"${IMAGE_URI}\",
                 \"essential\": true,
@@ -120,19 +110,20 @@ jobs:
                   {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
                   {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
                   {\"name\": \"ALLOWED_HOSTS\", \"value\": \"${{ secrets.ALLOWED_HOSTS }}\"},
-
                   {\"name\": \"MYSQL_DATABASE\", \"value\": \"${{ secrets.MYSQL_DATABASE }}\"},
                   {\"name\": \"MYSQL_USER\", \"value\": \"${{ secrets.MYSQL_USER }}\"},
                   {\"name\": \"MYSQL_PASSWORD\", \"value\": \"${{ secrets.MYSQL_PASSWORD }}\"},
                   {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
                   {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
-
                   {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+                  {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+                  {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
+                  {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
+                  {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},
                   {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
                   {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
                   {\"name\": \"USE_S3\", \"value\": \"true\"}
                 ],
-
                 \"logConfiguration\": {
                   \"logDriver\": \"awslogs\",
                   \"options\": {
@@ -141,16 +132,14 @@ jobs:
                     \"awslogs-stream-prefix\": \"ecs\"
                   }
                 }
-              }]" \
+              }
+            ]" \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
           echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
           echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
-      # ======================
-      # Update ECS service
-      # ======================
       - name: Update ECS service
         run: |
           aws ecs update-service \
