@@ -22,6 +22,8 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      ECS_CLUSTER: mysfa-prod-cluster
+      ECS_SERVICE: mysfa-prod-service
 
     steps:
       # ======================
@@ -44,36 +46,6 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       # ======================
-      # .env.prod 作成（RDS / S3 / Django 用）
-      # ======================
-      - name: Create .env.prod
-        run: |
-          cat << 'EOF' > .env.prod
-          DEBUG=${{ secrets.DEBUG }}
-          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-
-          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-          MYSQL_USER=${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_PORT=${{ secrets.MYSQL_PORT }}
-
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-
-          # S3 / AWS
-          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-          AWS_STORAGE_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION=${{ secrets.AWS_REGION }}
-
-          FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
-          DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
-
-          USE_S3=true
-          EOF
-
-      # ======================
       # ECR ログイン
       # ======================
       - name: Login to Amazon ECR
@@ -94,26 +66,6 @@ jobs:
       - name: Set IMAGE_URI env
         run: |
           echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
-
-      # ======================
-      # collectstatic（本番と同じ env で 1 回だけ実行）
-      # ======================
-      - name: Run collectstatic in container
-        run: |
-          docker run --rm \
-            --env-file .env.prod \
-            "$IMAGE_URI" \
-            poetry run python manage.py collectstatic --noinput
-
-      # ======================
-      # migrate（RDS に対してテーブル作成）
-      # ======================
-      - name: Run migrations in container
-        run: |
-          docker run --rm \
-            --env-file .env.prod \
-            "$IMAGE_URI" \
-            poetry run python manage.py migrate --noinput
 
       # ======================
       # ECS TaskDefinition 登録
@@ -186,13 +138,94 @@ jobs:
           echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
       # ======================
+      # collectstatic（ECS タスクで実行）
+      # ======================
+      - name: Run collectstatic via ECS task
+        env:
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+        run: |
+          if [ -z "$SUBNETS" ] || [ -z "$SECURITY_GROUPS" ]; then
+            echo "ECS_SUBNET_IDS and ECS_SECURITY_GROUP_IDS secrets must be set (comma-separated)."
+            exit 1
+          fi
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF_ARN" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+            --overrides '{
+              "containerOverrides": [
+                {
+                  "name": "web",
+                  "command": ["poetry","run","python","manage.py","collectstatic","--noinput"]
+                }
+              ]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "collectstatic task failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+      # ======================
+      # migrate（ECS タスクで実行）
+      # ======================
+      - name: Run migrations via ECS task
+        env:
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF_ARN" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+            --overrides '{
+              "containerOverrides": [
+                {
+                  "name": "web",
+                  "command": ["poetry","run","python","manage.py","migrate","--noinput"]
+                }
+              ]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "migrate task failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+      # ======================
       # ECS service 更新
       # ======================
       - name: Update ECS service
         run: |
           aws ecs update-service \
-            --cluster mysfa-prod-cluster \
-            --service mysfa-prod-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
             --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment
 
@@ -200,6 +233,6 @@ jobs:
         run: |
           echo "⏳ Waiting for ECS service to be stable..."
           aws ecs wait services-stable \
-            --cluster mysfa-prod-cluster \
-            --services mysfa-prod-service
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
           echo "✅ ECS service is stable."
