@@ -2,8 +2,7 @@ name: Deploy to AWS ECS
 
 on:
   workflow_run:
-    workflows:
-      - "Terraform"
+    workflows: ["Terraform"]
     types:
       - completed
     branches:
@@ -13,44 +12,48 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Terraform ワークフローが success のときだけデプロイ
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-      IMAGE_TAG: ${{ github.sha }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+          lfs: true
 
-      # アプリ側で .env を読む前提なら、ここで .env.prod を作成
+      # ======================
+      # Create .env.prod
+      # ======================
       - name: Create .env.prod
         run: |
-          cat << EOF > .env.prod
+          cat << 'EOF' > .env.prod
           DEBUG=${{ secrets.DEBUG }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+
           MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
           MYSQL_HOST=${{ secrets.MYSQL_HOST }}
           MYSQL_USER=${{ secrets.MYSQL_USER }}
           MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
           MYSQL_PORT=${{ secrets.MYSQL_PORT }}
-          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           AWS_REGION=${{ secrets.AWS_REGION }}
           FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}
           DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}
+          USE_S3=true
           EOF
 
+      # ======================
+      # Build / Push image
+      # ======================
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -59,81 +62,85 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/Dockerfile   # ←元のファイルから確認済
           push: true
-          tags: |
-            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      - name: Export image URI
-        run: echo "IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
-
-      - name: Register new task definition
-        env:
-          # ここから下はコンテナに渡したい環境変数
-          SECRET_KEY:            ${{ secrets.SECRET_KEY }}
-          DEBUG:                 ${{ secrets.DEBUG }}
-          ALLOWED_HOSTS:         ${{ secrets.ALLOWED_HOSTS }}
-          MYSQL_DATABASE:        ${{ secrets.MYSQL_DATABASE }}
-          MYSQL_USER:            ${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD:        ${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_HOST:            ${{ secrets.MYSQL_HOST }}
-          MYSQL_PORT:            ${{ secrets.MYSQL_PORT }}
-          S3_BUCKET_NAME:        ${{ secrets.S3_BUCKET_NAME }}
-          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION:            ${{ secrets.AWS_REGION }}
-          FORCE_HTTPS:           ${{ secrets.FORCE_HTTPS }}
-          DOMAIN_NAME:           ${{ secrets.DOMAIN_NAME }}
+      - name: Set IMAGE_URI env
         run: |
-          # GITHUB_ENV から IMAGE_URI / AWS_ACCOUNT_ID / AWS_REGION が入ってくる
-          cat > task-def.json << EOF
-          {
-            "family": "mysfa-prod-task",  // ★ Terraform 側の task family 名に合わせて変更
-            "networkMode": "awsvpc",
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "256",
-            "memory": "512",
-            "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-ecs-task-execution-role",  // ★ 実際の実行ロールに合わせる
-            "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-ecs-task-role",                // ★ 実際のタスクロールに合わせる
-            "containerDefinitions": [
-              {
-                "name": "mysfa-app",  // ★ Terraform の container name と合わせる
-                "image": "${IMAGE_URI}",
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": 8000,
-                    "protocol": "tcp"
-                  }
-                ],
-                "environment": [
-                  { "name": "SECRET_KEY",            "value": "${SECRET_KEY}" },
-                  { "name": "DEBUG",                 "value": "${DEBUG}" },
-                  { "name": "ALLOWED_HOSTS",         "value": "${ALLOWED_HOSTS}" },
-                  { "name": "MYSQL_DATABASE",        "value": "${MYSQL_DATABASE}" },
-                  { "name": "MYSQL_USER",            "value": "${MYSQL_USER}" },
-                  { "name": "MYSQL_PASSWORD",        "value": "${MYSQL_PASSWORD}" },
-                  { "name": "MYSQL_HOST",            "value": "${MYSQL_HOST}" },
-                  { "name": "MYSQL_PORT",            "value": "${MYSQL_PORT}" },
-                  { "name": "S3_BUCKET_NAME",        "value": "${S3_BUCKET_NAME}" },
-                  { "name": "AWS_ACCESS_KEY_ID",     "value": "${AWS_ACCESS_KEY_ID}" },
-                  { "name": "AWS_SECRET_ACCESS_KEY", "value": "${AWS_SECRET_ACCESS_KEY}" },
-                  { "name": "AWS_REGION",            "value": "${AWS_REGION}" },
-                  { "name": "FORCE_HTTPS",           "value": "${FORCE_HTTPS}" },
-                  { "name": "DOMAIN_NAME",           "value": "${DOMAIN_NAME}" },
-                  { "name": "USE_S3",                "value": "true" }
-                ]
-              }
-            ]
-          }
-          EOF
+          echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # ======================
+      # Collectstatic (Docker内)
+      # ======================
+      - name: Run collectstatic in container
+        run: |
+          docker run --rm \
+            --env-file .env.prod \
+            "$IMAGE_URI" \
+            poetry run python manage.py collectstatic --noinput
+
+      # ======================
+      # Register ECS TaskDefinition
+      # ======================
+      - name: Register new ECS task definition
+        id: ecs-task
+        run: |
+          MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
+          if [ -z "$MYSQL_PORT_VALUE" ]; then
+            MYSQL_PORT_VALUE="3306"
+          fi
 
           TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://task-def.json \
-            --query "taskDefinition.taskDefinitionArn" \
+            --family mysfa-task \
+            --network-mode awsvpc \
+            --requires-compatibilities FARGATE \
+            --cpu 512 \
+            --memory 1024 \
+            --execution-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-execution-role \
+            --task-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-role \
+            --container-definitions "[{
+                \"name\": \"web\",
+                \"image\": \"${IMAGE_URI}\",
+                \"essential\": true,
+                \"portMappings\": [
+                  {\"containerPort\": 80, \"protocol\": \"tcp\"}
+                ],
+                \"environment\": [
+                  {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
+                  {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
+                  {\"name\": \"ALLOWED_HOSTS\", \"value\": \"${{ secrets.ALLOWED_HOSTS }}\"},
+
+                  {\"name\": \"MYSQL_DATABASE\", \"value\": \"${{ secrets.MYSQL_DATABASE }}\"},
+                  {\"name\": \"MYSQL_USER\", \"value\": \"${{ secrets.MYSQL_USER }}\"},
+                  {\"name\": \"MYSQL_PASSWORD\", \"value\": \"${{ secrets.MYSQL_PASSWORD }}\"},
+                  {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
+                  {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
+
+                  {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
+                  {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
+                  {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
+                  {\"name\": \"USE_S3\", \"value\": \"true\"}
+                ],
+
+                \"logConfiguration\": {
+                  \"logDriver\": \"awslogs\",
+                  \"options\": {
+                    \"awslogs-group\": \"/ecs/mysfa-prod\",
+                    \"awslogs-region\": \"${AWS_REGION}\",
+                    \"awslogs-stream-prefix\": \"ecs\"
+                  }
+                }
+              }]" \
+            --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
-          echo "TASK_DEF_ARN=${TASK_DEF_ARN}" >> $GITHUB_ENV
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+          echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
+      # ======================
+      # Update ECS service
+      # ======================
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -144,8 +151,8 @@ jobs:
 
       - name: Wait for ECS service to be stable
         run: |
-          echo "Waiting for ECS service to be stable..."
+          echo "⏳ Waiting for ECS service to be stable..."
           aws ecs wait services-stable \
             --cluster mysfa-prod-cluster \
             --services mysfa-prod-service
-          echo "ECS service is stable."
+          echo "✅ ECS service is stable."
