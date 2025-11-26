@@ -14,7 +14,7 @@
         {% if current_user == displayed_user %}
         <form action="{% url 'mysfa:upload_icon' %}" method="post" enctype="multipart/form-data" id="uploadForm" class="upload-form">
             {% csrf_token %}
-            <input type="file" name="profile_image" accept="image/*" required id="fileInput" style="display: none;">
+            <input type="file" name="profile_image" accept="image/*" required id="fileInput" style="display: none;" onchange="document.getElementById('uploadForm').submit();">
             <button type="button" onclick="document.getElementById('fileInput').click();" class="btn-change-icon">写真を変更</button>
         </form>
         {% endif %}

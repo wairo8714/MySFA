@@ -143,8 +143,8 @@ DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
 DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
 
 AUTH_USER_MODEL = "accounts.CustomUser"
-LOGIN_URL = "/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "mysfa:timeline"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SECURE_BROWSER_XSS_FILTER = True
