@@ -122,7 +122,11 @@
         {% for member in members %}
             <li>
                 <a href="{% url 'mysfa:mypost' member.custom_user_id %}">
+                    {% if member.profile_image %}
                     <img class="member-profile-image" src="{{ member.profile_image.url }}" alt="{{ member.username }}のアイコン">
+                    {% else %}
+                    <img class="member-profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="{{ member.username }}のアイコン">
+                    {% endif %}
                     <span class="member-username">{{ member.username }}
                     {% if user == group.creator and member != group.creator %}
                         <form method="post" action="{% url 'mysfa:remove_member' group.custom_id member.custom_user_id %}" class="remove-member-form" onsubmit="return confirm('本当にこのメンバーを退会させますか？');">
@@ -147,7 +151,11 @@
         {% for join_request in join_requests %}
             <li class="group-request-item">
                 <a href="{% url 'mysfa:mypost' join_request.user.custom_user_id %}" class="group-request-link">
+                    {% if join_request.user.profile_image %}
                     <img class="group-request-profile-image" src="{{ join_request.user.profile_image.url }}" alt="{{ join_request.user.username }}のアイコン">
+                    {% else %}
+                    <img class="group-request-profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="{{ join_request.user.username }}のアイコン">
+                    {% endif %}
                     <span class="group-request-username">{{ join_request.user.username }}</span>
                     <span class="group-request-id">#{{ join_request.user.custom_user_id }}</span>
                 </a>
@@ -174,7 +182,11 @@
                 <div class="timeline-item" id="timeline-item-in-grouppost">
                     <div class="timeline-item-header">
                         <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                            {% if post.user.profile_image %}
                             <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                            {% else %}
+                            <img src="{{ MEDIA_URL }}default_images/ic013.png" alt="プロフィール画像" class="profile-image">
+                            {% endif %}
                         </a>
                         <div class="timeline-user-info">
                             <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">

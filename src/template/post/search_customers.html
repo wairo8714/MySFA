@@ -29,7 +29,11 @@
                     <div class="timeline-item" id="timeline-item-in-customers">
                         <div class="timeline-item-header">
                             <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
+                                {% if post.user.profile_image %}
                                 <img src="{{ post.user.profile_image.url }}" alt="プロフィール画像" class="profile-image">
+                                {% else %}
+                                <img src="{{ MEDIA_URL }}default_images/ic013.png" alt="プロフィール画像" class="profile-image">
+                                {% endif %}
                             </a>
                             <div class="timeline-user-info">
                                 <a href="{% url 'mysfa:mypost' post.user.custom_user_id %}">
