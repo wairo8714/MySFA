@@ -34,8 +34,7 @@ jobs:
 
     defaults:
       run:
-        # Terraform の実行ディレクトリ（main.tf がある場所）に合わせて変更
-        working-directory: ./
+        working-directory: ./infrastructure/terraform
 
     steps:
       - name: Checkout repository
