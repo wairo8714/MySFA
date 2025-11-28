@@ -3,13 +3,17 @@
 #############################################
 
 resource "aws_db_subnet_group" "this" {
-  name       = "${var.project_name}-${var.environment}-db-subnet-group"
+  name       = "${var.project_name}-${var.environment}-db-subnet-group-private"
   subnet_ids = var.subnet_ids
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-db-subnet-group"
+    Name        = "${var.project_name}-${var.environment}-db-subnet-group-private"
     Project     = var.project_name
     Environment = var.environment
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -63,14 +67,13 @@ resource "aws_db_instance" "this" {
   publicly_accessible = var.publicly_accessible
   multi_az            = var.multi_az
 
-  backup_retention_period = var.backup_retention_period
+  backup_retention_period   = var.backup_retention_period
   auto_minor_version_upgrade = true
   copy_tags_to_snapshot      = true
 
   deletion_protection = var.deletion_protection
   apply_immediately   = var.apply_immediately
 
-  # 開発用途なら最初はスナップショット無しで削除できるようにしておく
   skip_final_snapshot = !var.deletion_protection
 
   tags = {
