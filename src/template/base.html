@@ -12,14 +12,14 @@
     <meta property="og:description" content="MySFAは、営業成果を共有できるSNSサポートツールです。" />
     <meta property="og:site_name" content="MySFA" />
     <meta property="og:locale" content="ja_JP" />
-    <meta property="og:image" content="https://mysfabucket.s3.amazonaws.com/images/TwitterCard.png" />
+    <meta property="og:image" content="{% static 'images/TwitterCard.png' %}" />
 
     <!-- Twitterカードの設定 -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@karumuwairo" />
     <meta name="twitter:title" content="MySFA - SNS sales assistant" />
     <meta name="twitter:description" content="MySFAは、営業成果を共有できるSNSサポートツールです。" />
-    <meta name="twitter:image" content="https://mysfabucket.s3.amazonaws.com/images/TwitterCard.png" />
+    <meta name="twitter:image" content="{% static 'images/TwitterCard.png' %}" />
     <!-- リセットCSS-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/destyle.css@1.0.15/destyle.css"/>
     <!-- font area-->
@@ -110,7 +110,11 @@
                         {% if request.user.is_authenticated %}
                             <li id="account">
                                 <a href="{% url 'mysfa:mypost' request.user.custom_user_id %}">
-                                    <img src="{% if request.user.profile_image and request.user.profile_image.name != 'default_images/ic013.png' %}{{ request.user.profile_image.url }}{% else %}{{ MEDIA_URL }}default_images/ic013.png{% endif %}" alt="User Icon">
+                                    <img src="{% if request.user.profile_image and request.user.profile_image.name != 'default_images/ic013.png' %}
+                                                {{ request.user.profile_image.url }}
+                                              {% else %}
+                                                {% static 'images/default_image/ic013.png' %}
+                                              {% endif %}" alt="User Icon">
                                     <p class="user-id">@{{ request.user.custom_user_id }}</p>
                                 </a>
                             </li>

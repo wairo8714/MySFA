@@ -7,6 +7,10 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
@@ -100,17 +104,29 @@ if USE_S3:
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
     AWS_S3_REGION_NAME = os.getenv("AWS_REGION", "ap-northeast-1")
     AWS_QUERYSTRING_AUTH = False
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+    AWS_S3_CUSTOM_DOMAIN = (
+        f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    )
 
-    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    STATIC_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-        f"{AWS_S3_REGION_NAME}.amazonaws.com/static/"
-    )
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = (
-        f"https://{AWS_STORAGE_BUCKET_NAME}.s3."
-        f"{AWS_S3_REGION_NAME}.amazonaws.com/media/"
-    )
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "media",
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "static",
+            },
+        },
+    }
+
+    STATIC_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/static/"
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
 else:
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
     DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
@@ -127,8 +143,8 @@ DEFAULT_USER_ICON = os.path.join(MEDIA_URL, "default_images/ic013.png")
 DEFAULT_GROUP_ICON = os.path.join(MEDIA_URL, "default_images/702.png")
 
 AUTH_USER_MODEL = "accounts.CustomUser"
-LOGIN_URL = "/"
-LOGIN_REDIRECT_URL = "/"
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "mysfa:timeline"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SECURE_BROWSER_XSS_FILTER = True

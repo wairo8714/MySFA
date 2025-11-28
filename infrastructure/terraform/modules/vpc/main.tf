@@ -47,8 +47,6 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_subnet_cidrs[count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index]
-
-  # public との違い：ここが false（＝自動で Public IP を振らない）
   map_public_ip_on_launch = false
 
   tags = {
@@ -69,6 +67,27 @@ resource "aws_route_table" "public" {
   tags = {
     Name = "${var.project_name}-public-rt"
   }
+}
+
+# NAT Gateway用のElastic IP
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project_name}-nat-eip"
+  }
+}
+
+# NAT Gateway（1つの Public Subnet 上に配置）
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
+
+  tags = {
+    Name = "${var.project_name}-nat-gw"
+  }
+
+  depends_on = [aws_internet_gateway.main]
 }
 
 # Route Table Association (Public Subnets)

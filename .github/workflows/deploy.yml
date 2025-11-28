@@ -15,128 +15,224 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     env:
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      ECS_CLUSTER: mysfa-prod-cluster
+      ECS_SERVICE: mysfa-prod-service
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ github.event.workflow_run.head_sha }}
+      # ======================
+      # ソース取得
+      # ======================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          lfs: true
 
-    - name: Create .env.prod
-      run: |
-        echo "DEBUG=${{ secrets.DEBUG }}" > .env.prod
-        echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env.prod
-        echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env.prod
-        echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env.prod
-        echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env.prod
-        echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env.prod
-        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env.prod
-        echo "MYSQL_PORT=${{ secrets.MYSQL_PORT || '3306' }}" >> .env.prod
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.prod
-        echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> .env.prod
-        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}" >> .env.prod
-        echo "S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}" >> .env.prod
-        echo "FORCE_HTTPS=${{ secrets.FORCE_HTTPS }}" >> .env.prod
-        echo "DOMAIN_NAME=${{ secrets.DOMAIN_NAME }}" >> .env.prod
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.prod
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.prod
+      # ======================
+      # AWS 認証
+      # ======================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-    # -------------------------------
-    # デバッグ + 手動ECRログイン
-    # -------------------------------
-    - name: Manual ECR login (debug mode)
-      run: |
-        echo "=== AWS Auth Check ==="
-        aws sts get-caller-identity
+      # ======================
+      # ECR ログイン
+      # ======================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-        echo ""
-        echo "=== Get Login Password ==="
-        TOKEN=$(aws ecr get-login-password --region $AWS_REGION)
-        echo "Token length: ${#TOKEN}"
+      # ======================
+      # イメージ Build & Push
+      # ======================
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-        echo ""
-        echo "=== Docker manual login ==="
-        docker login -u AWS -p "$TOKEN" "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - name: Set IMAGE_URI env
+        run: |
+          echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
 
-        echo "✅ Docker login manual succeeded"
+      # ======================
+      # ECS TaskDefinition 登録
+      # ======================
+      - name: Register new ECS task definition
+        id: ecs-task
+        run: |
+          MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
+          if [ -z "$MYSQL_PORT_VALUE" ]; then
+            MYSQL_PORT_VALUE="3306"
+          fi
 
-    # -------------------------------
-    # Docker build & push
-    # -------------------------------
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./docker/Dockerfile
-        push: true
-        tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+          cat > task-def.json << EOF
+          {
+            "family": "mysfa-task",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-execution-role",
+            "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/mysfa-prod-ecs-task-role",
+            "containerDefinitions": [
+              {
+                "name": "web",
+                "image": "${IMAGE_URI}",
+                "essential": true,
+                "portMappings": [
+                  { "containerPort": 80, "protocol": "tcp" }
+                ],
+                "environment": [
+                  { "name": "SECRET_KEY",            "value": "${{ secrets.SECRET_KEY }}" },
+                  { "name": "DEBUG",                 "value": "${{ secrets.DEBUG }}" },
+                  { "name": "ALLOWED_HOSTS",         "value": "${{ secrets.ALLOWED_HOSTS }}" },
 
-    # -------------------------------
-    # ECSタスク定義更新
-    # -------------------------------
-    - name: Register new ECS task definition
-      id: ecs-task
-      run: |
-        MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
-        if [ -z "$MYSQL_PORT_VALUE" ]; then
-          MYSQL_PORT_VALUE="3306"
-        fi
-        TASK_DEF_JSON=$(aws ecs register-task-definition \
-          --family mysfa-task \
-          --container-definitions "[{
-            \"name\": \"web\",
-            \"image\": \"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest\",
-            \"essential\": true,
-            \"portMappings\": [{\"containerPort\": 8000, \"hostPort\": 8000}],
-            \"environment\": [
-              {\"name\": \"SECRET_KEY\", \"value\": \"${{ secrets.SECRET_KEY }}\"},
-              {\"name\": \"DEBUG\", \"value\": \"${{ secrets.DEBUG }}\"},
-              {\"name\": \"ALLOWED_HOSTS\", \"value\": \"${{ secrets.ALLOWED_HOSTS }}\"},
-              {\"name\": \"MYSQL_DATABASE\", \"value\": \"${{ secrets.MYSQL_DATABASE }}\"},
-              {\"name\": \"MYSQL_USER\", \"value\": \"${{ secrets.MYSQL_USER }}\"},
-              {\"name\": \"MYSQL_PASSWORD\", \"value\": \"${{ secrets.MYSQL_PASSWORD }}\"},
-              {\"name\": \"MYSQL_HOST\", \"value\": \"${{ secrets.MYSQL_HOST }}\"},
-              {\"name\": \"MYSQL_PORT\", \"value\": \"$MYSQL_PORT_VALUE\"},
-              {\"name\": \"S3_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
-              {\"name\": \"AWS_STORAGE_BUCKET_NAME\", \"value\": \"${{ secrets.S3_BUCKET_NAME }}\"},
-              {\"name\": \"AWS_ACCESS_KEY_ID\", \"value\": \"${{ secrets.AWS_ACCESS_KEY_ID }}\"},
-              {\"name\": \"AWS_SECRET_ACCESS_KEY\", \"value\": \"${{ secrets.AWS_SECRET_ACCESS_KEY }}\"},
-              {\"name\": \"AWS_REGION\", \"value\": \"${{ secrets.AWS_REGION }}\"},
-              {\"name\": \"FORCE_HTTPS\", \"value\": \"${{ secrets.FORCE_HTTPS }}\"},
-              {\"name\": \"DOMAIN_NAME\", \"value\": \"${{ secrets.DOMAIN_NAME }}\"},
-              {\"name\": \"USE_S3\", \"value\": \"true\"}
-            ],
-            \"logConfiguration\": {
-              \"logDriver\": \"awslogs\",
-              \"options\": {
-                \"awslogs-group\": \"/ecs/mysfa-task\",
-                \"awslogs-region\": \"${{ secrets.AWS_REGION }}\",
-                \"awslogs-stream-prefix\": \"ecs\"
+                  { "name": "MYSQL_DATABASE",        "value": "${{ secrets.MYSQL_DATABASE }}" },
+                  { "name": "MYSQL_USER",            "value": "${{ secrets.MYSQL_USER }}" },
+                  { "name": "MYSQL_PASSWORD",        "value": "${{ secrets.MYSQL_PASSWORD }}" },
+                  { "name": "MYSQL_HOST",            "value": "${{ secrets.MYSQL_HOST }}" },
+                  { "name": "MYSQL_PORT",            "value": "${MYSQL_PORT_VALUE}" },
+
+                  { "name": "S3_BUCKET_NAME",        "value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_STORAGE_BUCKET_NAME","value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_ACCESS_KEY_ID",     "value": "${{ secrets.AWS_ACCESS_KEY_ID }}" },
+                  { "name": "AWS_SECRET_ACCESS_KEY", "value": "${{ secrets.AWS_SECRET_ACCESS_KEY }}" },
+                  { "name": "AWS_REGION",            "value": "${{ secrets.AWS_REGION }}" },
+
+                  { "name": "FORCE_HTTPS",           "value": "${{ secrets.FORCE_HTTPS }}" },
+                  { "name": "DOMAIN_NAME",           "value": "${{ secrets.DOMAIN_NAME }}" },
+                  { "name": "USE_S3",                "value": "true" }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/mysfa-prod",
+                    "awslogs-region": "${AWS_REGION}",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
               }
-            }
-          }]" \
-          --requires-compatibilities FARGATE \
-          --network-mode awsvpc \
-          --memory 1024 \
-          --cpu 512 \
-          --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/mysfa-ecs-task-execution-role \
-          --query 'taskDefinition.taskDefinitionArn' \
-          --output text)
-        echo "TASK_DEF_ARN=$TASK_DEF_JSON" >> $GITHUB_ENV
+            ]
+          }
+          EOF
 
-    # -------------------------------
-    # ECSサービス更新
-    # -------------------------------
-    - name: Update ECS service
-      run: |
-        aws ecs update-service \
-          --cluster mysfa-cluster \
-          --service mysfa-service \
-          --task-definition $TASK_DEF_ARN \
-          --force-new-deployment
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+          echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+      # ======================
+      # collectstatic（ECS タスクで実行）
+      # ======================
+      - name: Run collectstatic via ECS task
+        env:
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+        run: |
+          if [ -z "$SUBNETS" ] || [ -z "$SECURITY_GROUPS" ]; then
+            echo "ECS_SUBNET_IDS and ECS_SECURITY_GROUP_IDS secrets must be set (comma-separated)."
+            exit 1
+          fi
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF_ARN" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+            --overrides '{
+              "containerOverrides": [
+                {
+                  "name": "web",
+                  "command": ["poetry","run","python","manage.py","collectstatic","--noinput"]
+                }
+              ]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "collectstatic task failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+      # ======================
+      # migrate（ECS タスクで実行）
+      # ======================
+      - name: Run migrations via ECS task
+        env:
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF_ARN" \
+            --count 1 \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+            --overrides '{
+              "containerOverrides": [
+                {
+                  "name": "web",
+                  "command": ["poetry","run","python","manage.py","migrate","--noinput"]
+                }
+              ]
+            }' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "migrate task failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+      # ======================
+      # ECS service 更新
+      # ======================
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$TASK_DEF_ARN" \
+            --force-new-deployment
+
+      - name: Wait for ECS service to be stable
+        run: |
+          echo "⏳ Waiting for ECS service to be stable..."
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
+          echo "✅ ECS service is stable."

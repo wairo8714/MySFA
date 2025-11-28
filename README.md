@@ -1,340 +1,162 @@
 # MySFA
-営業活動を、もっとスマートに。グループの成果をリアルタイム共有・管理可能にするSFAツール。
+
+![ヘッダー画像](/docs/img/header/mysfa-header.png)
+
+営業活動を、もっとスマートに。  
+グループの成果をリアルタイムに共有・分析できる、営業職向け SNS 型 SFA ツールです。
 
 <br />
 
-# URL
-お名前(ニックネーム可)、パスワードの登録のみで利用できます。<br />
+## サービスのURL
+
+お名前(ニックネーム可)、パスワードの登録のみでご利用いただけます。
+
 https://mysfa.net
 
 <br />
 
-# 【営業職の皆様へ】こんなことでお困りではありませんか？
+## サービスへの想い
 
-- 成績トップのAさんが、どんな営業をしているか分からない…
-- 売り出し中のあの商品、みんなはどうやって営業をかけているんだろう？
-- 営業先の業態は、どんなものが採用されているのか気になる…
+私は、営業職として日々「人と人」「商品とお客様」をつなぐ仕事に携わってきました。  
+その中で、こんな課題感を強く感じていました。
 
-<br />
+- トップセールスの「勝ちパターン」が、現場に共有されない
+- せっかくの成功事例が、口頭ベースで流れていってしまう
+- 「どの商品を」「どの業態に」提案すべきかを、感覚に頼りがち
 
-# MySFAで営業を成功に導く
+**MySFA** は、
 
-MySFAは、営業成果共有・分析に特化したSNS型webアプリケーションです。
+- 営業メンバーそれぞれの「成果」と「工夫」を見える化し、
+- グループ全体で共有・分析できるようにすることで、
 
-- グループメンバーの営業活動記録をリアルタイムで共有・分析
-- 活動記録は、商品/業態/ユーザーごとに検索可能
-- グループの成果をグラフで「見える化」し、営業スタイルの改善に活かせる
+営業活動そのものを、もっと楽しく・もっと再現性のあるものにしたい、という想いから生まれました。
 
-<br />
-
-# 実装機能一覧
-
-## 基本設計
-
-### デザイン/UI
--	堅実な印象を与えるライトグレー(#EDF0F1)をメインカラーに配し、ライトブルー(#3AADC8)をサブカラーに採用　ビジネス用途向けのシンプルさと、アプリがもたらす新しい営業のスタイルを表現
-- サイドメニュー内に全機能を格納し、快適なアクセスを実現
-- レスポンシブデザイン対応
+単なる「日報ツール」ではなく、  
+**営業のノウハウが自然と蓄積される SNS** を目指しています。
 
 <br />
 
-###　グループ機能
-- いずれかのグループへの所属が前提　所属グループのみタイムラインで閲覧可能
-- 外部からグループ情報閲覧を制限する【ロック機能】搭載　非公開営業活動も共有可能
+## アプリケーションのイメージ
+
+![アプリケーションのイメージ](/docs/img/app-view/mysfa-overview.gif)
+
+> タイムライン投稿 → グループ別フィルタ → 成果グラフの確認、までの流れを 1 本の GIF で表現する想定です。
 
 <br />
 
-## 投稿画面
+## 機能一覧
 
-### 投稿フォーム
-- 入力項目:商品名/業態名/営業内容/所属グループ/画像(任意)
-- 入力必須項目はバリデーションチェック付き
-- 上限文字数を常時表示　入力文字数はリアルタイムで反映
+### 認証・トップ画面
 
-<br / >
-
-### タイムライン
-- すべての投稿/グループごとの投稿を選択して、タイムラインに表示可能
-- 他ユーザーの投稿から、直接該当ユーザーの詳細ページに遷移可能
-- Goodボタン機能搭載　あえて反応者の人数のみ確認可能にすることで、投稿のモチベーションアップと、グループ間でのコミュニケーション環境醸成の両立を図りたい
+| トップ画面 | ログイン / 新規登録画面 |
+| --- | --- |
+| ![トップ画面](/docs/img/app-view/top.png) | ![ログイン画面](/docs/img/app-view/login.png) |
+| サービスの概要紹介と「新規登録」「ログイン」への導線を配置。営業職向けの世界観を、ヒーロービジュアルとコピーで表現しています。 | ログインID（メールアドレス）とパスワードで認証を実施。新規登録画面では、ユーザーIDや所属グループの選択も可能です。 |
 
 <br />
 
-## 検索機能
+### 投稿・タイムライン
 
-### 検索対象
-- 商品
-- 業態
-- グループ
-- ユーザー
+| 投稿フォーム画面 | タイムライン画面 |
+| --- | --- |
+| ![投稿フォーム画面](/docs/img/app-view/post-form.png) | ![タイムライン画面](/docs/img/app-view/timeline.png) |
+| 商品名 / 業態 / 営業内容 / グループ / 画像（任意）を入力して投稿できます。入力必須項目のバリデーションと、文字数カウンターを実装しています。 | グループメンバーの営業活動がタイムライン形式で表示されます。商品名・業態・グループごとに投稿を読み返し、成功パターンを素早く把握できます。 |
 
-<br />
-
-## マイページ(ユーザー詳細画面)
-
-### ユーザー情報編集機能
- - ユーザーアイコン,ユーザー名を即座に変更可能
- - 他ユーザー閲覧時は、編集UI非表示で統一感維持
+| グループフィルタ付きタイムライン | Goodボタン（リアクション） |
+| --- | --- |
+| ![グループフィルタ](/docs/img/app-view/timeline-filter.png) | ![Goodボタン](/docs/img/app-view/good-button.png) |
+| 所属グループごとに投稿を絞り込み可能です。チーム単位での成功事例共有にフォーカスしたタイムラインとして利用できます。 | 投稿ごとに Good ボタンを実装。誰が押したかではなく「人数のみ」を表示する設計にすることで、気軽なリアクションと健全なモチベーションアップの両立を狙っています。 |
 
 <br />
 
-### グループ情報機能
-- 所属グループを一覧表示
-- グループ検索、作成ページへのリンクボタンを配置
+### 検索機能
+
+| 商品・業態検索画面 | ユーザー / グループ検索画面 |
+| --- | --- |
+| ![商品・業態検索](/docs/img/app-view/search-products-customers.png) | ![ユーザー・グループ検索](/docs/img/app-view/search-users-groups.png) |
+| 商品名・業態名で投稿を横断検索できます。「この商品はどの業態で売れている？」「この業態にはどの商品が効いている？」といった問いに素早く答えられます。 | ユーザーやグループを検索し、詳細ページへ遷移できます。新しいチームの活動を知る入口として機能します。 |
 
 <br />
 
-### 営業成果レポート機能
-- 商品別、業態別の営業成果を表示
-- 期間指定機能搭載で、週・月単位の分析が可能
+### マイページ / 成果レポート
+
+| マイページ（プロフィール） | マイページ（個人成果レポート） |
+| --- | --- |
+| ![マイページプロフィール](/docs/img/app-view/mypage-profile.png) | ![個人成果レポート](/docs/img/app-view/mypage-report.png) |
+| プロフィール画像・ユーザー名などを編集できます。他ユーザーから閲覧される際は編集 UI を非表示にし、見栄えを重視しています。 | 自分の投稿をもとに、商品別・業態別の成果をグラフ化して表示します。期間フィルタにより、週 / 月単位での振り返りが可能です。 |
 
 <br />
 
-### 投稿一覧機能
-- 投稿履歴をグループごとに絞り込み表示
+### グループ機能
+
+| グループ詳細画面 | グループレポート画面 |
+| --- | --- |
+| ![グループ詳細画面](/docs/img/app-view/group-detail.png) | ![グループレポート画面](/docs/img/app-view/group-report.png) |
+| グループ名・説明・ロック状態（外部公開 / 非公開）などの情報を確認できます。作成者は、ロック機能やメンバーの強制退会などの権限を持ちます。 | グループ全体の成果を、商品別・業態別に可視化します。メンバーの活動の傾向や、重点商品・重点業態の把握に活用できます。 |
 
 <br />
 
-## グループ詳細画面
+## 使用技術
 
-### グループ作成者権限機能
-- 作成者に限り、グループの削除、ロック機能のON/OFF、参加者の強制退会等の処理が可能
-- 作成者が退会した場合、グループ参加順に権限が自動的に移動
-
-<br/>
-
-### グループ内営業成果レポート機能
-- マイページと同様の機能に、メンバー全体の成果状況を閲覧可能
+| Category          | Technology Stack                                                                 |
+| ----------------- | -------------------------------------------------------------------------------- |
+| Frontend          | HTML5, CSS3, JavaScript (Vanilla), Chart.js                                     |
+| Backend           | Python 3.12, Django 5.0.14, django-storages, gunicorn                           |
+| Database          | MySQL（ローカル: Docker コンテナ, 本番: Amazon RDS for MySQL）                   |
+| Storage           | Amazon S3（静的ファイル / メディアファイル）                                    |
+| Infrastructure    | Amazon ECS (Fargate), Application Load Balancer, Amazon RDS, Amazon ECR, VPC, Security Group, Route 53, AWS IAM |
+| Logging / Monitoring | Amazon CloudWatch Logs, ALB Access Logs                                      |
+| IaC               | Terraform（VPC / ALB / ECS / RDS / S3 / ECR / IAM をモジュール化して管理）      |
+| CI/CD             | GitHub Actions（Terraform Plan/Apply, Docker Build & Push, ECS デプロイ）       |
+| Dev Environment   | Docker, Docker Compose, Poetry                                                  |
+| Lint / Format     | flake8, black, isort                                                             |
+| Design            | Figma（モック・レイアウト設計想定）                                             |
 
 <br />
 
+## システム構成図
 
-## 🛠️ 技術スタック
+![システム構成図](/docs/img/system-architecture/mysfa-architecture.png)
 
-### フロントエンド
-- **HTML5/CSS3**: レスポンシブデザイン
-- **JavaScript**: インタラクティブなUI
-- **Bootstrap**: モダンなUIコンポーネント
+想定構成:
 
-### バックエンド
-- **Django 5.0.14**: Webフレームワーク
-- **Python 3.12**: プログラミング言語
-- **SQLite**: データベース（開発環境）
-- **WhiteNoise**: 静的ファイル配信
+- Route 53 にて `mysfa.net` / `www.mysfa.net` を管理
+- Application Load Balancer が HTTPS(443) を終端
+- ALB から ECS Fargate 上の Django コンテナへルーティング（コンテナポート 80）
+- ECS タスクから RDS(MySQL) への DB 接続
+- 静的ファイル / メディアファイルは S3 に保存
+- アプリケーションログ / ECS ログ / ALB アクセスログを CloudWatch Logs に集約
 
-### インフラストラクチャ
-- **AWS EC2**: クラウドサーバー
-- **Docker**: コンテナ化
-- **Nginx**: リバースプロキシ・SSL終端
-- **Let's Encrypt**: SSL証明書
-- **Route 53**: DNS管理
+<br />
 
-### 開発・運用
-- **GitHub Actions**: CI/CD
-- **Terraform**: Infrastructure as Code
-- **Docker Compose**: ローカル開発環境
+## ER 図
 
-## 🚀 セットアップ
+![ER図](/docs/img/entity-relationship-diagram/mysfa-er.png)
 
-### 前提条件
-- Python 3.12+
-- Docker & Docker Compose
-- AWS CLI
-- Terraform
+想定エンティティ（例）:
 
-### ローカル開発環境
+- `User`: カスタムユーザー（営業担当者）
+- `Group`: 営業グループ
+- `Post`: 営業活動の投稿（商品 / 業態 / 内容 / 添付画像）
+- `Like`: Good ボタン（ユーザー × 投稿）
+- `CustomerCategory`: 業態マスタ
+- `Product`: 商品マスタ
 
-1. **リポジトリのクローン**
-```bash
-git clone https://github.com/yourusername/mysfa_rebuild.git
-cd mysfa_rebuild
-```
+などを中心とした構造になっています。
 
-2. **Docker Composeで起動**
-```bash
-docker-compose up -d
-```
+<br />
 
-3. **データベースマイグレーション**
-```bash
-docker-compose exec app python manage.py migrate
-```
+## 今後の展望
 
-4. **スーパーユーザー作成**
-```bash
-docker-compose exec app python manage.py createsuperuser
-```
+MySFA は、以下のようなフェーズを想定して拡張していく予定です。
 
-5. **アプリケーションにアクセス**
-```
-http://localhost:8000
-```
+- **フェーズ1:**  
+  営業活動の投稿・共有機能、グループ機能、基本的なレポート機能（商品別 / 業態別）を実装（＝現在ここ）。
+- **フェーズ2:**  
+  タグ機能やコメント機能、より柔軟な検索・フィルタ機能を追加し、ナレッジ共有の幅を広げる。
+- **フェーズ3:**  
+  営業目標・KPI と紐づけたダッシュボード機能を実装し、達成状況をリアルタイムに可視化できるようにする。
+- **フェーズ4:**  
+  外部ツール（SFA / CRM / カレンダーなど）との連携を行い、営業活動の「ハブ」として機能する統合プラットフォームを目指す。
 
-### 本番環境デプロイ
-
-1. **Terraformでインフラ構築**
-```bash
-cd infrastructure
-terraform init
-terraform plan
-terraform apply
-```
-
-2. **アプリケーションのデプロイ**
-```bash
-./deploy.sh
-```
-
-## 🏗️ インフラストラクチャ構成
-
-### アーキテクチャ概要
-```
-Internet → Route 53 → EC2 (Nginx) → Docker Container (Django)
-                    ↓
-              Security Group (443, 80, 22)
-                    ↓
-              Let's Encrypt SSL
-```
-
-### セキュリティ設計
-1. **外部からのアクセス**: HTTPS(443)のみ許可
-2. **内部通信**: Nginx → Django (localhost:8000)
-3. **SSHアクセス**: 特定IPアドレスからのみ許可
-4. **SSL終端**: NginxでSSL処理、DjangoはHTTPで動作
-
-### インフラ設定ファイル
-- `main.tf`: EC2、セキュリティグループ、キーペアの定義
-- `variables.tf`: 設定可能な変数（セキュリティ、アプリ設定）
-- `outputs.tf`: デプロイ後の出力情報
-- `user_data.sh`: EC2起動時の初期化スクリプト
-- `nginx.conf`: Nginxリバースプロキシ設定
-
-### セキュリティベストプラクティス
-- **最小権限の原則**: 必要最小限のポートのみ開放
-- **多層防御**: セキュリティグループ + ファイアウォール + アプリケーション
-- **暗号化**: 通信の暗号化（HTTPS）とデータの暗号化
-- **監視**: ログ収集とローテーション設定
-
-## 📁 プロジェクト構造
-
-```
-mysfa_rebuild/
-├── src/                    # Djangoアプリケーション
-│   ├── accounts/          # ユーザー管理
-│   ├── mysfa/             # メインアプリケーション
-│   ├── config/            # 設定ファイル
-│   ├── static/            # 静的ファイル
-│   ├── template/          # テンプレート
-│   └── manage.py          # Django管理スクリプト
-├── infrastructure/        # インフラ設定
-│   ├── terraform/        # Terraform設定
-│   │   ├── main.tf       # メイン設定
-│   │   ├── variables.tf  # 変数定義
-│   │   ├── outputs.tf    # 出力定義
-│   │   └── terraform.tfvars # 変数値
-│   ├── keys/             # SSH鍵
-│   │   └── mysfa-dev-keypair*
-│   └── config/           # 設定ファイル
-│       ├── user_data.sh  # EC2初期化スクリプト
-│       └── nginx.conf    # Nginx設定
-├── docker/               # Docker設定
-│   └── Dockerfile        # コンテナ定義
-├── .github/              # GitHub Actions
-│   └── workflows/        # CI/CD設定
-└── README.md             # このファイル
-```
-
-## 🔧 開発
-
-### テスト実行
-```bash
-python src/manage.py test
-python src/manage.py check
-```
-
-### コードフォーマット
-```bash
-black src/
-isort src/
-flake8 src/
-```
-
-### データベースリセット
-```bash
-python src/manage.py flush
-python src/manage.py migrate
-```
-
-## 🌐 デプロイメント
-
-### 自動デプロイ
-- `main`ブランチへのプッシュで自動デプロイ
-- GitHub Actionsがテスト→ビルド→デプロイを実行
-
-### 手動デプロイ
-```bash
-./deploy.sh
-```
-
-## 🔒 セキュリティ
-
-### インフラストラクチャセキュリティ
-- **Nginxリバースプロキシ**: アプリケーションを内部ネットワークに隔離
-- **ポート制限**: 8000番ポートを外部に公開せず、443(HTTPS)のみ開放
-- **SSHアクセス制限**: 特定IPアドレスからのみSSH接続を許可
-- **ファイアウォール**: firewalldによる追加のセキュリティ層
-
-### アプリケーションセキュリティ
-- **HTTPS強制**: HTTPからHTTPSへの自動リダイレクト
-- **SSL/TLS**: Let's Encrypt SSL証明書（自動更新）
-- **セキュリティヘッダー**: 
-  - `X-Frame-Options: DENY`
-  - `X-Content-Type-Options: nosniff`
-  - `X-XSS-Protection: 1; mode=block`
-  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-- **Djangoセキュリティ**: CSRF保護、XSS保護、SQLインジェクション対策
-
-### セキュリティ設定の詳細
-```hcl
-# SSHアクセス制限（variables.tf）
-variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed to SSH access"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]  # 本番環境では特定のIPに変更
-}
-
-# セキュリティグループ（main.tf）
-resource "aws_security_group" "main" {
-  # SSH - 特定IPからのみアクセス許可
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidrs
-  }
-  
-  # HTTPS - Nginxリバースプロキシ経由
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  # 8000番ポートは削除（内部通信のみ）
-}
-```
-
-## 📊 監視・ログ
-
-- **Nginx アクセスログ**: `/var/log/nginx/access.log`
-- **Django アプリケーションログ**: `django.log`
-- **SSL証明書**: 自動更新設定済み
-
-## 🤝 貢献
-
-1. このリポジトリをフォーク
-2. フィーチャーブランチを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add some amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. プルリクエストを作成
+営業メンバー一人ひとりの工夫や成功体験が、チーム全体の成果に直結する世界を目指して、継続的に改善・開発を進めていきます。

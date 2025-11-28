@@ -267,7 +267,7 @@ module "ecr" {
 
   repository_name = "${var.project_name}-app"
 
-  image_tag_mutability     = "IMMUTABLE"
+  image_tag_mutability     = "MUTABLE"
   scan_on_push             = true
   lifecycle_policy_enabled = true
   lifecycle_keep_last      = 10

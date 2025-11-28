@@ -68,10 +68,6 @@ variable "debug" {
 }
 
 # MySQL / RDS
-variable "mysql_host" {
-  description = "MySQL host"
-  type        = string
-}
 
 variable "mysql_database" {
   description = "MySQL database name"

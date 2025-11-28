@@ -18,12 +18,8 @@ RUN poetry install --no-root
 
 COPY . /app/
 
-# collectstatic は USE_S3=False の場合のみ
-ARG USE_S3
-RUN if [ "$USE_S3" = "False" ]; then \
-        poetry run python manage.py collectstatic --noinput; \
-    fi
-
 WORKDIR /app/src
-EXPOSE 8000
-CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+
+# collectstatic はデプロイ時（deploy.yml の docker run）で実行する
+EXPOSE 80
+CMD ["poetry", "run", "gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:80"]
