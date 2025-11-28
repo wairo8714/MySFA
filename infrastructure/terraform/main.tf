@@ -300,8 +300,7 @@ module "rds" {
   environment  = var.environment
 
   vpc_id     = module.vpc.vpc_id
-  # 将来privateサブネットを作ったらそちらに差し替え予定
-  subnet_ids = module.vpc.public_subnet_ids
+  subnet_ids = module.vpc.private_subnet_ids
 
    allowed_security_group_ids = [aws_security_group.ecs_tasks.id]
 
@@ -331,7 +330,7 @@ module "ecs" {
 
   cluster_name = "${var.project_name}-${var.environment}-cluster"
 
-  subnet_ids         = module.vpc.public_subnet_ids
+  subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [aws_security_group.ecs_tasks.id]
 
   alb_target_group_arn = aws_lb_target_group.main.arn
