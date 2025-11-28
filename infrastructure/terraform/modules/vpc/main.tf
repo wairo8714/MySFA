@@ -1,5 +1,3 @@
-# modules/vpc/main.tf
-
 data "aws_availability_zones" "available" {
   state = "available"
 }
@@ -43,9 +41,9 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private" {
   count = length(var.private_subnet_cidrs)
 
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones.available.names[count.index]
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.private_subnet_cidrs[count.index]
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = false
 
   tags = {
@@ -68,7 +66,15 @@ resource "aws_route_table" "public" {
   }
 }
 
-# NAT Gateway用のElastic IP
+# Route Table Association (Public Subnets)
+resource "aws_route_table_association" "public" {
+  count = length(aws_subnet.public)
+
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+# NAT Gateway 用の Elastic IP
 resource "aws_eip" "nat" {
   domain = "vpc"
 
@@ -87,14 +93,6 @@ resource "aws_nat_gateway" "main" {
   }
 
   depends_on = [aws_internet_gateway.main]
-}
-
-# Route Table Association (Public Subnets)
-resource "aws_route_table_association" "public" {
-  count = length(aws_subnet.public)
-
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
 }
 
 # Private Route Table
