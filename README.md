@@ -116,7 +116,7 @@ https://mysfa.net
 
 ## システム構成図
 
-![システム構成図](/docs/img/system-architecture/mysfa-architecture.png)
+![システム構成図](/docs/img/header/mysfa-architecture.png)
 
 想定構成:
 
@@ -131,7 +131,7 @@ https://mysfa.net
 
 ## ER 図
 
-![ER図](/docs/img/entity-relationship-diagram/mysfa-er.png)
+![ER図](/docs/img/header/mysfa-er.png)
 
 想定エンティティ（例）:
 
