@@ -74,6 +74,47 @@ https://mysfa.net
 
 ## 使用技術
 
+## 使用技術
+
+### フロントエンド
+
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)
+![Chart.js](https://img.shields.io/badge/Chart.js-FF6384?logo=chartdotjs&logoColor=white)
+
+### バックエンド
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-5.0-092E20?logo=django&logoColor=white)
+![Gunicorn](https://img.shields.io/badge/Gunicorn-20.1-499848)
+![django-storages](https://img.shields.io/badge/django--storages-👀-0A0A0A)
+
+### データベース / ストレージ
+
+![MySQL](https://img.shields.io/badge/MySQL-8.x-4479A1?logo=mysql&logoColor=white)
+![Amazon RDS](https://img.shields.io/badge/Amazon%20RDS-MySQL-527FFF?logo=amazonrds&logoColor=white)
+![Amazon S3](https://img.shields.io/badge/Amazon%20S3-Storage-569A31?logo=amazons3&logoColor=white)
+
+### インフラ
+
+![AWS](https://img.shields.io/badge/AWS-Cloud-232F3E?logo=amazonaws&logoColor=white)
+![ECS Fargate](https://img.shields.io/badge/Amazon%20ECS-Fargate-FF9900?logo=amazonecs&logoColor=white)
+![Application Load Balancer](https://img.shields.io/badge/AWS-ALB-FF4F8B)
+![VPC](https://img.shields.io/badge/AWS-VPC-527FFF)
+![Security Group](https://img.shields.io/badge/AWS-Security%20Group-232F3E)
+![Route%2053](https://img.shields.io/badge/AWS-Route%2053-8C4FFF)
+![IAM](https://img.shields.io/badge/AWS-IAM-DD344C)
+
+### 開発環境 / その他
+
+![Docker](https://img.shields.io/badge/Docker-Container-2496ED?logo=docker&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-Web%20Server-009639?logo=nginx&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white)
+
+
 | Category          | Technology Stack                                                                 |
 | ----------------- | -------------------------------------------------------------------------------- |
 | Frontend          | HTML5, CSS3, JavaScript (Vanilla), Chart.js                                     |
