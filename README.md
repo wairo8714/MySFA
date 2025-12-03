@@ -114,35 +114,11 @@ https://mysfa.net
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088FF?logo=githubactions&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white)
 
-
-| Category          | Technology Stack                                                                 |
-| ----------------- | -------------------------------------------------------------------------------- |
-| Frontend          | HTML5, CSS3, JavaScript (Vanilla), Chart.js                                     |
-| Backend           | Python 3.12, Django 5.0.14, django-storages, gunicorn                           |
-| Database          | MySQL（ローカル: Docker コンテナ, 本番: Amazon RDS for MySQL）                   |
-| Storage           | Amazon S3（静的ファイル / メディアファイル）                                    |
-| Infrastructure    | Amazon ECS (Fargate), Application Load Balancer, Amazon RDS, Amazon ECR, VPC, Security Group, Route 53, AWS IAM |
-| Logging / Monitoring | Amazon CloudWatch Logs, ALB Access Logs                                      |
-| IaC               | Terraform（VPC / ALB / ECS / RDS / S3 / ECR / IAM をモジュール化して管理）      |
-| CI/CD             | GitHub Actions（Terraform Plan/Apply, Docker Build & Push, ECS デプロイ）       |
-| Dev Environment   | Docker, Docker Compose, Poetry                                                  |
-| Lint / Format     | flake8, black, isort                                                             |
-| Design            | Figma（モック・レイアウト設計想定）                                             |
-
 <br />
 
 ## システム構成図
 
 ![システム構成図](/docs/img/header/mysfa-architecture.png)
-
-想定構成:
-
-- Route 53 にて `mysfa.net` / `www.mysfa.net` を管理
-- Application Load Balancer が HTTPS(443) を終端
-- ALB から ECS Fargate 上の Django コンテナへルーティング（コンテナポート 80）
-- ECS タスクから RDS(MySQL) への DB 接続
-- 静的ファイル / メディアファイルは S3 に保存
-- アプリケーションログ / ECS ログ / ALB アクセスログを CloudWatch Logs に集約
 
 <br />
 
@@ -150,30 +126,29 @@ https://mysfa.net
 
 ![ER図](/docs/img/header/mysfa-er.png)
 
-想定エンティティ（例）:
-
-- `User`: カスタムユーザー（営業担当者）
-- `Group`: 営業グループ
-- `Post`: 営業活動の投稿（商品 / 業態 / 内容 / 添付画像）
-- `Like`: Good ボタン（ユーザー × 投稿）
-- `CustomerCategory`: 業態マスタ
-- `Product`: 商品マスタ
-
-などを中心とした構造になっています。
-
 <br />
 
 ## 今後の展望
 
-MySFA は、以下のようなフェーズを想定して拡張していく予定です。
+MySFA は、以下のようなフェーズを想定して段階的に拡張していく予定です。
 
-- **フェーズ1:**  
-  営業活動の投稿・共有機能、グループ機能、基本的なレポート機能（商品別 / 業態別）を実装（＝現在ここ）。
-- **フェーズ2:**  
-  タグ機能やコメント機能、より柔軟な検索・フィルタ機能を追加し、ナレッジ共有の幅を広げる。
-- **フェーズ3:**  
-  営業目標・KPI と紐づけたダッシュボード機能を実装し、達成状況をリアルタイムに可視化できるようにする。
-- **フェーズ4:**  
-  外部ツール（SFA / CRM / カレンダーなど）との連携を行い、営業活動の「ハブ」として機能する統合プラットフォームを目指す。
+- **フェーズ1（現在）**  
+  営業活動の投稿・共有機能、グループ機能、商品別/業態別の基本的なレポート機能を実装。
 
-営業メンバー一人ひとりの工夫や成功体験が、チーム全体の成果に直結する世界を目指して、継続的に改善・開発を進めていきます。
+- **フェーズ2**  
+  商品・業態専用のマスタテーブルを新設し、登録用ページも実装。  
+  投稿・検索時にプルダウン選択などが行えるようにし、入力のしやすさとデータの一貫性を高めます。
+
+- **フェーズ3**  
+  フロントエンドをTypeScriptとモダンなフレームワーク（Vue/Reactなど）で再構築し、  
+  コンポーネント指向のUIと高速なレスポンスで、よりリッチで使いやすい画面体験を目指します。
+
+- **フェーズ4**  
+  レポート画面を拡張し、ダッシュボード機能を実装。  
+  営業成果や活動傾向をグラフ・指標としてまとめて表示し、より直感的に状況を把握できるようにします。
+
+- **フェーズ5**  
+  外部ツール（SFA/CRM/カレンダーなど）との連携機能を追加し、  
+  営業活動データの「ハブ」として機能する統合プラットフォームを目指します。
+
+営業メンバーの工夫や成功体験が、チーム全体の成果に直結する世界を目指し、今後も継続的に改善・開発を進めていきます。
