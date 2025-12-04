@@ -74,9 +74,6 @@
         <mxCell id="2-3K1SWj83x6T19f5uWP-53" parent="2-3K1SWj83x6T19f5uWP-6" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=20;fontColor=light-dark(#000000,#000000);labelBorderColor=none;labelBackgroundColor=none;" value="ECRからDocker ImageをPull" vertex="1">
           <mxGeometry height="30" width="277" x="488" y="105" as="geometry" />
         </mxCell>
-        <mxCell id="2-3K1SWj83x6T19f5uWP-54" parent="2-3K1SWj83x6T19f5uWP-6" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;labelBackgroundColor=none;fontColor=light-dark(#000000,#000000);fontSize=22;" value="静的ファイルの保存" vertex="1">
-          <mxGeometry height="30" width="210" x="815" y="534" as="geometry" />
-        </mxCell>
         <mxCell id="2-3K1SWj83x6T19f5uWP-9" parent="2-3K1SWj83x6T19f5uWP-6" style="fillColor=none;strokeColor=#147EBA;verticalAlign=top;fontStyle=0;fontColor=#147EBA;whiteSpace=wrap;html=1;strokeWidth=2;" value="Availability Zone" vertex="1">
           <mxGeometry height="228" width="706" x="189" y="425" as="geometry" />
         </mxCell>
@@ -193,6 +190,9 @@
         </mxCell>
         <mxCell id="2-3K1SWj83x6T19f5uWP-17" parent="2-3K1SWj83x6T19f5uWP-6" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.nat_gateway;" value="" vertex="1">
           <mxGeometry height="78" width="78" x="379" y="258" as="geometry" />
+        </mxCell>
+        <mxCell id="2-3K1SWj83x6T19f5uWP-54" parent="2-3K1SWj83x6T19f5uWP-6" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;labelBackgroundColor=none;fontColor=light-dark(#000000,#000000);fontSize=22;" value="静的ファイルの保存" vertex="1">
+          <mxGeometry height="30" width="210" x="818" y="544" as="geometry" />
         </mxCell>
         <mxCell id="2-3K1SWj83x6T19f5uWP-55" parent="1" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" value="" vertex="1">
           <mxGeometry height="78" width="78" x="1290" y="794" as="geometry" />
