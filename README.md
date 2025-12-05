@@ -74,8 +74,6 @@ https://mysfa.net
 
 ## 使用技術
 
-## 使用技術
-
 ### フロントエンド
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)
@@ -120,6 +118,21 @@ https://mysfa.net
 
 ![システム構成図](/docs/img/header/mysfa-architecture.png)
 
+### アプリケーション / インフラ構築フロー
+
+- **①** Django, Terraform, Dockerfileコードを編集・コミットし、GitHubリポジトリにpush
+- **②** GitHub ActionsからTerraformを実行し、AWSインフラ一式を構築・更新
+- **③** GitHub ActionsでDockerイメージをビルドし、ECRへのpushとECSへのデプロイを行うCI/CDフェーズ  
+- **④** ECS起動時にECRからコンテナイメージを取得してアプリケーションを実行
+
+### アプリ実行フロー
+
+- **⑤** ドメイン名からALBへの名前解決の実行
+- **⑥** クライアントからのHTTPS通信がInternetGatewayを経由してPublicサブネット上のALBに到達
+- **⑦** プライベートサブネット内のECSタスクへリクエストを振り分ける  
+- **⑧** RDS(MySQL)に接続し、業務データの読み書き
+- **⑨** S3に対して静的ファイル・メディアファイルを保存・取得
+- **⑩** プライベートサブネット内のECSがNAT Gateway経由でアウトバウンド通信
 <br />
 
 ## ER 図
