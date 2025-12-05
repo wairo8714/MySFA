@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" version="29.2.3">
   <diagram name="ページ1" id="YDuTlNEcvgl0dxAfqCyJ">
-    <mxGraphModel dx="863" dy="2487" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="338" dy="597" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -14,7 +14,7 @@
           <mxGeometry height="742" width="1042" x="220" y="306" as="geometry" />
         </mxCell>
         <mxCell id="2-3K1SWj83x6T19f5uWP-10" parent="2-3K1SWj83x6T19f5uWP-6" style="fillColor=none;strokeColor=#147EBA;verticalAlign=top;fontStyle=0;fontColor=#147EBA;whiteSpace=wrap;html=1;strokeWidth=2;" value="Availability Zone" vertex="1">
-          <mxGeometry height="228" width="706" x="189" y="174" as="geometry" />
+          <mxGeometry height="228" width="706" x="190" y="174" as="geometry" />
         </mxCell>
         <mxCell id="VSQjw4cGyxBwYWPiXryi-8" parent="2-3K1SWj83x6T19f5uWP-6" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#00A4A6;fillColor=light-dark(#E6F6F7, #dfedf5);verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" value="Private subnet" vertex="1">
           <mxGeometry height="187" width="320" x="573.25" y="441" as="geometry" />
@@ -141,6 +141,18 @@
         </mxCell>
         <mxCell id="QEpkfiW_Vnble41b4Ide-11" parent="1" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://icons.diagrams.net/icon-cache1/Boxicons_Logos-2642/bxl-django-1346.svg" value="" vertex="1">
           <mxGeometry height="70" width="70" x="988" y="122.5" as="geometry" />
+        </mxCell>
+        <mxCell id="QEpkfiW_Vnble41b4Ide-12" edge="1" parent="1" source="QEpkfiW_Vnble41b4Ide-8" style="endArrow=classic;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="2-3K1SWj83x6T19f5uWP-4" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="906" y="147" as="sourcePoint" />
+            <mxPoint x="939" y="78" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="QEpkfiW_Vnble41b4Ide-13" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="827" y="301" as="sourcePoint" />
+            <mxPoint x="877" y="251" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>
