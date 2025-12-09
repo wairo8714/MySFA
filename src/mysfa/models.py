@@ -11,6 +11,9 @@ class Post(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="投稿者", on_delete=models.CASCADE
     )
+    group = models.ForeignKey(
+        AuthGroup, on_delete=models.CASCADE, verbose_name="グループ"
+    )
     product_name = models.CharField(
         max_length=50,
         blank=False,
@@ -28,20 +31,17 @@ class Post(models.Model):
         max_length=100,
         error_messages={"max_length": "100文字以内で入力してください"},
     )
-    group = models.ForeignKey(
-        AuthGroup, on_delete=models.CASCADE, verbose_name="グループ"
-    )
     image = models.ImageField(
         upload_to="post_images/", blank=True, null=True, verbose_name="投稿画像"
     )
     likes_count = models.IntegerField(default=0, verbose_name="いいね数")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="投稿日時")
     liked_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="liked_posts",
         blank=True,
         verbose_name="いいねしたユーザー",
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="投稿日時")
 
     def __str__(self):
         return self.product_name
