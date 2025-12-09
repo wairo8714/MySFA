@@ -78,7 +78,7 @@ class Group(AuthGroup):
         verbose_name="グループアイコン",
     )
     is_locked = models.BooleanField(default=False, verbose_name="ロック機能")
-    is_approval = models.BooleanField(default=False, verbose_name="承認機能")
+    # is_approval = models.BooleanField(default=False, verbose_name="承認機能")
 
     def __str__(self):
         return self.name
