@@ -1,30 +1,19 @@
-# Python関連
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# 仮想環境
 venv/
 .venv/
 env/
 pip-wheel-metadata/
-
-# Django関連
 *.sqlite3
 staticfiles/
 media/
-
-# 環境設定 / 秘密情報
 .env
 .env.*
-
-# 開発ツール
 .idea/
 .vscode/
 *.log
-
-# ビルド成果物
 dist/
 build/
 *.egg-info/
