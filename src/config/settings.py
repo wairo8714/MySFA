@@ -169,3 +169,7 @@ if not DEBUG and os.getenv("FORCE_HTTPS", "False").lower() == "true":
 
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+
+DEMO_USER_ID = "demo001"
+DEMO_GROUP_CUSTOM_ID = "DEMO0001"
+DEMO_GROUP_NAME = "体験用グループ"
