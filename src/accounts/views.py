@@ -3,7 +3,7 @@ import re
 
 from django.contrib import messages
 from django.conf import settings
-from django.contirb.auth import login
+from django.contrib.auth import login
 from django.contrib.auth import logout
 from django.contrib.auth.hashers import check_password, make_password
 from django.http import JsonResponse
@@ -109,55 +109,48 @@ class CheckUserIdView(View):
             else:
                 return JsonResponse({"success": "このユーザーIDは使用可能です。"})
         return JsonResponse({"error": "ユーザーIDが提供されていません。"}, status=400)
-        
+
+
 class DemoLoginView(View):
-    from django.conf import settings
-    from django.shortcuts import redirect
+    def get(self, request, *args, **kwargs):
+        if not getattr(settings, "DEMO_ENABLED", False):
+            return redirect("login")
 
-    if not settings.DEMO_ENABLED:
-        return redirect("login")
-
-    def get(self, request)
         demo_user_id = getattr(settings, "DEMO_USER_ID", "demo001")
         demo_group_custom_id = getattr(settings, "DEMO_GROUP_CUSTOM_ID", "DEMO0001")
-        demo_group_name = (getattr(settings, "DEMO_GROUP_CUSTOM_ID", "体験用グループ")
+        demo_group_name = getattr(settings, "DEMO_GROUP_NAME", "体験用グループ")
+        raw_pw = "demo123"
 
-        try:
-            demo_user = CustomUser.objects.get(custom_user_id=demo_user_id)
-        except CustomUser.DoNotExist:
-            raw_pw = "demo123"
-            demo_user = CustomUser(
-                custom_user_id=demo_user_id,
-                username=demo_user_id,
-                passeord1=raw_pw,
-                password2=raw_pw,
-                question="demo",
-                answer="demo",
-            )
-            demo_user.set_unusable_passeord()
-            demo_user.save()
+        demo_user, _ = CustomUser.objects.get_or_create(
+            custom_user_id=demo_user_id,
+            defaults={
+                "username": demo_user_id,
+                "password": make_password(raw_pw),
+                "password1": raw_pw,
+                "password2": raw_pw,
+                "question": "demo",
+                "answer": "demo",
+            },
+        )
 
         from mysfa.models import Group
 
-        demo_group, created = Group.objects.get_or_create(
-            cudtom_id=demo_group_custom_id,
-            defaults={
-                "name": demo_group_name,
-                "creator": demo_user,
-            },
+        demo_group, _ = Group.objects.get_or_create(
+            custom_id=demo_group_custom_id,
+            defaults={"name": demo_group_name, "creator": demo_user},
         )
         if not demo_group.creator:
             demo_group.creator = demo_user
             demo_group.save(update_fields=["creator"])
 
         demo_group.users.add(demo_user)
-
         request.session["is_demo"] = True
 
-        login(request, demo_user)
+        # authenticate() を経由しないので backend を明示してログイン
+        login(request, demo_user, backend="django.contrib.auth.backends.ModelBackend")
+        return redirect("mysfa:timeline")
 
-        return redirct("mysfa:timeline")
-        
+
 class CustomLogoutView(View):
     def get(self, request):
         request.session.flush()
