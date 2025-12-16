@@ -1,10 +1,9 @@
 import logging
 import re
 
-from django.contrib import messages
 from django.conf import settings
-from django.contrib.auth import login
-from django.contrib.auth import logout
+from django.contrib import messages
+from django.contrib.auth import login, logout
 from django.contrib.auth.hashers import check_password, make_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render

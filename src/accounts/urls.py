@@ -3,8 +3,8 @@ from django.urls import path
 from .views import (
     CheckUserIdView,
     CustomLogoutView,
-    DemoLoginView,
     DeleteAccountView,
+    DemoLoginView,
     ForgotPasswordView,
     PasswordResetView,
     SignUpView,
