@@ -44,7 +44,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 
-    "mysfa.middleware.DemoReadOnlyMiddlleware",
+    "mysfa.middleware.DemoReadOnlyMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
