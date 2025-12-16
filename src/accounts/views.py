@@ -111,6 +111,12 @@ class CheckUserIdView(View):
         return JsonResponse({"error": "ユーザーIDが提供されていません。"}, status=400)
         
 class DemoLoginView(View):
+    from django.conf import settings
+    from django.shortcuts import redirect
+
+    if not settings.DEMO_ENABLED:
+        return redirect("login")
+
     def get(self, request)
         demo_user_id = getattr(settings, "DEMO_USER_ID", "demo001")
         demo_group_custom_id = getattr(settings, "DEMO_GROUP_CUSTOM_ID", "DEMO0001")
