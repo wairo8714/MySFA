@@ -2,6 +2,8 @@ import logging
 import re
 
 from django.contrib import messages
+from django.conf import settings
+from django.contirb.auth import login
 from django.contrib.auth import logout
 from django.contrib.auth.hashers import check_password, make_password
 from django.http import JsonResponse
@@ -107,8 +109,49 @@ class CheckUserIdView(View):
             else:
                 return JsonResponse({"success": "このユーザーIDは使用可能です。"})
         return JsonResponse({"error": "ユーザーIDが提供されていません。"}, status=400)
+        
+class DemoLoginView(View):
+    def get(self, request)
+        demo_user_id = getattr(settings, "DEMO_USER_ID", "demo001")
+        demo_group_custom_id = getattr(settings, "DEMO_GROUP_CUSTOM_ID", "DEMO0001")
+        demo_group_name = (getattr(settings, "DEMO_GROUP_CUSTOM_ID", "体験用グループ")
 
+        try:
+            demo_user = CustomUser.objects.get(custom_user_id=demo_user_id)
+        except CustomUser.DoNotExist:
+            raw_pw = "demo123"
+            demo_user = CustomUser(
+                custom_user_id=demo_user_id,
+                username=demo_user_id,
+                passeord1=raw_pw,
+                password2=raw_pw,
+                question="demo",
+                answer="demo",
+            )
+            demo_user.set_unusable_passeord()
+            demo_user.save()
 
+        from mysfa.models import Group
+
+        demo_group, created = Group.objects.get_or_create(
+            cudtom_id=demo_group_custom_id,
+            defaults={
+                "name": demo_group_name,
+                "creator": demo_user,
+            },
+        )
+        if not demo_group.creator:
+            demo_group.creator = demo_user
+            demo_group.save(update_fields=["creator"])
+
+        demo_group.users.add(demo_user)
+
+        request.session["is_demo"] = True
+
+        login(request, demo_user)
+
+        return redirct("mysfa:timeline")
+        
 class CustomLogoutView(View):
     def get(self, request):
         request.session.flush()
