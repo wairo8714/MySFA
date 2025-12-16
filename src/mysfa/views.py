@@ -511,31 +511,19 @@ class SearchUsersView(LoginRequiredMixin, View):
 @method_decorator(login_required, name="dispatch")
 class LikePostView(View):
     def post(self, request, post_id):
-        print("=== LIKE REQUEST DEBUG ===")
-        print(f"User: {request.user.username}")
-        print(f"Post ID: {post_id}")
-        print(f"Request method: {request.method}")
-
         try:
             post = get_object_or_404(Post, id=post_id)
-            print(f"Post found: {post.product_name}")
-            print(f"Current likes count: {post.likes_count}")
 
             if request.user in post.liked_users.all():
                 post.liked_users.remove(request.user)
                 post.likes_count -= 1
                 status = "unliked"
-                print("User unliked the post")
             else:
                 post.liked_users.add(request.user)
                 post.likes_count += 1
                 status = "liked"
-                print("User liked the post")
 
             post.save()
-
-            print(f"Updated likes count: {post.likes_count}")
-            print("=== END DEBUG ===")
 
             return JsonResponse(
                 {
@@ -546,31 +534,15 @@ class LikePostView(View):
             )
 
         except Exception as e:
-            print(f"Error occurred: {str(e)}")
             return JsonResponse({"status": "error", "message": str(e)}, status=500)
-
-
-@method_decorator(login_required, name="dispatch")
-class TestReportView(View):
-    def get(self, request):
-        print("=== TEST REPORT VIEW CALLED ===")
-        return JsonResponse({"message": "Test view working"})
 
 
 @method_decorator(login_required, name="dispatch")
 class SalesReportView(View):
     def get(self, request, user_id=None, group_id=None):
-        print("=== SALES REPORT VIEW CALLED ===")
-        print(f"User ID: {user_id}")
-        print(f"Group ID: {group_id}")
-
         start_date_str = request.GET.get("start_date")
         end_date_str = request.GET.get("end_date")
         selected_group_id = request.GET.get("custom_id")  # グループ選択のID
-
-        print(f"Start date: {start_date_str}")
-        print(f"End date: {end_date_str}")
-        print(f"Selected group ID: {selected_group_id}")
 
         if not start_date_str or not end_date_str:
             return JsonResponse({"error": "開始日と終了日が必要です"}, status=400)
@@ -578,14 +550,10 @@ class SalesReportView(View):
         try:
             start_date = datetime.strptime(start_date_str, "%Y/%m/%d").date()
             end_date = datetime.strptime(end_date_str, "%Y/%m/%d").date()
-            print(f"Parsed start date: {start_date}")
-            print(f"Parsed end date: {end_date}")
-        except ValueError as e:
-            print(f"Date parsing error: {e}")
+        except ValueError:
             return JsonResponse({"error": "日付形式が正しくありません"}, status=400)
 
         if group_id:
-            print(f"Processing group sales report for group: {group_id}")
             try:
                 group = Group.objects.get(custom_id=group_id)
                 posts = Post.objects.filter(
@@ -593,15 +561,9 @@ class SalesReportView(View):
                     created_at__date__gte=start_date,
                     created_at__date__lte=end_date,
                 )
-                print(
-                    f"Found {posts.count()} posts in group {group_id} "
-                    f"between {start_date} and {end_date}"
-                )
             except Group.DoesNotExist:
-                print(f"Group {group_id} not found")
                 return JsonResponse({"error": "グループが見つかりません"}, status=404)
         else:
-            print(f"Processing user sales report for user: {user_id}")
             try:
                 user = CustomUser.objects.get(custom_user_id=user_id)
 
@@ -615,13 +577,7 @@ class SalesReportView(View):
                             created_at__date__gte=start_date,
                             created_at__date__lte=end_date,
                         )
-                        print(
-                            f"Found {posts.count()} posts by user {user_id} "
-                            f"in group {selected_group_id} between "
-                            f"{start_date} and {end_date}"
-                        )
                     except Group.DoesNotExist:
-                        print(f"Selected group {selected_group_id} not found")
                         return JsonResponse(
                             {"error": "選択されたグループが見つかりません"}, status=404
                         )
@@ -634,25 +590,14 @@ class SalesReportView(View):
                         created_at__date__gte=start_date,
                         created_at__date__lte=end_date,
                     )
-                    print(
-                        f"Found {posts.count()} posts from user's groups "
-                        f"{[g.name for g in user_groups]} between "
-                        f"{start_date} and {end_date}"
-                    )
 
             except CustomUser.DoesNotExist:
-                print(f"User {user_id} not found")
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
         product_counts = {}
         customer_counts = {}
 
         for post in posts:
-            print(
-                f"Processing post {post.id}: {post.product_name} - "
-                f"{post.customer_category} - {post.created_at}"
-            )
-
             if post.product_name:
                 product_counts[post.product_name] = (
                     product_counts.get(post.product_name, 0) + 1
@@ -662,9 +607,6 @@ class SalesReportView(View):
                 customer_counts[post.customer_category] = (
                     customer_counts.get(post.customer_category, 0) + 1
                 )
-
-        print(f"Product counts: {product_counts}")
-        print(f"Customer counts: {customer_counts}")
 
         product_data = [
             {"product_name": name, "count": count}
@@ -701,6 +643,4 @@ class SalesReportView(View):
             "end_date": end_date_str,
             "total_posts": posts.count(),
         }
-
-        print(f"Final response data: {response_data}")
         return JsonResponse(response_data)

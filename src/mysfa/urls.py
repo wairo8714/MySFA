@@ -17,7 +17,6 @@ from .views import (
     SearchGroupView,
     SearchProductsView,
     SearchUsersView,
-    TestReportView,
     Timeline,
     ToggleGroupLockView,
     UpdateUsernameView,
@@ -83,7 +82,6 @@ urlpatterns = [
     path("search_customers/", SearchCustomersView.as_view(), name="search_customers"),
     path("search_users/", SearchUsersView.as_view(), name="search_users"),
     path("like-post/<int:post_id>/", LikePostView.as_view(), name="like_post"),
-    path("test-report/", TestReportView.as_view(), name="test_report"),
     path("sales-report/", SalesReportView.as_view(), name="sales_report"),
     path(
         "sales-report/<str:user_id>/",
