@@ -19,225 +19,160 @@ document.addEventListener('DOMContentLoaded', function() {
             if (sidebar) {
                 sidebar.style.transform = 'translateX(0)';
             }
-            setTimeout(() => {
-                if (overlay) {
-                    overlay.style.display = 'block';
-                    requestAnimationFrame(() => {
-                        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-                    });
-                }
-            }, 100);
+            if (overlay) {
+                overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                overlay.style.display = 'block';
+            }
         });
     }
 
     if (menuClose) {
         menuClose.addEventListener('click', () => {
             if (sidebar) {
-                sidebar.style.transform = 'translateX(100vw)';
+                sidebar.style.transform = 'translateX(100%)';
             }
             if (overlay) {
-                overlay.style.display = 'none';
+                overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                }, menuOptions.duration);
             }
         });
     }
 
-    const form = document.querySelector('.signup-input-area');
-    if (form) {
-        form.addEventListener('submit', function(event) {
-            event.preventDefault();
+    const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const dropdownMenu = this.nextElementSibling;
+            const dropdownArrow = this.querySelector('.dropdown-arrow');
 
-            const password1Input = document.getElementById('registeringPassword1');
-            const password2Input = document.getElementById('registeringPassword2');
-            const userIdInput = document.getElementById('registeringUserID');
-
-            if (!password1Input || !password2Input || !userIdInput) {
-                console.warn('Signup inputs are missing, aborting validation.');
-                form.submit();
-                return;
+            if (dropdownMenu) {
+                dropdownMenu.classList.toggle('show');
             }
-
-            const password1 = password1Input.value;
-            const password2 = password2Input.value;
-            const userID = userIdInput.value;
-
-            if (password1 !== password2) {
-                alert('パスワードが一致しません。');
-                return;
+            if (dropdownArrow) {
+                dropdownArrow.classList.toggle('rotate');
             }
-
-            fetch(`/accounts/check_user_id/?custom_user_id=${encodeURIComponent(userID)}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.exists) {
-                        alert('このユーザーIDはすでに別のユーザーによって使用されています。');
-                    } else {
-                        form.submit();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking user ID:', error);
-                    alert('ユーザーIDの確認中にエラーが発生しました。時間をおいて再度お試しください。');
-                });
         });
-    }
+    });
 
-    function checkUserId() {
-        const userIdInput = document.getElementById('registeringUserID');
-        const messageElement = document.getElementById('user-id-message');
-        if (!userIdInput || !messageElement) {
-            console.warn('User ID inputs or message element not found.');
-            return;
-        }
-        const userId = userIdInput.value;
+    document.addEventListener('click', function(event) {
+        dropdownToggles.forEach(toggle => {
+            const dropdownMenu = toggle.nextElementSibling;
+            const dropdownArrow = toggle.querySelector('.dropdown-arrow');
 
-        fetch(`/accounts/check_user_id/?custom_user_id=${encodeURIComponent(userId)}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+            if (dropdownMenu && dropdownMenu.classList.contains('show') && !toggle.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                dropdownMenu.classList.remove('show');
+                if (dropdownArrow) {
+                    dropdownArrow.classList.remove('rotate');
                 }
-                return response.json();
-            })
-            .then(data => {
-                if (data.error) {
-                    messageElement.textContent = data.error;
-                    messageElement.style.color = 'red';
-                } else {
-                    messageElement.textContent = data.success;
-                    messageElement.style.color = 'green';
-                }
-            })
-            .catch(error => {
-                console.error('Error checking user ID:', error);
-                messageElement.textContent = 'ユーザーIDの確認中にエラーが発生しました。';
-                messageElement.style.color = 'red';
-            });
-    }
-
-    const userIdInput = document.getElementById('registeringUserID');
-    if (userIdInput) {
-        userIdInput.addEventListener('blur', checkUserId);
-    }
-
-    const productSearchButton = document.getElementById('product-search');
-    const productSearchModal = document.getElementById('product-search-modal');
-    if (productSearchButton && productSearchModal) {
-        productSearchButton.addEventListener('click', function(event) {
-            event.preventDefault();
-            productSearchModal.style.display = 'block';
-        });
-
-        document.addEventListener('click', function(event) {
-            if (event.target !== productSearchModal && !productSearchModal.contains(event.target) && event.target !== productSearchButton) {
-                productSearchModal.style.display = 'none';
             }
         });
-    }
-
-    const customerCategorySearchButton = document.getElementById('customer-category-search');
-    const customerCategorySearchModal = document.getElementById('customer-category-search-modal');
-    if (customerCategorySearchButton && customerCategorySearchModal) {
-        customerCategorySearchButton.addEventListener('click', function(event) {
-            event.preventDefault();
-            customerCategorySearchModal.style.display = 'block';
-        });
-
-        document.addEventListener('click', function(event) {
-            if (event.target !== customerCategorySearchModal && !customerCategorySearchModal.contains(event.target) && event.target !== customerCategorySearchButton) {
-                customerCategorySearchModal.style.display = 'none';
-            }
-        });
-    }
-
-    const textarea = document.querySelector('#id_contents');
-    const charCounter = document.querySelector('#char-counter');
-    const maxChars = 100;
-
-    if (textarea && charCounter) {
-        textarea.addEventListener('input', function() {
-            const currentLength = textarea.value.length;
-            charCounter.textContent = `${currentLength}/${maxChars}`;
-
-            if (currentLength >= maxChars) {
-                charCounter.style.color = 'red';
-                alert('文字数の上限に達しました。');
-            } else {
-                charCounter.style.color = '#707070';
-            }
-        });
-    }
-
-    function adjustHeight() {
-        const receptionContainer = document.querySelector('.reception-container');
-        const introductionAreaInner = document.querySelector('.introduction-area-inner');
-
-        if (receptionContainer && introductionAreaInner && window.innerWidth >= 890) {
-            const height = introductionAreaInner.offsetHeight;
-            receptionContainer.style.height = `${height}px`;
-        } else if (receptionContainer) {
-            receptionContainer.style.height = 'auto';
-        }
-    }
-    
-    if (document.querySelector('.reception-container') && document.querySelector('.introduction-area-inner')) {
-        adjustHeight();
-        window.addEventListener('resize', adjustHeight);
-    }
+    });
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    var video = document.getElementById('background-video');
-    if (video) {
-        video.addEventListener('canplaythrough', function() {
-            var videoContainer = document.querySelector('.video-container');
-            if (videoContainer) {
-                videoContainer.classList.add('video-loaded');
-            }
+    const postModal = document.getElementById('postModal');
+    const openModalBtn = document.getElementById('openModalBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', function() {
+            if (postModal) postModal.style.display = 'block';
         });
     }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', function() {
+            if (postModal) postModal.style.display = 'none';
+        });
+    }
+
+    window.addEventListener('click', function(event) {
+        if (event.target === postModal) {
+            postModal.style.display = 'none';
+        }
+    });
 });
 
-document.addEventListener('DOMContentLoaded', function() {
-    var element1 = document.getElementById('element1');
-    if (element1) {
-        element1.addEventListener('click', function() {
-        });
+function toggleAccordion(accordionId) {
+    const accordion = document.getElementById(accordionId);
+    const icon = document.getElementById(accordionId.replace('accordion', 'icon'));
+
+    if (accordion && icon) {
+        if (accordion.style.display === "none" || accordion.style.display === "") {
+            accordion.style.display = "block";
+            icon.textContent = "-";
+        } else {
+            accordion.style.display = "none";
+            icon.textContent = "+";
+        }
     }
-
-    var element2 = document.getElementById('element2');
-    if (element2) {
-        element2.addEventListener('click', function() {
-        });
-    }
-});
-
-
-if (typeof customUserId !== 'undefined') {
-    fetch('/accounts/check_user_id/?custom_user_id=' + encodeURIComponent(customUserId))
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(data);
-        })
-        .catch(error => {
-            console.error('There was a problem with the fetch operation:', error);
-        });
 }
+
+// 同一商品に対する複数の顧客情報を表示
+function showCustomers(productId) {
+    const customers = document.getElementById(`customers-${productId}`);
+    if (customers) {
+        if (customers.classList.contains("show")) {
+            customers.classList.remove("show");
+        } else {
+            customers.classList.add("show");
+        }
+    }
+}
+
+// 顧客情報の詳細を表示
+function showCustomerDetails(customerId) {
+    const details = document.getElementById(`details-${customerId}`);
+    if (details) {
+        if (details.classList.contains("show")) {
+            details.classList.remove("show");
+        } else {
+            details.classList.add("show");
+        }
+    }
+}
+
+// ページ遷移時のメッセージ表示（例）
+document.addEventListener('DOMContentLoaded', function() {
+    const messageElement = document.querySelector('.message');
+    if (messageElement) {
+        setTimeout(() => {
+            messageElement.style.opacity = '0';
+        }, 3000);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const scrollToTopBtn = document.getElementById("scrollToTopBtn");
+    if (!scrollToTopBtn) return;
+
+    window.onscroll = function() { scrollFunction() };
+
+    function scrollFunction() {
+        if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+            scrollToTopBtn.style.display = "block";
+        } else {
+            scrollToTopBtn.style.display = "none";
+        }
+    }
+
+    scrollToTopBtn.addEventListener('click', function() {
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+    });
+});
+
+// =========================
+// Like Feature (Demo-safe)
+// =========================
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== LIKE FUNCTION LOADED ===');
-    
+
     const likeButtons = document.querySelectorAll('.like-button');
     console.log('Found like buttons:', likeButtons.length);
-    
+
     if (likeButtons.length === 0) {
         console.log('No like buttons found!');
         return;
@@ -249,26 +184,25 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     const csrfToken = csrfInput.value;
-    
+
     likeButtons.forEach((button, index) => {
         console.log(`Button ${index}:`, button);
-        console.log(`Button data-post-id:`, button.dataset.postId);
-        
+
         button.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('=== LIKE BUTTON CLICKED ===');
-            
+            console.log('Like button clicked!');
+
             const postId = this.dataset.postId;
             const likeCount = this.querySelector('.like-count');
-            
+
             console.log('Post ID:', postId);
             console.log('Current count:', likeCount.textContent);
-            
+
             console.log('CSRF Token:', csrfToken ? 'Found' : 'Not found');
-            
+
             const url = `/mysfa/like-post/${postId}/`;
             console.log('Request URL:', url);
-            
+
             fetch(url, {
                 method: 'POST',
                 headers: {
@@ -279,14 +213,25 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => {
                 console.log('Response status:', response.status);
                 console.log('Response headers:', response.headers);
+
+                // ★追加：デモ時に Middleware が 401 + {redirect: "..."} を返したらログインへ
+                if (response.status === 401) {
+                    return response.json().then(data => {
+                        window.location.href = data.redirect;
+                        return null; // 次の then に渡さない
+                    });
+                }
+
                 return response.json();
             })
             .then(data => {
+                if (!data) return;
+
                 console.log('Response data:', data);
                 if (data.status === 'liked' || data.status === 'unliked') {
                     likeCount.textContent = data.count;
                     console.log('Count updated to:', data.count);
-                    
+
                     if (data.status === 'liked') {
                         button.classList.add('liked');
                     } else {
@@ -308,26 +253,26 @@ let customerChart = null;
 
 function initializeSalesReport() {
     console.log('=== INITIALIZING SALES REPORT ===');
-    
+
     const startDateInput = document.getElementById('start-date');
     const endDateInput = document.getElementById('end-date');
-    
+
     if (!startDateInput || !endDateInput) {
-        console.log('Date inputs not found');
+        console.error('Date inputs not found!');
         return;
     }
-    
+
     const endDate = new Date();
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - 1);
-    
+
     startDateInput.value = startDate.toISOString().split('T')[0];
     endDateInput.value = endDate.toISOString().split('T')[0];
-    
+
     console.log('Default date range set:', startDateInput.value, 'to', endDateInput.value);
-    
+
     loadSalesReport();
-    
+
     const updateButton = document.getElementById('update-report');
     if (updateButton) {
         updateButton.addEventListener('click', function() {
@@ -338,291 +283,112 @@ function initializeSalesReport() {
 }
 
 function loadSalesReport() {
-    console.log('=== LOADING SALES REPORT ===');
-    const startDateInput = document.getElementById('start-date');
-    const endDateInput = document.getElementById('end-date');
-    
-    if (!startDateInput || !endDateInput) {
-        console.log('Date inputs not present, skipping report load.');
+    const startDate = document.getElementById('start-date')?.value;
+    const endDate = document.getElementById('end-date')?.value;
+
+    if (!startDate || !endDate) {
+        console.error('Start or end date not provided');
         return;
     }
 
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
-    
-    console.log('Start date:', startDate);
-    console.log('End date:', endDate);
-    
-    if (!startDate || !endDate) {
-        console.log('Date values not found, returning');
-        return;
-    }
-    
-    const startDateFormatted = startDate.replace(/-/g, '/');
-    const endDateFormatted = endDate.replace(/-/g, '/');
-    
-    console.log('Formatted dates:', startDateFormatted, endDateFormatted);
-    
-    let url;
-    const pathParts = window.location.pathname.split('/').filter(part => part);
-    console.log('Path parts:', pathParts);
-    console.log('Full pathname:', window.location.pathname);
-    
-    if (pathParts.includes('group')) {
-        const groupIndex = pathParts.indexOf('group');
-        const groupId = pathParts[groupIndex + 1];
-        url = `/mysfa/sales-report/group/${groupId}/?start_date=${startDateFormatted}&end_date=${endDateFormatted}`;
-        console.log('Group URL pattern detected');
-    } else {
-        const userId = pathParts[pathParts.length - 1];
-        let urlParams = `start_date=${startDateFormatted}&end_date=${endDateFormatted}`;
-        
-        
-        const groupSelect = document.getElementById('group');
-        if (groupSelect && groupSelect.value) {
-            urlParams += `&custom_id=${encodeURIComponent(groupSelect.value)}`;
-            console.log('Group selected:', groupSelect.value);
-        }
-        
-        url = `/mysfa/sales-report/${userId}/?${urlParams}`;
-        console.log('User URL pattern detected, userId:', userId);
-    }
-    
-    console.log('Request URL:', url);
-    
+    console.log('Loading report for date range:', startDate, 'to', endDate);
+
+    const url = `/mysfa/sales-report-data/?start_date=${startDate}&end_date=${endDate}`;
+    console.log('Fetching data from:', url);
+
     fetch(url)
         .then(response => {
             console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
-            console.log('Response data:', data);
-            console.log('Product data length:', data.product_data ? data.product_data.length : 'undefined');
-            console.log('Customer data length:', data.customer_data ? data.customer_data.length : 'undefined');
-            console.log('Product data details:', JSON.stringify(data.product_data, null, 2));
-            console.log('Customer data details:', JSON.stringify(data.customer_data, null, 2));
-            createCharts(data);
+            console.log('Received data:', data);
+
+            if (data.error) {
+                console.error('Error from server:', data.error);
+                return;
+            }
+
+            if (!data.labels || !data.values) {
+                console.error('Invalid data format received');
+                return;
+            }
+
+            updateCharts(data);
         })
         .catch(error => {
-            console.error('Error loading sales report:', error);
+            console.error('Fetch error:', error);
         });
 }
 
-function createCharts(data) {
-    console.log('=== CREATING CHARTS ===');
-    console.log('Data received:', data);
-    
+function updateCharts(data) {
+    console.log('Updating charts with data:', data);
+
     const productChartCanvas = document.getElementById('product-chart');
     const customerChartCanvas = document.getElementById('customer-chart');
-    
+
     if (!productChartCanvas || !customerChartCanvas) {
         console.error('Chart canvases not found');
         return;
     }
-    
-    if (data.total_posts === 0) {
-        console.log('No posts found, displaying no data message');
-        displayNoDataMessage(productChartCanvas, '投稿がありません');
-        displayNoDataMessage(customerChartCanvas, '投稿がありません');
-        return;
-    }
-    
-    if (data.product_data && data.product_data.length > 0) {
-        displayChart(productChartCanvas, data.product_data, 'product_name', '商品別売上');
-    } else {
-        displayNoDataMessage(productChartCanvas, '商品データがありません');
-    }
-    
-    if (data.customer_data && data.customer_data.length > 0) {
-        displayChart(customerChartCanvas, data.customer_data, 'customer_category', '業態別売上');
-    } else {
-        displayNoDataMessage(customerChartCanvas, '業態データがありません');
-    }
-}
 
-function displayNoDataMessage(canvas, message) {
-    const parent = canvas.parentElement;
-    const existingMessage = parent.querySelector('.no-data-message');
-    
-    if (existingMessage) {
-        existingMessage.textContent = message;
-    } else {
-        const messageElement = document.createElement('p');
-        messageElement.className = 'no-data-message';
-        messageElement.textContent = message;
-        canvas.style.display = 'none';
-        parent.appendChild(messageElement);
-    }
-}
+    const productCtx = productChartCanvas.getContext('2d');
+    const customerCtx = customerChartCanvas.getContext('2d');
 
-function displayChart(canvas, data, labelKey, title) {
-    const parent = canvas.parentElement;
-    const existingMessage = parent.querySelector('.no-data-message');
-    
-    if (existingMessage) {
-        existingMessage.remove();
+    if (productChart) {
+        productChart.destroy();
     }
-    
-    canvas.style.display = 'block';
-    
-    const ctx = canvas.getContext('2d');
-    
-    if (window.existingCharts && window.existingCharts[canvas.id]) {
-        window.existingCharts[canvas.id].destroy();
+    if (customerChart) {
+        customerChart.destroy();
     }
-    
-    if (!window.existingCharts) {
-        window.existingCharts = {};
-    }
-    
-    const colorPalette = [
-        '#2C5F7A',    
-        '#4A7C8C',    
-        '#39AEC8',    
-        '#6BC5D4',    
-        '#A8D8E3',    
-        '#E8F4F8'     
-    ];
-    
-    window.existingCharts[canvas.id] = new Chart(ctx, {
-        type: 'doughnut',
+
+    productChart = new Chart(productCtx, {
+        type: 'bar',
         data: {
-            labels: data.map(item => item[labelKey]),
+            labels: data.labels,
             datasets: [{
-                data: data.map(item => item.count),
-                backgroundColor: colorPalette.slice(0, data.length),
-                borderWidth: 2,
-                borderColor: '#FFFFFF'
+                label: '商品別売上',
+                data: data.values,
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            layout: {
-                padding: {
-                    top: 15,
-                    bottom: 15,
-                    left: 10,
-                    right: 10
-                }
-            },
             plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: {
-                            size: 13
-                        },
-                        padding: 12,
-                        usePointStyle: true,
-                        pointStyle: 'circle',
-                        boxWidth: 12,
-                        boxHeight: 12
-                    },
-                    onClick: (event, legendItem, legend) => {
-                        const index = legendItem.index;
-                        const label = data[index][labelKey];
-                        const isProduct = labelKey === 'product_name';
-                        
-                        if (isProduct) {
-                            window.location.href = `/mysfa/search_products/?search=${encodeURIComponent(label)}`;
-                        } else {
-                            window.location.href = `/mysfa/search_customers/?search=${encodeURIComponent(label)}`;
-                        }
-                    }
-                }
+                legend: { display: false }
             },
-            animation: {
-                animateRotate: true,
-                animateScale: true,
-                duration: 1200,
-                easing: 'easeOutQuart'
-            },
-            onClick: (event, elements) => {
-                if (elements.length > 0) {
-                    const index = elements[0].index;
-                    const label = data[index][labelKey];
-                    const isProduct = labelKey === 'product_name';
-                    
-                    if (isProduct) {
-                        window.location.href = `/mysfa/search_products/?search=${encodeURIComponent(label)}`;
-                    } else {
-                        window.location.href = `/mysfa/search_customers/?search=${encodeURIComponent(label)}`;
-                    }
-                }
+            scales: {
+                y: { beginAtZero: true }
             }
         }
     });
-    
-    const chart = window.existingCharts[canvas.id];
-    
-    setTimeout(() => {
-        if (chart && chart.canvas) {
-            adjustChartHeights();
-        }
-    }, 200);
-}
 
-function adjustChartHeights() {
-    const productChart = document.getElementById('product-chart');
-    const customerChart = document.getElementById('customer-chart');
-    
-    if (!productChart || !customerChart) return;
-    
-    const productWrapper = productChart.closest('.chart-wrapper');
-    const customerWrapper = customerChart.closest('.chart-wrapper');
-    
-    if (!productWrapper || !customerWrapper) return;
-    
-    setTimeout(() => {
-        const productChartInstance = window.existingCharts['product-chart'];
-        const customerChartInstance = window.existingCharts['customer-chart'];
-        
-        if (!productChartInstance || !customerChartInstance) return;
-        
-        const productCanvas = productChartInstance.canvas;
-        const customerCanvas = customerChartInstance.canvas;
-        
-        const productWidth = productCanvas.width;
-        const productHeight = productCanvas.height;
-        const customerWidth = customerCanvas.width;
-        const customerHeight = customerCanvas.height;
-        
-        console.log('Product chart size:', productWidth, 'x', productHeight);
-        console.log('Customer chart size:', customerWidth, 'x', customerHeight);
-        
-        if (productWidth > customerWidth || productHeight > customerHeight) {
-            const scaleX = productWidth / customerWidth;
-            const scaleY = productHeight / customerHeight;
-            const scale = Math.max(scaleX, scaleY);
-            
-            console.log('Scaling customer chart by:', scale);
-            
-            customerCanvas.style.width = `${productWidth}px`;
-            customerCanvas.style.height = `${productHeight}px`;
-            customerWrapper.style.minHeight = `${productWrapper.offsetHeight}px`;
-        } else if (customerWidth > productWidth || customerHeight > productHeight) {
-            const scaleX = customerWidth / productWidth;
-            const scaleY = customerHeight / productHeight;
-            const scale = Math.max(scaleX, scaleY);
-            
-            console.log('Scaling product chart by:', scale);
-            
-            productCanvas.style.width = `${customerWidth}px`;
-            productCanvas.style.height = `${customerHeight}px`;
-            productWrapper.style.minHeight = `${customerWrapper.offsetHeight}px`;
+    customerChart = new Chart(customerCtx, {
+        type: 'bar',
+        data: {
+            labels: data.customer_labels || [],
+            datasets: [{
+                label: '業態別売上',
+                data: data.customer_values || [],
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
         }
-        
-        const maxHeight = Math.max(productWrapper.offsetHeight, customerWrapper.offsetHeight);
-        const chartsContainer = document.querySelector('.charts-container');
-        if (chartsContainer) {
-            chartsContainer.style.minHeight = `${maxHeight}px`;
-        }
-    }, 500);
+    });
+
+    const chartsContainer = document.querySelector('.charts-container');
+    if (chartsContainer) {
+        chartsContainer.style.minHeight = '400px';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
