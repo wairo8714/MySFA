@@ -4,7 +4,11 @@ version = "1.0.0"
 description = "営業成果共有に特化したWebアプリケーション"
 authors = ["森岡大智 <karumuwairo@gmail.com>"]
 readme = "README.md"
-packages = [{include = "mysfa", from = "src"}, {include = "config", from = "src"}, {include = "accounts", from = "src"}]
+packages = [
+  { include = "mysfa", from = "src" },
+  { include = "config", from = "src" },
+  { include = "accounts", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -14,7 +18,7 @@ whitenoise = "*"
 python-dotenv = "*"
 gunicorn = "*"
 Pillow = "*"
-django-storages = {extras = ["boto3"], version = ">=1.14.4"}
+django-storages = { extras = ["boto3"], version = ">=1.14.4" }
 boto3 = ">=1.34.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -47,10 +51,3 @@ line_length = 88
 known_django = "django"
 known_first_party = ["accounts", "mysfa", "config"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["mysfa", "config", "accounts"]
