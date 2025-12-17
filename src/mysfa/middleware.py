@@ -4,9 +4,7 @@ from django.urls import reverse
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-DEMO_ALLOWED_POST_PATH_PREFIXES = (
-    "/mysfa/like-post/",
-)
+DEMO_ALLOWED_POST_PATH_PREFIXES = ("/mysfa/like-post/",)
 
 
 class DemoReadOnlyMiddleware:
