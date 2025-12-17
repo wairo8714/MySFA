@@ -1,13 +1,13 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, deploy/* ]
+    branches: [ main, "deploy/*" ]
   pull_request:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -23,152 +23,60 @@ jobs:
           MYSQL_PASSWORD: test_pass
         ports:
           - 3306:3306
+        # >  = folded（複数行を1行相当に畳む）
+        # -  = chomp（末尾の改行を付けない）
+        # -- = コマンドの長いオプション記号（例: --all など）
         options: >-
-          --health-cmd="mysqladmin ping --silent"
+          --health-cmd="mysqladmin ping -uroot -proot --silent"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=3
+          --health-retries=10
+
+    env:
+      SECRET_KEY: test-secret-key
+      DEBUG: "True"
+      # testserver = Djangoテストクライアントが使う既定ホスト名
+      ALLOWED_HOSTS: "localhost,127.0.0.1,testserver"
+      MYSQL_DATABASE: test_db
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test_pass
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: "3306"
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pythonのセットアップ
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Poetryのインストール
-        uses: snok/install-poetry@v1
+      - uses: snok/install-poetry@v1
         with:
           version: latest
-          virtualenvs-create: false
+          # Poetry に仮想環境を作らせる
+          virtualenvs-create: true
+          # 仮想環境をプロジェクト直下の .venv に作る
+          virtualenvs-in-project: true
 
-      - name: Poetry Lockファイルの更新
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root --with dev
+
+      - name: Lockfile consistency check
+        # pyproject.toml と poetry.lock の整合性だけ確認（書き換えない）
+        run: poetry lock --check
+
+      - name: Lint / Format checks
         run: |
-          echo "Poetry Lockファイルを更新します。"
-          # コミット履歴が存在するか確認
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-            # pyproject.tomlが変更されている場合、依存関係を更新
-            if git diff --name-only HEAD~1 HEAD | grep -q "pyproject.toml"; then
-              echo "pyproject.tomlが変更されたため、依存関係を更新します。"
-              poetry lock
-            else
-              echo "pyproject.tomlに変更がないため、lockファイルの整合性のみチェックします。"
-              poetry lock --check || poetry lock
-            fi
-          else
-            echo "初回コミットまたはコミット履歴が不足しています。lockファイルを生成します。"
-            poetry lock
-          fi
+          poetry run flake8 src/
+          poetry run black --check src/
+          poetry run isort --check-only src/
 
-      - name: Poetry Lockファイルの変更をコミット
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          if [ -n "$(git status --porcelain poetry.lock)" ]; then
-            echo "poetry.lockに変更が検出されました。自動コミットを実行します。"
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add poetry.lock
-            git commit -m "chore: Update poetry.lock [skip ci]"
-            git push
-          else
-            echo "poetry.lockに変更はありません。"
-          fi
+      - name: Test
+        run: poetry run python src/manage.py test
 
-      - name: 依存関係をインストール
-        run: |
-          poetry install --no-root --with dev
-
-      - name: コード整形・静的解析を実行
-        run: |
-          echo "flake8を実行します（静的解析）"
-          poetry run flake8 src/ --max-line-length=88 --ignore=E203,W503
-          echo "blackを実行します（自動整形）"
-          poetry run black src/ --line-length 88
-          echo "isortを実行します（インポート整列）"
-          poetry run isort src/ --profile black
-
-      - name: MySQLの起動待機
-        run: |
-          for i in {30..0}; do
-            if mysqladmin ping -h127.0.0.1 -ptest_pass --silent; then
-              echo "MySQLサーバーが起動しました。"
-              break
-            fi
-            echo "MySQLサーバーの起動を待機中..."
-            sleep 2
-          done
-
-      - name: PythonとDjangoのバージョンを表示
-        run: |
-          echo "PythonおよびDjangoのバージョン情報を表示します。"
-          python --version
-          which python
-          poetry --version
-          poetry show
-          cd src
-          poetry run python -m django --version || echo "Djangoがインストールされていません。"
-
-      - name: MySQLサーバーの状態確認
-        run: |
-          echo "MySQLサーバーの稼働状況を確認します。"
-          sudo netstat -tlnp | grep 3306 || echo "ポート3306が開いていません。"
-          ps aux | grep mysql
-
-      - name: srcディレクトリの内容を一覧表示
-        run: |
-          echo "srcディレクトリの内容を確認します。"
-          ls -l src || echo "srcディレクトリが存在しません。"
-
-      - name: Djangoマイグレーションの状態を確認（失敗時）
+      # steps のどこかで failureとなった場合に実行
+      - name: Debug
         if: failure()
         run: |
-          echo "テスト失敗時にDjangoのマイグレーション状況を表示します。"
-          cd src
-          poetry run python manage.py showmigrations || echo "showmigrationsコマンドの実行に失敗しました。"
-
-      - name: MySQLエラーログの出力（失敗時）
-        if: failure()
-        run: |
-          echo "MySQLのエラーログを出力します。"
-          docker logs $(docker ps -q --filter "ancestor=mysql:8.0")
-
-      - name: MySQLユーザー権限を設定
-        run: |
-          echo "MySQLユーザーの権限を設定します。"
-          mysql -h 127.0.0.1 -u root -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%'; FLUSH PRIVILEGES;"
-
-      - name: コード整形と自動修正をコミット
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          echo "blackとisortによるコード整形を再実行します。"
-          poetry run black src/ --line-length 88
-          poetry run isort src/ --profile black
-
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "コードフォーマットの変更が検出されました。自動コミットを実行します。"
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add .
-            git commit -m "Auto-format code using Black and isort [skip ci]"
-            git push
-          else
-            echo "変更はありません。"
-          fi
-
-      - name: テストの実行
-        env:
-          SECRET_KEY: test-secret-key
-          DEBUG: True
-          ALLOWED_HOSTS: localhost,127.0.0.1
-          MYSQL_DATABASE: test_db
-          MYSQL_USER: test_user
-          MYSQL_PASSWORD: test_pass
-          MYSQL_HOST: 127.0.0.1
-          MYSQL_PORT: 3306
-        run: |
-          echo "Djangoのマイグレーションおよびテストを実行します。"
-          cd src
-          poetry run python manage.py migrate
-          poetry run python manage.py test
+          poetry run python src/manage.py showmigrations || true
+          docker logs ${{ job.services.mysql.id }} || true
