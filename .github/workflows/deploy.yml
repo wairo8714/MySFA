@@ -3,11 +3,17 @@ name: Deploy to AWS ECS
 on:
   workflow_run:
     workflows: ["Terraform"]
-    types:
-      - completed
+    types: [completed]
     branches:
       - main
-      - deploy/*
+      - "deploy/*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -16,58 +22,54 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+
       ECS_CLUSTER: mysfa-prod-cluster
       ECS_SERVICE: mysfa-prod-service
 
+      # Terraform が実行されたコミットSHAに統一（workflow_runではここが安全）
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+      # run-task 用（カンマ区切り・スペース無し推奨）
+      ECS_SUBNET_IDS: ${{ secrets.ECS_SUBNET_IDS }}
+      ECS_SECURITY_GROUP_IDS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+      ECS_ASSIGN_PUBLIC_IP: ${{ secrets.ECS_ASSIGN_PUBLIC_IP || 'DISABLED' }}
+
+      MYSQL_PORT: ${{ secrets.MYSQL_PORT || '3306' }}
+
     steps:
-      # ソース取得
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ env.IMAGE_TAG }}
           lfs: true
 
-      # AWS認証設定
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (for AWS CLI)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # ECRログイン
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # DockerイメージのBuild & Push
-      - name: Build and push Docker image
+      - name: Build & push image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # IMAGE_URIを環境変数として設定
-      - name: Set IMAGE_URI env
+      - name: Register task definition
         run: |
-          echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
+          set -euo pipefail
 
-      # ECSタスク定義の登録
-      - name: Register new ECS task definition
-        id: ecs-task
-        run: |
-          MYSQL_PORT_VALUE="${{ secrets.MYSQL_PORT }}"
-          if [ -z "$MYSQL_PORT_VALUE" ]; then
-            MYSQL_PORT_VALUE="3306"
-          fi
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
           cat > task-def.json << EOF
           {
@@ -87,25 +89,23 @@ jobs:
                   { "containerPort": 80, "protocol": "tcp" }
                 ],
                 "environment": [
-                  { "name": "SECRET_KEY",             "value": "${{ secrets.SECRET_KEY }}" },
-                  { "name": "DEBUG",                  "value": "${{ secrets.DEBUG }}" },
-                  { "name": "ALLOWED_HOSTS",          "value": "${{ secrets.ALLOWED_HOSTS }}" },
+                  { "name": "SECRET_KEY",              "value": "${{ secrets.SECRET_KEY }}" },
+                  { "name": "DEBUG",                   "value": "${{ secrets.DEBUG }}" },
+                  { "name": "ALLOWED_HOSTS",           "value": "${{ secrets.ALLOWED_HOSTS }}" },
 
-                  { "name": "MYSQL_DATABASE",         "value": "${{ secrets.MYSQL_DATABASE }}" },
-                  { "name": "MYSQL_USER",             "value": "${{ secrets.MYSQL_USER }}" },
-                  { "name": "MYSQL_PASSWORD",         "value": "${{ secrets.MYSQL_PASSWORD }}" },
-                  { "name": "MYSQL_HOST",             "value": "${{ secrets.MYSQL_HOST }}" },
-                  { "name": "MYSQL_PORT",             "value": "${MYSQL_PORT_VALUE}" },
+                  { "name": "MYSQL_DATABASE",          "value": "${{ secrets.MYSQL_DATABASE }}" },
+                  { "name": "MYSQL_USER",              "value": "${{ secrets.MYSQL_USER }}" },
+                  { "name": "MYSQL_PASSWORD",          "value": "${{ secrets.MYSQL_PASSWORD }}" },
+                  { "name": "MYSQL_HOST",              "value": "${{ secrets.MYSQL_HOST }}" },
+                  { "name": "MYSQL_PORT",              "value": "${MYSQL_PORT}" },
 
-                  { "name": "S3_BUCKET_NAME",         "value": "${{ secrets.S3_BUCKET_NAME }}" },
-                  { "name": "AWS_STORAGE_BUCKET_NAME","value": "${{ secrets.S3_BUCKET_NAME }}" },
-                  { "name": "AWS_ACCESS_KEY_ID",      "value": "${{ secrets.AWS_ACCESS_KEY_ID }}" },
-                  { "name": "AWS_SECRET_ACCESS_KEY",  "value": "${{ secrets.AWS_SECRET_ACCESS_KEY }}" },
-                  { "name": "AWS_REGION",             "value": "${{ secrets.AWS_REGION }}" },
+                  { "name": "S3_BUCKET_NAME",          "value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_STORAGE_BUCKET_NAME", "value": "${{ secrets.S3_BUCKET_NAME }}" },
+                  { "name": "AWS_REGION",              "value": "${AWS_REGION}" },
 
-                  { "name": "FORCE_HTTPS",            "value": "${{ secrets.FORCE_HTTPS }}" },
-                  { "name": "DOMAIN_NAME",            "value": "${{ secrets.DOMAIN_NAME }}" },
-                  { "name": "USE_S3",                 "value": "true" }
+                  { "name": "FORCE_HTTPS",             "value": "${{ secrets.FORCE_HTTPS }}" },
+                  { "name": "DOMAIN_NAME",             "value": "${{ secrets.DOMAIN_NAME }}" },
+                  { "name": "USE_S3",                  "value": "true" }
                 ],
                 "logConfiguration": {
                   "logDriver": "awslogs",
@@ -125,87 +125,47 @@ jobs:
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
-          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
-          echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> "$GITHUB_ENV"
 
-      # collectstaticをECSタスクで実行
-      - name: Run collectstatic via ECS task
-        env:
-          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
-          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
+      - name: Run management commands (collectstatic & migrate)
         run: |
-          if [ -z "$SUBNETS" ] || [ -z "$SECURITY_GROUPS" ]; then
-            echo "ECS_SUBNET_IDS と ECS_SECURITY_GROUP_IDS のシークレットが設定されていません（カンマ区切りで指定してください）。"
+          set -euo pipefail
+
+          if [ -z "${ECS_SUBNET_IDS}" ] || [ -z "${ECS_SECURITY_GROUP_IDS}" ]; then
+            echo "ECS_SUBNET_IDS / ECS_SECURITY_GROUP_IDS が未設定です（カンマ区切り・スペース無し推奨）" >&2
             exit 1
           fi
 
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$ECS_CLUSTER" \
-            --launch-type FARGATE \
-            --task-definition "$TASK_DEF_ARN" \
-            --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
-            --overrides '{
-              "containerOverrides": [
-                {
-                  "name": "web",
-                  "command": ["poetry","run","python","manage.py","collectstatic","--noinput"]
-                }
-              ]
-            }' \
-            --query 'tasks[0].taskArn' \
-            --output text)
+          run_once () {
+            local CMD_JSON=$1
 
-          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+            TASK_ARN=$(aws ecs run-task \
+              --cluster "$ECS_CLUSTER" \
+              --launch-type FARGATE \
+              --task-definition "$TASK_DEF_ARN" \
+              --count 1 \
+              --network-configuration "awsvpcConfiguration={subnets=[${ECS_SUBNET_IDS}],securityGroups=[${ECS_SECURITY_GROUP_IDS}],assignPublicIp=${ECS_ASSIGN_PUBLIC_IP}}" \
+              --overrides "$CMD_JSON" \
+              --query 'tasks[0].taskArn' \
+              --output text)
 
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "$ECS_CLUSTER" \
-            --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+            aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
 
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "collectstaticタスクが失敗しました（終了コード: $EXIT_CODE）。"
-            exit 1
-          fi
+            EXIT_CODE=$(aws ecs describe-tasks \
+              --cluster "$ECS_CLUSTER" \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].containers[0].exitCode' \
+              --output text)
 
-      # migrateをECS タスクで実行
-      - name: Run migrations via ECS task
-        env:
-          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
-          SECURITY_GROUPS: ${{ secrets.ECS_SECURITY_GROUP_IDS }}
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$ECS_CLUSTER" \
-            --launch-type FARGATE \
-            --task-definition "$TASK_DEF_ARN" \
-            --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
-            --overrides '{
-              "containerOverrides": [
-                {
-                  "name": "web",
-                  "command": ["poetry","run","python","manage.py","migrate","--noinput"]
-                }
-              ]
-            }' \
-            --query 'tasks[0].taskArn' \
-            --output text)
+            test "$EXIT_CODE" = "0"
+          }
 
-          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          run_once '{"containerOverrides":[{"name":"web","command":["poetry","run","python","manage.py","collectstatic","--noinput"]}]}' \
+            || { echo "collectstatic failed" >&2; exit 1; }
 
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster "$ECS_CLUSTER" \
-            --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+          run_once '{"containerOverrides":[{"name":"web","command":["poetry","run","python","manage.py","migrate","--noinput"]}]}' \
+            || { echo "migrate failed" >&2; exit 1; }
 
-          if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "migrateタスクが失敗しました（終了コード: $EXIT_CODE）。"
-            exit 1
-          fi
-
-      # ECS Service 更新
       - name: Update ECS service
         run: |
           aws ecs update-service \
@@ -214,11 +174,8 @@ jobs:
             --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment
 
-      # ECS Service 安定待ち
       - name: Wait for ECS service to be stable
         run: |
-          echo "ECSサービスが安定するまで待機しています"
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
-          echo "ECSサービスが安定しました。"
