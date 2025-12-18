@@ -1,14 +1,18 @@
 name: Terraform
 
 on:
+  #CI 完了時に着火
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+
 permissions:
+  #GITHUB_TOKENの権限を必要最小限に
   contents: read
 
 concurrency:
-  group: terraform-${{ github.event.workflow_run.head_sha }}
+  #同一ブランチ内のデプロイを最新分のみ実行 旧デプロイは停止
+  group: terraform-${{ github.repository }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 env:
@@ -26,13 +30,21 @@ env:
   TF_VAR_domain_name:     ${{ secrets.DOMAIN_NAME }}
   TF_VAR_s3_bucket_name:  ${{ secrets.S3_BUCKET_NAME }}
   TF_VAR_project_name:    mysfa
-  # 必要であれば Terraform 側の debug 変数にも渡す
-  # TF_VAR_debug:           ${{ secrets.DEBUG }}
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    # CI 成功時に実行 / フォークPRは弾く
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        github.event.workflow_run.event == 'push' ||
+        (
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
 
     defaults:
       run:
@@ -57,7 +69,7 @@ jobs:
       - name: Terraform plan
         run: terraform plan -input=false -no-color
 
-      # push のときだけ apply までやる
+      # main への push のときだけ apply までやる
       - name: Terraform apply
         if: ${{ github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
         run: terraform apply -auto-approve -input=false
