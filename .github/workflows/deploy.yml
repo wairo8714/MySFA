@@ -5,9 +5,7 @@ on:
     workflows: ["Terraform"]
     types:
       - completed
-    branches:
-      - main
-      - deploy/*
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -24,13 +22,15 @@ jobs:
       S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
       ECS_CLUSTER: mysfa-prod-cluster
       ECS_SERVICE: mysfa-prod-service
+      # terraform.yml成功時のコミット(head_sha)でcheckout/イメージタグを揃える
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
       # ソース取得
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ env.DEPLOY_SHA }}
           lfs: true
 
       # AWS認証設定
@@ -53,12 +53,12 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.DEPLOY_SHA }}
 
       # IMAGE_URIを環境変数として設定
       - name: Set IMAGE_URI env
         run: |
-          echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${DEPLOY_SHA}" >> $GITHUB_ENV
 
       # ECSタスク定義の登録
       - name: Register new ECS task definition
@@ -144,7 +144,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "$TASK_DEF_ARN" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=DISABLED}" \
             --overrides '{
               "containerOverrides": [
                 {
