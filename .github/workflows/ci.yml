@@ -25,7 +25,7 @@ jobs:
           - 3306:3306
         # >  = folded（複数行を1行相当に畳む）
         # -  = chomp（末尾の改行を付けない）
-        # -- = コマンドの長いオプション記号（例: --all など）
+        # -- = コマンドの長いオプション記号（例: --allなど）
         options: >-
           --health-cmd="mysqladmin ping -uroot -proot --silent"
           --health-interval=10s
@@ -70,6 +70,7 @@ jobs:
           poetry run flake8 src/
           poetry run black --check src/
           poetry run isort --check-only src/
+          
       # アプリ内の tests.py はここで実行
       - name: Test
         run: poetry run python src/manage.py test

@@ -8,13 +8,8 @@ terraform {
     }
   }
 
-  # Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
   backend "s3" {
-    bucket         = "mysfa-terraform-state"
-    key            = "terraform.tfstate"
-    region         = "ap-northeast-1"
-    encrypt        = true
-    dynamodb_table = "mysfa-terraform-lock"
+    # backend-config は GitHub Actions 側(terraform init)で注入する
   }
 }
 
