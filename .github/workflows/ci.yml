@@ -52,7 +52,8 @@ jobs:
 
       - uses: snok/install-poetry@v1
         with:
-          version: latest
+          # Poetry 2系では lock のオプション体系が変わるため、CIでは1系に固定する
+          version: "1.8.5"
           virtualenvs-create: true
           virtualenvs-in-project: true
 
@@ -60,10 +61,8 @@ jobs:
         run: poetry install --no-interaction --no-root --with dev
 
       - name: Lockfile consistency check
-        # pyproject.toml と poetry.lock の整合性だけ確認（変更が出たら失敗）
-        run: |
-          poetry lock --no-update
-          git diff --exit-code poetry.lock pyproject.toml
+        # pyproject.toml と poetry.lock の整合性だけ確認（書き換えない）
+        run: poetry lock --check
 
       - name: Lint / Format checks
         run: |
