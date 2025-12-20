@@ -53,9 +53,7 @@ jobs:
       - uses: snok/install-poetry@v1
         with:
           version: latest
-          # Poetry に仮想環境を作らせる
           virtualenvs-create: true
-          # 仮想環境をプロジェクト直下の .venv に作る
           virtualenvs-in-project: true
 
       - name: Install dependencies
