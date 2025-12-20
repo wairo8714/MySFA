@@ -55,7 +55,6 @@ jobs:
         run: |
           echo "IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${DEPLOY_SHA}" >> $GITHUB_ENV
 
-
       - name: Register new ECS task definition
         id: ecs-task
         run: |
