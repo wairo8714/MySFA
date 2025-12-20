@@ -8,13 +8,8 @@ terraform {
     }
   }
 
-  # Terraform の状態ファイルは、既存の S3 バケット & DynamoDB ロックテーブルを利用
   backend "s3" {
-    bucket         = "mysfa-terraform-state"
-    key            = "terraform.tfstate"
-    region         = "ap-northeast-1"
-    encrypt        = true
-    dynamodb_table = "mysfa-terraform-lock"
+    # backend-config は GitHub Actions 側(terraform init)で注入する
   }
 }
 
@@ -22,9 +17,8 @@ provider "aws" {
   region = var.aws_region
 }
 
-# ============================================
 # VPC
-# ============================================
+
 module "vpc" {
   source = "./modules/vpc"
 
@@ -34,25 +28,23 @@ module "vpc" {
   private_subnet_cidrs = var.private_subnet_cidrs
 }
 
-# ============================================
 # S3
-# ============================================
+
 module "s3" {
   source = "./modules/s3"
 
   project_name = var.project_name
   environment  = var.environment
 
-  # 例: mysfa-deploy-files
   bucket_name = var.s3_bucket_name
 
-  # CORS 用に使用（https://mysfa.net, https://www.mysfa.net を許可）
+  # CORS 用に使用
   domain_name = var.domain_name
 }
 
-# ============================================
+
 # セキュリティグループ
-# ============================================
+
 
 # ALB用セキュリティグループ
 resource "aws_security_group" "alb" {
@@ -117,12 +109,11 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
-# ============================================
 # ACM / Route53 / ALB
-# ============================================
 
 resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
+  subject_alternative_names = ["www.${var.domain_name}"]
   validation_method = "DNS"
 
   lifecycle {
@@ -255,9 +246,7 @@ resource "aws_route53_record" "www" {
   }
 }
 
-# ============================================
 # ECR
-# ============================================
 
 module "ecr" {
   source = "./modules/ecr"
@@ -273,9 +262,7 @@ module "ecr" {
   lifecycle_keep_last      = 10
 }
 
-# ============================================
 # IAM（ECS 用ロール）
-# ============================================
 
 module "iam" {
   source = "./modules/iam"
@@ -289,9 +276,7 @@ module "iam" {
   cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
 }
 
-# ============================================
 # RDS (MySQL)
-# ============================================
 
 module "rds" {
   source = "./modules/rds"
@@ -318,9 +303,7 @@ module "rds" {
   apply_immediately       = true
 }
 
-# ============================================
 # ECS（RDS 接続版・web コンテナのみ）
-# ============================================
 
 module "ecs" {
   source = "./modules/ecs"
@@ -348,7 +331,7 @@ module "ecs" {
 
   aws_region = var.aws_region
 
-  # ===== Django env =====
+  # Django env
   secret_key    = var.secret_key
   debug         = var.debug
   allowed_hosts = var.allowed_hosts

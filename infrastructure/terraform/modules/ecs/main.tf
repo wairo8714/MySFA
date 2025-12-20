@@ -1,7 +1,3 @@
-#############################################
-# modules/ecs_app/main.tf
-#############################################
-
 locals {
   # Django 用 bool → 文字列変換
   debug_string  = var.debug ? "True" : "False"
@@ -59,9 +55,7 @@ locals {
   ]
 }
 
-# ============================================
 # ECS クラスタ
-# ============================================
 resource "aws_ecs_cluster" "app" {
   name = var.cluster_name
 
@@ -72,9 +66,7 @@ resource "aws_ecs_cluster" "app" {
   }
 }
 
-# ============================================
 # CloudWatch Logs グループ
-# ============================================
 resource "aws_cloudwatch_log_group" "app" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_in_days
@@ -86,9 +78,7 @@ resource "aws_cloudwatch_log_group" "app" {
   }
 }
 
-# ============================================
-# ECS タスク定義（web のみ）
-# ============================================
+# ECS タスク定義
 resource "aws_ecs_task_definition" "app" {
   family                   = "${var.project_name}-${var.environment}-task"
   requires_compatibilities = ["FARGATE"]
@@ -136,9 +126,7 @@ resource "aws_ecs_task_definition" "app" {
   }
 }
 
-# ============================================
 # ECS サービス
-# ============================================
 resource "aws_ecs_service" "app" {
   name            = "${var.project_name}-${var.environment}-service"
   cluster         = aws_ecs_cluster.app.id
@@ -164,8 +152,10 @@ resource "aws_ecs_service" "app" {
   enable_execute_command = true
 
   lifecycle {
-    # 手動で desired_count だけ変える運用を許容する
-    ignore_changes = [desired_count]
+    ignore_changes = [
+      desired_count,
+      task_definition,
+    ]
   }
 
   tags = {

@@ -1,36 +1,46 @@
 name: Terraform
 
 on:
-  pull_request:
-    branches:
-      - main
-      - deploy/*
-  push:
-    branches:
-      - main
-      - deploy/*
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  #同一ブランチ内のデプロイを最新分のみ実行 旧デプロイは停止させ、巻き戻しを防ぐ
+  group: terraform-${{ github.repository }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
 
 env:
-  # Terraform が AWS にアクセスするための認証情報
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+  AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
 
-  # Terraform 変数に渡すアプリ固有の値
-  TF_VAR_allowed_hosts:   ${{ secrets.ALLOWED_HOSTS }}
-  TF_VAR_mysql_database:  ${{ secrets.MYSQL_DATABASE }}
-  TF_VAR_mysql_user:      ${{ secrets.MYSQL_USER }}
+  TF_VAR_allowed_hosts:   ${{ vars.ALLOWED_HOSTS }}
+  TF_VAR_mysql_database:  ${{ vars.MYSQL_DATABASE }}
+  TF_VAR_mysql_user:      ${{ vars.MYSQL_USER }}
   TF_VAR_mysql_password:  ${{ secrets.MYSQL_PASSWORD }}
   TF_VAR_secret_key:      ${{ secrets.SECRET_KEY }}
-  TF_VAR_domain_name:     ${{ secrets.DOMAIN_NAME }}
-  TF_VAR_s3_bucket_name:  ${{ secrets.S3_BUCKET_NAME }}
+  TF_VAR_domain_name:     ${{ vars.DOMAIN_NAME }}
+  TF_VAR_s3_bucket_name:  ${{ vars.AWS_STORAGE_BUCKET_NAME }}
   TF_VAR_project_name:    mysfa
-  # 必要であれば Terraform 側の debug 変数にも渡す
-  # TF_VAR_debug:           ${{ secrets.DEBUG }}
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
+
+    # CI 成功時に実行 / フォークPRは弾くことでCIの成功を担保
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        github.event.workflow_run.event == 'push' ||
+        (
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
 
     defaults:
       run:
@@ -39,6 +49,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -47,13 +59,17 @@ jobs:
           terraform_wrapper: true
 
       - name: Terraform init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET_NAME }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_STATE_DYNAMODB_TABLE }}" \
+            -backend-config="encrypt=true"
 
-      # PR / push 共通で plan は実行（失敗したらそこでジョブ中断）
       - name: Terraform plan
         run: terraform plan -input=false -no-color
 
-      # push のときだけ apply までやる
       - name: Terraform apply
-        if: github.event_name == 'push'
+        if: ${{ github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
         run: terraform apply -auto-approve -input=false
