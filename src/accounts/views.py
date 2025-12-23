@@ -3,7 +3,7 @@ import re
 
 from django.contrib import messages
 from django.contrib.auth import logout
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -71,11 +71,11 @@ class PasswordResetView(View):
         new_password = request.POST.get("new_password")
         confirm_password = request.POST.get("confirm_password")
         custom_user_id = request.session.get("custom_user_id")
-        password_pattern = re.compile(r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,15}$")
+        password_pattern = re.compile(r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,20}$")
         if not password_pattern.match(new_password):
             messages.error(
                 request,
-                "パスワードは半角英数字を各1文字以上含む5文字以上15文字以下で入力してください。",
+                "パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
             )
             return render(request, "forgot_password.html", {"reset_password": True})
 
@@ -85,8 +85,11 @@ class PasswordResetView(View):
 
         try:
             user = CustomUser.objects.get(custom_user_id=custom_user_id)
-            user.password1 = make_password(new_password)
-            user.password2 = make_password(new_password)
+            # Django標準の password フィールドも更新する（ログインに必要）
+            user.set_password(new_password)
+            # 既存仕様の password1/password2 も整合させる（保存時にハッシュ化される）
+            user.password1 = new_password
+            user.password2 = new_password
             user.save()
             messages.success(request, "パスワードがリセットされました。")
             return redirect("login")

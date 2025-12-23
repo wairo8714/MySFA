@@ -147,6 +147,12 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "mysfa:timeline"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# username欄で「ユーザー名」or「ユーザーID(custom_user_id)」どちらでもログイン可能にする
+AUTHENTICATION_BACKENDS = [
+    "accounts.backends.UserIdOrUsernameBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = False
 X_FRAME_OPTIONS = "DENY"

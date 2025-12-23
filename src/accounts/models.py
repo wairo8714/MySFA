@@ -1,7 +1,7 @@
 import os
 import uuid
 
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import identify_hasher, make_password
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
@@ -29,8 +29,8 @@ class CustomUser(AbstractUser):
         verbose_name="パスワード",
         validators=[
             RegexValidator(
-                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,15}$",
-                message="パスワードは半角英数字を各1文字以上含む5文字以上15文字以下で入力してください。",
+                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,20}$",
+                message="パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
             )
         ],
     )
@@ -40,8 +40,8 @@ class CustomUser(AbstractUser):
         verbose_name="パスワード確認",
         validators=[
             RegexValidator(
-                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,15}$",
-                message="パスワードは半角英数字を各1文字以上含む5文字以上15文字以下で入力してください。",
+                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,20}$",
+                message="パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
             )
         ],
     )
@@ -83,8 +83,19 @@ class CustomUser(AbstractUser):
                 ):
                     default_storage.delete(old_instance.profile_image.name)
 
-        self.password1 = make_password(self.password1)
-        self.password2 = make_password(self.password2)
-        self.answer = make_password(self.answer)
+        def is_hashed(value: str) -> bool:
+            try:
+                identify_hasher(value)
+                return True
+            except Exception:
+                return False
+
+        # すでにハッシュ済みの値を再ハッシュしない（更新時の地雷回避）
+        if self.password1 and not is_hashed(self.password1):
+            self.password1 = make_password(self.password1)
+        if self.password2 and not is_hashed(self.password2):
+            self.password2 = make_password(self.password2)
+        if self.answer and not is_hashed(self.answer):
+            self.answer = make_password(self.answer)
 
         super().save(*args, **kwargs)
