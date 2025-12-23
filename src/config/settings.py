@@ -14,12 +14,6 @@ STATICFILES_DIRS = [
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-# Demo mode (read-only, auto-login)
-DEMO_ENABLED = os.getenv("DEMO_ENABLED", "False").lower() == "true"
-DEMO_USER_ID = os.getenv("DEMO_USER_ID", "demo001")
-DEMO_GROUP_CUSTOM_ID = os.getenv("DEMO_GROUP_CUSTOM_ID", "DEMO0001")
-DEMO_GROUP_NAME = os.getenv("DEMO_GROUP_NAME", "体験用グループ")
-
 ALLOWED_HOSTS_STR = os.getenv(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1,mysfa.net,app",
@@ -50,9 +44,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-if DEMO_ENABLED:
-    MIDDLEWARE.append("mysfa.middleware.DemoReadOnlyMiddleware")
 
 ROOT_URLCONF = "config.urls"
 
