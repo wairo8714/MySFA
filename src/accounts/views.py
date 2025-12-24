@@ -193,211 +193,50 @@ class CustomLogoutView(View):
 
 class DeleteAccountView(View):
     def get(self, request):
-        if "messages" in request.session:
-            del request.session["messages"]
+        if not request.user.is_authenticated:
+            return redirect("login")
 
-        user = request.user
-        logger.info(f"Original request.user: {type(user)}")
-        logger.info(f"request.user.is_authenticated: {user.is_authenticated}")
-
-        if hasattr(user, "_wrapped"):
-            user = user._wrapped
-            logger.info(f"After _wrapped: {type(user)}")
-
-        try:
-            if user.is_authenticated:
-                logger.info(
-                    f"User is authenticated, custom_user_id: "
-                    f"{getattr(user, 'custom_user_id', 'Not found')}"
-                )
-                fresh_user = CustomUser.objects.get(
-                    custom_user_id=user.custom_user_id,
-                )
-                logger.info(
-                    f"Fresh user retrieved: {type(fresh_user)}, "
-                    f"ID: {fresh_user.custom_user_id}"
-                )
-            else:
-                logger.info("User is not authenticated")
-                fresh_user = None
-        except (CustomUser.DoesNotExist, AttributeError) as e:
-            logger.error(f"Error getting fresh user: {e}")
-            fresh_user = None
-
-        context = {
-            "debug": True,
-            "user": fresh_user if fresh_user else user,
-            "user_type": (
-                type(fresh_user).__name__ if fresh_user else type(user).__name__
-            ),
-            "verification_result": None,
-        }
-
-        logger.info(f"Final context user: {type(context['user'])}")
-        if context["user"]:
-            logger.info(
-                f"Final user ID: "
-                f"{getattr(context['user'], 'custom_user_id', 'Not found')}"
-            )
-
-        return render(request, "registration/delete_account.html", context)
+        return render(
+            request,
+            "registration/delete_account.html",
+            {"user": request.user},
+        )
 
     def post(self, request):
-        password = request.POST.get("password")
+        if not request.user.is_authenticated:
+            messages.error(request, "ログインしてください。")
+            return redirect("login")
 
-        user = request.user
-        logger.info(f"POST - Original request.user: {type(user)}")
-        logger.info(f"POST - request.user.is_authenticated: {user.is_authenticated}")
-
-        if hasattr(user, "_wrapped"):
-            user = user._wrapped
-            logger.info(f"POST - After _wrapped: {type(user)}")
+        password = request.POST.get("password") or ""
+        if not password:
+            messages.error(request, "パスワードを入力してください。")
+            return render(
+                request,
+                "registration/delete_account.html",
+                {"user": request.user},
+            )
 
         try:
-            if user.is_authenticated:
-                logger.info(
-                    f"POST - User is authenticated, custom_user_id: "
-                    f"{getattr(user, 'custom_user_id', 'Not found')}"
-                )
-                fresh_user = CustomUser.objects.get(
-                    custom_user_id=user.custom_user_id,
-                )
-                logger.info(
-                    f"POST - Fresh user retrieved: {type(fresh_user)}, "
-                    f"ID: {fresh_user.custom_user_id}"
-                )
-            else:
-                logger.info("POST - User is not authenticated")
-                messages.error(request, "ユーザーが認証されていません。")
-                return render(request, "registration/delete_account.html")
-        except (CustomUser.DoesNotExist, AttributeError) as e:
-            logger.error(f"POST - Error getting fresh user: {e}")
-            messages.error(request, "ユーザー情報の取得に失敗しました。")
-            return render(request, "registration/delete_account.html")
+            fresh_user = CustomUser.objects.get(pk=request.user.pk)
+        except CustomUser.DoesNotExist:
+            messages.error(request, "ユーザーが見つかりません。")
+            return redirect("home")
 
-        logger.info(f"Delete account attempt for user: {fresh_user.custom_user_id}")
-        logger.info(f"User model type: {type(fresh_user)}")
+        password_verified = fresh_user.check_password(password)
 
-        user_fields = [field.name for field in fresh_user._meta.fields]
-        logger.info(f"User fields: {user_fields}")
-
-        logger.info(f"Password field exists: {hasattr(fresh_user, 'password1')}")
-        logger.info(
-            f"Password1 field value: "
-            f"{getattr(fresh_user, 'password1', 'Not found')}"
-        )
-        logger.info(
-            f"Standard password field exists: {hasattr(fresh_user, 'password')}"
-        )
-        logger.info(
-            f"Standard password field value: "
-            f"{getattr(fresh_user, 'password', 'Not found')}"
-        )
-
-        password_verified = False
-        verification_method = None
-
-        if hasattr(fresh_user, "password1") and fresh_user.password1:
-            try:
-                if check_password(password, fresh_user.password1):
-                    password_verified = True
-                    verification_method = "password1 field"
-                    logger.info(
-                        "Password verification successful using password1 field"
-                    )
-                else:
-                    logger.info("Password verification failed using password1 field")
-            except Exception as e:
-                logger.error(f"Error checking password with password1: {e}")
+        if not password_verified and hasattr(fresh_user, "password1") and fresh_user.password1:
+            password_verified = check_password(password, fresh_user.password1)
 
         if not password_verified:
-            try:
-                if fresh_user.check_password(password):
-                    password_verified = True
-                    verification_method = "Django's check_password"
-                    logger.info(
-                        "Password verification successful using Django's check_password"
-                    )
-                else:
-                    logger.info(
-                        "Password verification failed using Django's check_password"
-                    )
-            except Exception as e:
-                logger.error(f"Error checking password with Django's method: {e}")
-
-        if not password_verified and hasattr(fresh_user, "password1"):
-            try:
-                latest_user = CustomUser.objects.get(
-                    custom_user_id=fresh_user.custom_user_id,
-                )
-                if check_password(password, latest_user.password1):
-                    password_verified = True
-                    verification_method = "latest user data"
-                    logger.info(
-                        "Password verification successful using latest user data"
-                    )
-                else:
-                    logger.info("Password verification failed using latest user data")
-            except Exception as e:
-                logger.error(f"Error checking password with latest user data: {e}")
-
-        logger.info(f"Final password verification result: {password_verified}")
-        if password_verified:
-            logger.info(f"Verification method used: {verification_method}")
-
-        if password_verified:
-            logger.info(
-                f"Password verification successful for user: "
-                f"{fresh_user.custom_user_id}"
-            )
-            try:
-                logger.info(f"About to delete user: {fresh_user.custom_user_id}")
-
-                fresh_user.delete()
-                logger.info(
-                    f"User {fresh_user.custom_user_id} deleted successfully"
-                )
-
-                try:
-                    check_user = CustomUser.objects.get(
-                        custom_user_id=fresh_user.custom_user_id,
-                    )
-                    logger.warning(
-                        f"User still exists after deletion: {check_user.custom_user_id}"
-                    )
-                except CustomUser.DoesNotExist:
-                    logger.info(
-                        f"User {fresh_user.custom_user_id} "
-                        f"confirmed deleted from database"
-                    )
-
-                request.session.flush()
-                logout(request)
-                messages.success(request, "アカウントが削除されました。")
-                return redirect("home")
-            except Exception as e:
-                logger.error(f"Error deleting user: {e}")
-                messages.error(
-                    request,
-                    "アカウントの削除中にエラーが発生しました。",
-                )
-                return render(request, "registration/delete_account.html")
-        else:
-            logger.warning(
-                f"All password verification methods failed for user: "
-                f"{fresh_user.custom_user_id}"
-            )
-
-            context = {
-                "debug": True,
-                "user": fresh_user,
-                "user_type": type(fresh_user).__name__,
-                "verification_result": {
-                    "verified": False,
-                    "method": "None",
-                    "password_length": len(password) if password else 0,
-                },
-            }
-
             messages.error(request, "パスワードが正しくありません。")
-            return render(request, "registration/delete_account.html", context)
+            return render(
+                request,
+                "registration/delete_account.html",
+                {"user": fresh_user},
+            )
+
+        fresh_user.delete()
+        request.session.flush()
+        logout(request)
+        messages.success(request, "アカウントが削除されました。")
+        return redirect("home")
