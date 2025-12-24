@@ -61,7 +61,10 @@ class ForgotPasswordView(View):
 
 class VerifyAnswerView(View):
     def post(self, request):
-        custom_user_id = request.session.get(PW_RESET_USER_ID_KEY) or request.session.get("custom_user_id")
+        custom_user_id = (
+            request.session.get(PW_RESET_USER_ID_KEY)
+            or request.session.get("custom_user_id")
+        )
         secret_answer = request.POST.get("secret_answer")
 
         if not custom_user_id:
@@ -72,13 +75,26 @@ class VerifyAnswerView(View):
             user = CustomUser.objects.get(custom_user_id=custom_user_id)
             if check_password(secret_answer, user.answer):
                 request.session[PW_RESET_VERIFIED_KEY] = True
-                #セッション固定攻撃対策
+                
+                # セッション固定攻撃対策
                 request.session.cycle_key()
-                return render(request, "forgot_password.html", {"reset_password": True})
+                return render(
+                    request,
+                    "forgot_password.html",
+                    {"reset_password": True}
+                )
 
             request.session[PW_RESET_VERIFIED_KEY] = False
-            messages.error(request, "秘密の質問の答えが正しくありません。")
-            return render(request, "forgot_password.html", {"secret_question": user.question})
+            messages.error(
+                request,
+                "秘密の質問の答えが正しくありません。"
+            )
+            
+            return render(
+                request,
+                "forgot_password.html",
+                {"secret_question": user.question}
+            )
           
         except CustomUser.DoesNotExist:
             messages.error(request, "ユーザーが見つかりません。")
@@ -88,11 +104,17 @@ class VerifyAnswerView(View):
 
 class PasswordResetView(View):
     def post(self, request):
-        custom_user_id = request.session.get(PW_RESET_USER_ID_KEY) or request.session.get("custom_user_id")
+        custom_user_id = (
+            request.session.get(PW_RESET_USER_ID_KEY)
+            or request.session.get("custom_user_id")
+        )
         verified = request.session.get(PW_RESET_VERIFIED_KEY) is True
 
         if not custom_user_id or not verified:
-            messages.error(request, "問題が発生しました。やり直してください。")
+            messages.error(
+                request,
+                "問題が発生しました。やり直してください。"
+            )
             _clear_pw_reset_session(request.session)
             return redirect("accounts:forgot_password")
 
@@ -115,7 +137,7 @@ class PasswordResetView(View):
             user = CustomUser.objects.get(custom_user_id=custom_user_id)
             user.set_password(new_password)
 
-            #後々password1,2は削除(この記述も削除)
+            # 後々password1,2は削除(この記述も削除)
             user.password1 = new_password
             user.password2 = new_password
 
