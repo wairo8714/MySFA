@@ -7,13 +7,12 @@ from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
-from django.views import View, generic
+from django.views import generic, View
 
 from .forms import CustomUserCreationForm
 from .models import CustomUser
 
 logger = logging.getLogger(__name__)
-
 
 
 class SignUpView(generic.CreateView):
@@ -36,12 +35,10 @@ PW_RESET_USER_ID_KEY = "pw_reset_user_id"
 PW_RESET_VERIFIED_KEY = "pw_reset_verified"
 
 
-
 def _clear_pw_reset_session(session):
     session.pop(PW_RESET_USER_ID_KEY, None)
     session.pop(PW_RESET_VERIFIED_KEY, None)
     session.pop("custom_user_id", None)
-
 
 
 class ForgotPasswordView(View):
@@ -59,12 +56,13 @@ class ForgotPasswordView(View):
             request.session[PW_RESET_USER_ID_KEY] = user.custom_user_id
             request.session[PW_RESET_VERIFIED_KEY] = False
             return render(
-                request, "forgot_password.html", {"secret_question": user.question}
+                request,
+                "forgot_password.html",
+                {"secret_question": user.question},
             )
         except CustomUser.DoesNotExist:
             messages.error(request, "ユーザーIDが見つかりません。")
             return render(request, "forgot_password.html")
-
 
 
 class VerifyAnswerView(View):
@@ -108,7 +106,6 @@ class VerifyAnswerView(View):
             messages.error(request, "ユーザーが見つかりません。")
             _clear_pw_reset_session(request.session)
             return redirect("accounts:forgot_password")
-
 
 
 class PasswordResetView(View):
@@ -169,7 +166,6 @@ class PasswordResetView(View):
             return redirect("accounts:forgot_password")
 
 
-
 class CheckUserIdView(View):
     def get(self, request, *args, **kwargs):
         user_id = request.GET.get("custom_user_id", None)
@@ -188,13 +184,11 @@ class CheckUserIdView(View):
         )
 
 
-
 class CustomLogoutView(View):
     def get(self, request):
         request.session.flush()
         logout(request)
         return redirect("home")
-
 
 
 class DeleteAccountView(View):
