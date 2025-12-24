@@ -7,7 +7,7 @@ from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
-from django.views import generic, View
+from django.views import View, generic
 
 from .forms import CustomUserCreationForm
 from .models import CustomUser
