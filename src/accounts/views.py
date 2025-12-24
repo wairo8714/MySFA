@@ -37,6 +37,17 @@ def _clear_pw_reset_session(session):
     session.pop(PW_RESET_VERIFIED_KEY, None)
     session.pop("custom_user_id", None)
 
+# パスワードリセット用のセッションキー
+PW_RESET_USER_ID_KEY = "pw_reset_user_id"
+PW_RESET_VERIFIED_KEY = "pw_reset_verified"
+
+
+def _clear_pw_reset_session(session):
+    session.pop(PW_RESET_USER_ID_KEY, None)
+    session.pop(PW_RESET_VERIFIED_KEY, None)
+    session.pop("custom_user_id", None)
+
+
 class ForgotPasswordView(View):
     def get(self, request):
         return render(request, "forgot_password.html")
@@ -52,7 +63,9 @@ class ForgotPasswordView(View):
             request.session[PW_RESET_USER_ID_KEY] = user.custom_user_id
             request.session[PW_RESET_VERIFIED_KEY] = False
             return render(
-                request, "forgot_password.html", {"secret_question": user.question}
+                request,
+                "forgot_password.html",
+                {"secret_question": user.question},
             )
         except CustomUser.DoesNotExist:
             messages.error(request, "ユーザーIDが見つかりません。")
@@ -127,11 +140,19 @@ class PasswordResetView(View):
                 request,
                 "パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
             )
-            return render(request, "forgot_password.html", {"reset_password": True})
+            return render(
+                request,
+                "forgot_password.html",
+                {"reset_password": True},
+            )
 
         if new_password != confirm_password:
             messages.error(request, "パスワードが一致しません。")
-            return render(request, "forgot_password.html", {"reset_password": True})
+            return render(
+                request,
+                "forgot_password.html",
+                {"reset_password": True},
+            )
 
         try:
             user = CustomUser.objects.get(custom_user_id=custom_user_id)
@@ -159,11 +180,15 @@ class CheckUserIdView(View):
             exists = CustomUser.objects.filter(custom_user_id=user_id).exists()
             if exists:
                 return JsonResponse(
-                    {"error": "このユーザーIDは既に使用されています。"}, status=400
+                    {"error": "このユーザーIDは既に使用されています。"},
+                    status=400,
                 )
             else:
                 return JsonResponse({"success": "このユーザーIDは使用可能です。"})
-        return JsonResponse({"error": "ユーザーIDが提供されていません。"}, status=400)
+        return JsonResponse(
+            {"error": "ユーザーIDが提供されていません。"},
+            status=400,
+        )
 
 
 class CustomLogoutView(View):
@@ -192,7 +217,9 @@ class DeleteAccountView(View):
                     f"User is authenticated, custom_user_id: "
                     f"{getattr(user, 'custom_user_id', 'Not found')}"
                 )
-                fresh_user = CustomUser.objects.get(custom_user_id=user.custom_user_id)
+                fresh_user = CustomUser.objects.get(
+                    custom_user_id=user.custom_user_id,
+                )
                 logger.info(
                     f"Fresh user retrieved: {type(fresh_user)}, "
                     f"ID: {fresh_user.custom_user_id}"
@@ -239,7 +266,9 @@ class DeleteAccountView(View):
                     f"POST - User is authenticated, custom_user_id: "
                     f"{getattr(user, 'custom_user_id', 'Not found')}"
                 )
-                fresh_user = CustomUser.objects.get(custom_user_id=user.custom_user_id)
+                fresh_user = CustomUser.objects.get(
+                    custom_user_id=user.custom_user_id,
+                )
                 logger.info(
                     f"POST - Fresh user retrieved: {type(fresh_user)}, "
                     f"ID: {fresh_user.custom_user_id}"
@@ -255,7 +284,10 @@ class DeleteAccountView(View):
 
         logger.info(f"Delete account attempt for user: {fresh_user.custom_user_id}")
         logger.info(f"User model type: {type(fresh_user)}")
-        logger.info(f"User fields: {[field.name for field in fresh_user._meta.fields]}")
+
+        user_fields = [field.name for field in fresh_user._meta.fields]
+        logger.info(f"User fields: {user_fields}")
+
         logger.info(f"Password field exists: {hasattr(fresh_user, 'password1')}")
         logger.info(
             f"Password1 field value: "
@@ -303,7 +335,7 @@ class DeleteAccountView(View):
         if not password_verified and hasattr(fresh_user, "password1"):
             try:
                 latest_user = CustomUser.objects.get(
-                    custom_user_id=fresh_user.custom_user_id
+                    custom_user_id=fresh_user.custom_user_id,
                 )
                 if check_password(password, latest_user.password1):
                     password_verified = True
@@ -329,11 +361,13 @@ class DeleteAccountView(View):
                 logger.info(f"About to delete user: {fresh_user.custom_user_id}")
 
                 fresh_user.delete()
-                logger.info(f"User {fresh_user.custom_user_id} deleted successfully")
+                logger.info(
+                    f"User {fresh_user.custom_user_id} deleted successfully"
+                )
 
                 try:
                     check_user = CustomUser.objects.get(
-                        custom_user_id=fresh_user.custom_user_id
+                        custom_user_id=fresh_user.custom_user_id,
                     )
                     logger.warning(
                         f"User still exists after deletion: {check_user.custom_user_id}"
@@ -350,7 +384,10 @@ class DeleteAccountView(View):
                 return redirect("home")
             except Exception as e:
                 logger.error(f"Error deleting user: {e}")
-                messages.error(request, "アカウントの削除中にエラーが発生しました。")
+                messages.error(
+                    request,
+                    "アカウントの削除中にエラーが発生しました。",
+                )
                 return render(request, "registration/delete_account.html")
         else:
             logger.warning(
