@@ -45,7 +45,7 @@ class CustomUser(AbstractUser):
             )
         ],
     )
-    question = models.CharField(max_length=128, blank=False, verbose_name="秘密の質問")
+    question = models.CharField(max_length=20, blank=False, verbose_name="秘密の質問")
     answer = models.CharField(max_length=128, blank=False, verbose_name="答え")
 
     def user_profile_image_path(self, filename):
