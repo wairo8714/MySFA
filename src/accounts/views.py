@@ -224,7 +224,11 @@ class DeleteAccountView(View):
 
         password_verified = fresh_user.check_password(password)
 
-        if not password_verified and hasattr(fresh_user, "password1") and fresh_user.password1:
+        if (
+            not password_verified
+            and hasattr(fresh_user, "password1") 
+            and fresh_user.password1
+        ):
             password_verified = check_password(password, fresh_user.password1)
 
         if not password_verified:
