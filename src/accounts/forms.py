@@ -4,7 +4,7 @@ from django.contrib.auth.forms import UserCreationForm
 
 
 class CustomUserCreationForm(UserCreationForm):
-    custom_user_id = forms.CharField(max_length=30, required=True)
+    custom_user_id = forms.CharField(max_length=15, required=True)
 
     class Meta(UserCreationForm.Meta):
         model = get_user_model()
