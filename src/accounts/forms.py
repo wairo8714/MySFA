@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
+from django.core.validators import RegexValidator
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -8,17 +9,28 @@ class CustomUserCreationForm(UserCreationForm):
         label="ID",
         max_length=15,
         required=True,
+        validators=[
+            RegexValidator(
+                regex=r"^[0-9A-Za-z]+$",
+                message="IDは半角英数字のみで入力してください。",
+                code="invalid_custom_user_id",
+            )
+        ],
+        error_messages={
+            "required": "IDを入力してください。",
+            "max_length": "IDは15文字以内で入力してください。",
+        },
     )
-    
+
     question = forms.CharField(
         label="質問",
         max_length=20,
         required=True,
     )
-    
+
     answer = forms.CharField(
         label="質問の答え",
-        max_length=20, 
+        max_length=20,
         required=True,
     )
 
@@ -27,10 +39,18 @@ class CustomUserCreationForm(UserCreationForm):
         strip=False,
         max_length=20,
         required=True,
+        validators=[
+            RegexValidator(
+                # 英字を1文字以上 & 数字を1文字以上含む
+                regex=r"^(?=.*[A-Za-z])(?=.*\d).+$",
+                message="パスワードは英字と数字をそれぞれ1文字以上含めてください。",
+                code="invalid_password_format",
+            )
+        ],
         widget=forms.PasswordInput(
             attrs={
                 "autocomplete": "new-password",
-                #min_lengthはsettings.pyにて定義済
+                # min_lengthはsettings.pyにて定義済
                 "maxlength": "20",
             }
         ),
