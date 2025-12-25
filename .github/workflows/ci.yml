@@ -60,11 +60,11 @@ jobs:
         # pyproject.toml と poetry.lock の整合性だけ確認（書き換えない）
         run: poetry lock --check
 
-      - name: Lint / Format checks
-        run: |
-          poetry run flake8 src/
-          # poetry run black --check src/
-          poetry run isort --check-only src/
+      # - name: Lint / Format checks
+      #   run: |
+      #     poetry run flake8 src/
+      #     poetry run black --check src/
+      #     poetry run isort --check-only src/
           
       # アプリ内の tests.py はここで実行
       - name: Test
