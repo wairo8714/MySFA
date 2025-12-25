@@ -21,13 +21,13 @@ class SignUpView(generic.CreateView):
     template_name = "registration/signup.html"
 
     def form_valid(self, form):
-        if form.is_valid():
-            user_id = form.cleaned_data.get("custom_user_id")
-            logger.info(f"Received user ID: {user_id}")
-            return super().form_valid(form)
-        else:
-            logger.error(f"Form errors: {form.errors}")
-            return self.form_invalid(form)
+        user_id = form.cleaned_data.get("custom_user_id")
+        logger.info(f"Received user ID: {user_id}")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        logger.error(f"Form errors: {form.errors}")
+        return self.form_invalid(form)
 
 
 # パスワードリセット用のセッションキー
