@@ -89,3 +89,19 @@ class CustomUserCreationForm(UserCreationForm):
             "question",
             "answer",
         )
+
+    def save(self, commit=True):
+        """
+        UserCreationForm の save は標準の password しかセットしないため、
+        CustomUser の必須フィールド（password1/password2/question/answer）も埋める。
+        """
+        user = super().save(commit=False)
+        user.custom_user_id = self.cleaned_data["custom_user_id"]
+        user.question = self.cleaned_data["question"]
+        user.answer = self.cleaned_data["answer"]
+        user.password1 = self.cleaned_data["password1"]
+        user.password2 = self.cleaned_data["password2"]
+
+        if commit:
+            user.save()
+        return user

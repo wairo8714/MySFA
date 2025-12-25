@@ -27,7 +27,7 @@ class SignUpView(generic.CreateView):
 
     def form_invalid(self, form):
         logger.error(f"Form errors: {form.errors}")
-        return self.form_invalid(form)
+        return super().form_invalid(form)
 
 
 # パスワードリセット用のセッションキー
