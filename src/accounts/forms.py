@@ -45,7 +45,7 @@ class CustomUserCreationForm(UserCreationForm):
                 regex=r"^(?=.*[A-Za-z])(?=.*\d).+$",
                 message="パスワードは英字と数字をそれぞれ1文字以上含めてください。",
                 code="invalid_password_format",
-            )
+            ) 
         ],
         widget=forms.PasswordInput(
             attrs={
@@ -91,16 +91,14 @@ class CustomUserCreationForm(UserCreationForm):
         )
 
     def save(self, commit=True):
-        """
-        UserCreationForm の save は標準の password しかセットしないため、
-        CustomUser の必須フィールド（password1/password2/question/answer）も埋める。
-        """
         user = super().save(commit=False)
         user.custom_user_id = self.cleaned_data["custom_user_id"]
         user.question = self.cleaned_data["question"]
         user.answer = self.cleaned_data["answer"]
-        user.password1 = self.cleaned_data["password1"]
-        user.password2 = self.cleaned_data["password2"]
+        if hasattr(user,"password1"):
+            user.password1 = user.password
+        if hasattr(user, "password2"):
+            user.password2 = user.password
 
         if commit:
             user.save()
