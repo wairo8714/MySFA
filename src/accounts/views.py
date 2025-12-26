@@ -152,8 +152,8 @@ class PasswordResetView(View):
             user.set_password(new_password)
 
             # 後々password1,2は削除(この記述も削除)
-            user.password1 = new_password
-            user.password2 = new_password
+            user.password1 = user.password
+            user.password2 = user.password
 
             user.save()
             _clear_pw_reset_session(request.session)
