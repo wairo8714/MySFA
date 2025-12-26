@@ -395,9 +395,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeSalesReport();
 });
 
-// =========================
-// Signup: custom_user_id availability check
-// =========================
 document.addEventListener('DOMContentLoaded', function() {
     const userIdInput = document.getElementById('registeringUserID');
     const messageEl = document.getElementById('user-id-message');
