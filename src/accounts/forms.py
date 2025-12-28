@@ -84,8 +84,6 @@ class CustomUserCreationForm(UserCreationForm):
         fields = (
             "username",
             "custom_user_id",
-            "password1",
-            "password2",
             "question",
             "answer",
         )
@@ -95,10 +93,6 @@ class CustomUserCreationForm(UserCreationForm):
         user.custom_user_id = self.cleaned_data["custom_user_id"]
         user.question = self.cleaned_data["question"]
         user.answer = self.cleaned_data["answer"]
-        if hasattr(user,"password1"):
-            user.password1 = user.password
-        if hasattr(user, "password2"):
-            user.password2 = user.password
 
         if commit:
             user.save()

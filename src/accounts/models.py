@@ -10,6 +10,11 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
+    username = models.CharField(max_length=20, blank=False, null=False)
+
+    USERNAME_FIELD = "custom_user_id"
+    REQUIRED_FIELDS = ["username"]
+    
     custom_user_id = models.CharField(
         primary_key=True,
         max_length=15,
@@ -23,29 +28,9 @@ class CustomUser(AbstractUser):
             )
         ],
     )
-    password1 = models.CharField(
-        max_length=128,
-        blank=False,
-        verbose_name="パスワード",
-        validators=[
-            RegexValidator(
-                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,20}$",
-                message="パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
-            )
-        ],
-    )
-    password2 = models.CharField(
-        max_length=128,
-        blank=False,
-        verbose_name="パスワード確認",
-        validators=[
-            RegexValidator(
-                r"^(?=.*[0-9])(?=.*[a-zA-Z]).{5,20}$",
-                message="パスワードは半角英数字を各1文字以上含む5文字以上20文字以下で入力してください。",
-            )
-        ],
-    )
+
     question = models.CharField(max_length=20, blank=False, verbose_name="秘密の質問")
+
     answer = models.CharField(max_length=128, blank=False, verbose_name="答え")
 
     def user_profile_image_path(self, filename):
@@ -59,19 +44,6 @@ class CustomUser(AbstractUser):
         blank=True,
         null=True,
     )
-
-    def clean(self):
-        self.clean_password()
-
-    def clean_password(self):
-        if not self.password1 == self.password2:
-            raise ValidationError("パスワードが一致していません。")
-        if (
-            CustomUser.objects.filter(custom_user_id=self.custom_user_id)
-            .exclude(pk=self.pk)
-            .exists()
-        ):
-            raise ValidationError("このユーザーIDは既に使用されています。")
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -90,11 +62,6 @@ class CustomUser(AbstractUser):
             except Exception:
                 return False
 
-        # すでにハッシュ済みの値を再ハッシュしない（更新時の地雷回避）
-        if self.password1 and not is_hashed(self.password1):
-            self.password1 = make_password(self.password1)
-        if self.password2 and not is_hashed(self.password2):
-            self.password2 = make_password(self.password2)
         if self.answer and not is_hashed(self.answer):
             self.answer = make_password(self.answer)
 
