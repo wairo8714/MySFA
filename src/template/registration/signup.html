@@ -32,7 +32,7 @@
             name="username"
             class="registering-control"
             title="ユーザー名"
-            maxlength="15"
+            maxlength="{{ form.username.field.max_length }}"
             required
             value="{{ form.username.value|default_if_none:'' }}"
         >
@@ -51,7 +51,7 @@
             name="custom_user_id"
             class="registering-control"
             title="ユーザーID"
-            maxlength="{{ form.username.field.max_length }}"
+            maxlength="{{ form.custom_user_id.field.max_length }}"
             required
             pattern="^[0-9a-zA-Z]+$"
             value="{{ form.custom_user_id.value|default_if_none:'' }}"
