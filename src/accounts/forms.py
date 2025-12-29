@@ -88,6 +88,10 @@ class CustomUserCreationForm(UserCreationForm):
             "answer",
         )
 
+    def clean_username(self):
+        # usernameのユニーク前提チェックを通さない
+        return self.clean_data["username"]
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.custom_user_id = self.cleaned_data["custom_user_id"]
