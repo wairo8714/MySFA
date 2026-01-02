@@ -262,16 +262,9 @@
 <p id="group-is-locked">このグループはロックされています。</p>
 {% endif %}
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('=== GROUPPOST.HTML DOM LOADED ===');
-        if (typeof initializeSalesReport === 'function') {
-            console.log('Initializing sales report...');
-            initializeSalesReport();
-        } else {
-            console.error('initializeSalesReport function not found');
-        }
-    });
-</script>
+{% endblock %}
 
+{% block extra_js %}
+<script src="{% static 'js/like.js' %}"></script>
+<script src="{% static 'js/sales-report.js' %}"></script>
 {% endblock %}
