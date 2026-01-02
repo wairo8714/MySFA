@@ -120,7 +120,7 @@ jobs:
       # collectstaticをECSタスクで実行し、差分や権限問題を解消
       - name: Run collectstatic via ECS task
         env:
-          SUBNETS: ${{ vars.ECS_SUBNET_IDS }}
+          SUBNETS: ${{ vars.ECS_PUBLIC_SUBNET_IDS }}
           SECURITY_GROUPS: ${{ vars.ECS_SECURITY_GROUP_IDS }}
         run: |
 
@@ -129,7 +129,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "$TASK_DEF_ARN" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
             --overrides '{
               "containerOverrides": [
                 {
@@ -152,7 +152,7 @@ jobs:
         # migrateも同様にECSタスクで実行
       - name: Run migrations via ECS task
         env:
-          SUBNETS: ${{ vars.ECS_SUBNET_IDS }}
+          SUBNETS: ${{ vars.ECS_PUBLIC_SUBNET_IDS }}
           SECURITY_GROUPS: ${{ vars.ECS_SECURITY_GROUP_IDS }}
         run: |
           TASK_ARN=$(aws ecs run-task \
@@ -160,7 +160,7 @@ jobs:
             --launch-type FARGATE \
             --task-definition "$TASK_DEF_ARN" \
             --count 1 \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=DISABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
             --overrides '{
               "containerOverrides": [
                 {
