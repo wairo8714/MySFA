@@ -29,9 +29,9 @@ resource "aws_ecr_lifecycle_policy" "app" {
         rulePriority = 1
         description  = "Keep last N images, expire older ones"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = var.lifecycle_keep_last
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.lifecycle_keep_last
         }
         action = {
           type = "expire"

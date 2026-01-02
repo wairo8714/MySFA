@@ -38,8 +38,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "app" {
 resource "aws_s3_bucket_public_access_block" "app" {
   bucket = aws_s3_bucket.app.id
 
-  block_public_acls       = true
-  ignore_public_acls      = true
+  block_public_acls  = true
+  ignore_public_acls = true
 
   # バケットポリシーは使うので、ここは false にしておく
   block_public_policy     = false
@@ -55,8 +55,8 @@ resource "aws_s3_bucket_policy" "app" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowPublicReadForStaticAndMedia"
-        Effect = "Allow"
+        Sid       = "AllowPublicReadForStaticAndMedia"
+        Effect    = "Allow"
         Principal = "*"
         Action = [
           "s3:GetObject"

@@ -112,9 +112,9 @@ resource "aws_security_group" "ecs_tasks" {
 # ACM / Route53 / ALB
 
 resource "aws_acm_certificate" "main" {
-  domain_name       = var.domain_name
+  domain_name               = var.domain_name
   subject_alternative_names = ["www.${var.domain_name}"]
-  validation_method = "DNS"
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true
@@ -272,7 +272,7 @@ module "iam" {
 
   app_bucket_arn  = module.s3.bucket_arn
   app_bucket_name = module.s3.bucket_name
- 
+
   cloudwatch_log_group_name = "/ecs/${var.project_name}-${var.environment}"
 }
 
@@ -287,7 +287,7 @@ module "rds" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnet_ids
 
-   allowed_security_group_ids = [aws_security_group.ecs_tasks.id]
+  allowed_security_group_ids = [aws_security_group.ecs_tasks.id]
 
   db_name  = var.mysql_database
   username = var.mysql_user
@@ -303,7 +303,7 @@ module "rds" {
   apply_immediately       = true
 }
 
-# ECS（RDS 接続版・web コンテナのみ）
+# ECS
 
 module "ecs" {
   source = "./modules/ecs"
@@ -313,7 +313,8 @@ module "ecs" {
 
   cluster_name = "${var.project_name}-${var.environment}-cluster"
 
-  subnet_ids         = module.vpc.private_subnet_ids
+  # NAT を使わずに運用するため、ECS は public subnet に配置する
+  subnet_ids         = module.vpc.public_subnet_ids
   security_group_ids = [aws_security_group.ecs_tasks.id]
 
   alb_target_group_arn = aws_lb_target_group.main.arn

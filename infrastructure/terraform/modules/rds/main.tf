@@ -25,10 +25,10 @@ resource "aws_security_group" "this" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "MySQL from ECS tasks SG"
-    from_port   = var.port
-    to_port     = var.port
-    protocol    = "tcp"
+    description     = "MySQL from ECS tasks SG"
+    from_port       = var.port
+    to_port         = var.port
+    protocol        = "tcp"
     security_groups = var.allowed_security_group_ids
   }
 
@@ -67,7 +67,7 @@ resource "aws_db_instance" "this" {
   publicly_accessible = var.publicly_accessible
   multi_az            = var.multi_az
 
-  backup_retention_period   = var.backup_retention_period
+  backup_retention_period    = var.backup_retention_period
   auto_minor_version_upgrade = true
   copy_tags_to_snapshot      = true
 

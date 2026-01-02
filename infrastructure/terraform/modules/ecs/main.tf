@@ -140,7 +140,7 @@ resource "aws_ecs_service" "app" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
-    assign_public_ip = true  # 今はパブリックサブネット運用
+    assign_public_ip = true # 今はパブリックサブネット運用
   }
 
   load_balancer {
