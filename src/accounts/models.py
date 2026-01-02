@@ -10,7 +10,7 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
-    username = models.CharField(max_length=20, blank=False, null=False)
+    username = models.CharField(max_length=20, blank=False, null=False, unique=False)
 
     USERNAME_FIELD = "custom_user_id"
     REQUIRED_FIELDS = ["username"]
