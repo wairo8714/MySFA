@@ -33,14 +33,6 @@ document.addEventListener("DOMContentLoaded", function () {
           },
         });
 
-        if (response.status === 401) {
-          const data = await response.json().catch(() => ({}));
-          if (data && data.redirect) {
-            window.location.href = data.redirect;
-          }
-          return;
-        }
-
         const data = await response.json().catch(() => ({}));
         if (!response.ok) return;
 
