@@ -58,6 +58,7 @@ class Group(AuthGroup):
         default="00000000",
         verbose_name="グループID",
     )
+    is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
     users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="user_groups",
@@ -67,7 +68,7 @@ class Group(AuthGroup):
         settings.AUTH_USER_MODEL,
         null=True,
         related_name="created_groups",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         verbose_name="グループ作成者",
     )
     icon = models.ImageField(

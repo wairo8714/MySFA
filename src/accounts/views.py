@@ -228,6 +228,28 @@ class DeleteAccountView(View):
                 {"user": fresh_user},
             )
 
+        from mysfa.models import Group
+
+        for group in Group.objects.filter(creator=fresh_user):
+            members = group.users.exclude(pk=fresh_user.pk).order_by("custom_user_id")
+            if members.exists():
+                group.creator = members.first()
+                group.is_active = True
+                group.save(update_fields=["creator", "is_active" ])
+            else:
+                group.creator = None
+                group.is_active = False
+                group.save(update_fields=["creator", "is_active"])
+
+        for group in Group.objects.filter(users=fresh_user):
+            group.users.remove(fresh_user)
+            fresh_user.groups.remove(group)
+
+            if group.users.count() == 0:
+                group.creator = None
+                group.is_active = False
+                group.save(update_fields=["creator", "is_active"])
+
         fresh_user.delete()
         request.session.flush()
         logout(request)

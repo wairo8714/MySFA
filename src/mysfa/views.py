@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
+from django.db import transaction
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
@@ -16,6 +17,17 @@ from accounts.models import CustomUser
 from .forms import GroupForm, PostForm, UserProfileForm
 from .models import Group, JoinRequest, Post
 
+def _transfer_creator_or_archive(group):
+    members = group.users.order_by("custom_user_id")
+    if members.exists():
+        group.creator = members.first()
+        group.is_active = True
+        group.save(update_fields=["creator", "is_active"])
+        return
+
+    group.creator = None
+    group.is_active = False
+    group.save(update_fields=["creator", "is_active"])
 
 class Timeline(LoginRequiredMixin, ListView):
     model = Post
@@ -26,10 +38,10 @@ class Timeline(LoginRequiredMixin, ListView):
     def get_queryset(self):
         user = self.request.user
         custom_id = self.request.GET.get("custom_id")
-        user_groups = Group.objects.filter(users=user)
+        user_groups = Group.objects.filter(users=user, is_active=True)
 
         if custom_id:
-            group = get_object_or_404(Group, custom_id=custom_id, users=user)
+            group = get_object_or_404(Group, custom_id=custom_id, users=user, is_active=True)
             queryset = Post.objects.filter(group=group).distinct()
         else:
             queryset = Post.objects.filter(group__in=user_groups).distinct()
@@ -38,7 +50,7 @@ class Timeline(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         custom_id = self.request.GET.get("custom_id")
-        context["user_groups"] = Group.objects.filter(users=self.request.user)
+        context["user_groups"] = Group.objects.filter(users=self.request.user, is_active=True)
         context["selected_group_id"] = custom_id
         context["form"] = PostForm(user=self.request.user)
         queryset = self.get_queryset()
@@ -74,7 +86,7 @@ class Timeline(LoginRequiredMixin, ListView):
             post = form.save(commit=False)
             post.user = request.user
             if not post.group:
-                last_group = request.user.groups.last()
+                last_group = Group.objects.filter(users=request.user, is_active=True).last()
                 if last_group:
                     post.group = last_group
             if "image" in request.FILES:
@@ -105,7 +117,7 @@ class MyPost(LoginRequiredMixin, ListView):
         custom_id = self.request.GET.get("custom_id")
         if custom_id:
             try:
-                group = Group.objects.get(custom_id=custom_id)
+                group = Group.objects.get(custom_id=custom_id, is_active=True)
                 queryset = queryset.filter(group=group)
             except Group.DoesNotExist:
                 queryset = Post.objects.none()
@@ -126,7 +138,7 @@ class MyPost(LoginRequiredMixin, ListView):
 
         from .models import Group
 
-        user_groups = Group.objects.filter(users=context["displayed_user"])
+        user_groups = Group.objects.filter(users=context["displayed_user"], is_active=True)
         context["user_groups"] = user_groups
 
         queryset = self.get_queryset()
@@ -194,12 +206,12 @@ class GroupPost(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
         return Post.objects.filter(group=group).distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
         user = self.request.user
         creator = group.creator
         members = group.users.all()
@@ -243,7 +255,7 @@ class GroupPost(LoginRequiredMixin, ListView):
 @method_decorator(login_required, name="dispatch")
 class UploadGroupIconView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         default_image_path = "default_images/702.png"
 
         if "icon" in request.FILES:
@@ -261,7 +273,7 @@ class UploadGroupIconView(View):
 
 class ToggleGroupLockView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         if request.user in group.users.all():
             group.is_locked = not group.is_locked
             group.save()
@@ -270,7 +282,7 @@ class ToggleGroupLockView(View):
 
 class JoinGroupView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         request.user.groups.add(group)
         group.users.add(request.user)
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
@@ -278,7 +290,7 @@ class JoinGroupView(View):
 
 class JoinGroupRequestView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
 
         if request.user in group.users.all():
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
@@ -295,7 +307,7 @@ class JoinGroupRequestView(View):
 
 class ApproveJoinRequestView(View):
     def post(self, request, custom_id, request_id):
-        group = get_object_or_404(Group, custom_id=custom_id)
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         join_request = get_object_or_404(
             JoinRequest, user__custom_user_id=request_id, group=group
         )
@@ -306,7 +318,7 @@ class ApproveJoinRequestView(View):
 
 class RejectJoinRequestView(View):
     def post(self, request, custom_id, request_id):
-        group = get_object_or_404(Group, custom_id=custom_id)
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         join_request = get_object_or_404(
             JoinRequest, user__custom_user_id=request_id, group=group
         )
@@ -316,28 +328,30 @@ class RejectJoinRequestView(View):
 
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
+        was_creator = (group.creator_id == request.user.id)
         request.user.groups.remove(group)
         group.users.remove(request.user)
+        if was_creator:
+            _transfer_creator_or_archive(group)
+        else:
+            if group.users.count() == 0:
+                _transfer_creator_or_archive(group)
         return redirect("home")
 
 
 class DeleteGroupView(View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
-        creator = group.users.first()
-        if request.user == creator:
-            group.delete()
-            return redirect("home")
-        else:
-            return HttpResponseForbidden(
-                "グループの作成者のみ削除を行うことができます。"
-            )
-
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
+        if request.user != group.creator:
+            return HttpResponseForbidden("グループの作成者のみ削除を行うことができます。")
+        group.is_active = False
+        group.save(update_fields=["is_active"])
+        return redirect("home")
 
 class RemoveMemberView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"])
+        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         user_to_remove = get_object_or_404(
             CustomUser, custom_user_id=kwargs["custom_user_id"]
         )
@@ -375,7 +389,7 @@ class CreateGroupView(View):
 class SearchGroupView(LoginRequiredMixin, View):
     def get(self, request):
         query = request.GET.get("q", "")
-        groups = Group.objects.filter(name__icontains=query)
+        groups = Group.objects.filter(name__icontains=query, is_active=True)
         for group in groups:
             group.is_member = group.users.filter(
                 custom_user_id=request.user.custom_user_id
@@ -385,7 +399,7 @@ class SearchGroupView(LoginRequiredMixin, View):
         )
 
     def post(self, request, custom_id):
-        group = Group.objects.get(custom_id=custom_id)
+        group = Group.objects.get(custom_id=custom_id, is_active=True)
         request.user.groups.add(group)
         group.users.add(request.user)
         return redirect("mysfa:timeline")
@@ -542,7 +556,7 @@ class SalesReportView(View):
     def get(self, request, user_id=None, group_id=None):
         start_date_str = request.GET.get("start_date")
         end_date_str = request.GET.get("end_date")
-        selected_group_id = request.GET.get("custom_id")  # グループ選択のID
+        selected_group_id = request.GET.get("custom_id")
 
         if not start_date_str or not end_date_str:
             return JsonResponse({"error": "開始日と終了日が必要です"}, status=400)
@@ -555,7 +569,7 @@ class SalesReportView(View):
 
         if group_id:
             try:
-                group = Group.objects.get(custom_id=group_id)
+                group = Group.objects.get(custom_id=group_id, is_active=True)
                 posts = Post.objects.filter(
                     group=group,
                     created_at__date__gte=start_date,
@@ -570,7 +584,7 @@ class SalesReportView(View):
                 if selected_group_id:
                     # 特定のグループが選択されている場合
                     try:
-                        selected_group = Group.objects.get(custom_id=selected_group_id)
+                        selected_group = Group.objects.get(custom_id=selected_group_id, is_active=True)
                         posts = Post.objects.filter(
                             user=user,
                             group=selected_group,
@@ -583,8 +597,8 @@ class SalesReportView(View):
                         )
                 else:
                     # グループが選択されていない場合（デフォルト：全グループ）
-                    # ユーザーが所属しているグループの投稿をすべて取得
-                    user_groups = user.groups.all()
+                    # ユーザーが所属しているグループの投稿をすべて取得(アーカイブされていないもののみ)
+                    user_groups = Group.objects.filter(users=user, is_active=True)
                     posts = Post.objects.filter(
                         group__in=user_groups,
                         created_at__date__gte=start_date,
