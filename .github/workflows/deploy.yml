@@ -149,6 +149,10 @@ jobs:
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
 
+          # S3に静的ファイルが上がったかを簡易チェック（失敗してもワークフローは落とさない）
+          aws s3 ls "s3://${AWS_STORAGE_BUCKET_NAME}/static/js/base-ui.js" || true
+          aws s3 ls "s3://${AWS_STORAGE_BUCKET_NAME}/static/js/signup.js" || true
+
         # migrateも同様にECSタスクで実行
       - name: Run migrations via ECS task
         env:
