@@ -1,11 +1,44 @@
 let productChart = null;
 let customerChart = null;
 
+function setSalesReportEmptyMessage(show) {
+  const container = document.querySelector(".sales-report-section");
+  if (!container) return;
+
+  const id = "sales-report-empty-message";
+  let el = document.getElementById(id);
+
+  if (!show) {
+    if (el) el.remove();
+    return;
+  }
+
+  if (!el) {
+    el = document.createElement("p");
+    el.id = id;
+    el.textContent = "投稿がありません";
+    el.style.textAlign = "center";
+    el.style.color = "#666";
+    el.style.marginTop = "10px";
+    el.style.marginBottom = "0";
+    container.appendChild(el);
+  }
+}
+
+function clearCharts() {
+  if (productChart) {
+    productChart.destroy();
+    productChart = null;
+  }
+  if (customerChart) {
+    customerChart.destroy();
+    customerChart = null;
+  }
+}
+
 function getSalesReportUrl(startDate, endDate) {
-  // ページURLから対象（mypost=ユーザー / group=グループ）を判定して、正しいエンドポイントを組み立てる
   const path = window.location.pathname || "";
 
-  // /mysfa/mypost/<user_id>/
   const m1 = path.match(/^\/mysfa\/mypost\/([^/]+)\/?/);
   if (m1 && m1[1]) {
     return `/mysfa/sales-report/${encodeURIComponent(m1[1])}/?start_date=${encodeURIComponent(
@@ -13,7 +46,6 @@ function getSalesReportUrl(startDate, endDate) {
     )}&end_date=${encodeURIComponent(endDate)}`;
   }
 
-  // /mysfa/group/<group_custom_id>/
   const m2 = path.match(/^\/mysfa\/group\/([^/]+)\/?/);
   if (m2 && m2[1]) {
     return `/mysfa/sales-report/group/${encodeURIComponent(
@@ -75,7 +107,13 @@ function loadSalesReport() {
         customer_values: customerData.map((x) => x.count),
       };
 
-      if (!normalized.labels.length && !normalized.customer_labels.length) return;
+      if (!normalized.labels.length && !normalized.customer_labels.length) {
+        clearCharts();
+        setSalesReportEmptyMessage(true);
+        return;
+      }
+
+      setSalesReportEmptyMessage(false);
       updateCharts(normalized);
     })
     .catch(() => {});
