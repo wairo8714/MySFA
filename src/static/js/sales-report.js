@@ -1,6 +1,33 @@
 let productChart = null;
 let customerChart = null;
 
+function getSalesReportUrl(startDate, endDate) {
+  // ページURLから対象（mypost=ユーザー / group=グループ）を判定して、正しいエンドポイントを組み立てる
+  const path = window.location.pathname || "";
+
+  // /mysfa/mypost/<user_id>/
+  const m1 = path.match(/^\/mysfa\/mypost\/([^/]+)\/?/);
+  if (m1 && m1[1]) {
+    return `/mysfa/sales-report/${encodeURIComponent(m1[1])}/?start_date=${encodeURIComponent(
+      startDate
+    )}&end_date=${encodeURIComponent(endDate)}`;
+  }
+
+  // /mysfa/group/<group_custom_id>/
+  const m2 = path.match(/^\/mysfa\/group\/([^/]+)\/?/);
+  if (m2 && m2[1]) {
+    return `/mysfa/sales-report/group/${encodeURIComponent(
+      m2[1]
+    )}/?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(
+      endDate
+    )}`;
+  }
+
+  return `/mysfa/sales-report/?start_date=${encodeURIComponent(
+    startDate
+  )}&end_date=${encodeURIComponent(endDate)}`;
+}
+
 function initializeSalesReport() {
   const startDateInput = document.getElementById("start-date");
   const endDateInput = document.getElementById("end-date");
@@ -28,9 +55,7 @@ function loadSalesReport() {
   const endDate = document.getElementById("end-date")?.value;
   if (!startDate || !endDate) return;
 
-  const url = `/mysfa/sales-report-data/?start_date=${encodeURIComponent(
-    startDate
-  )}&end_date=${encodeURIComponent(endDate)}`;
+  const url = getSalesReportUrl(startDate, endDate);
 
   fetch(url)
     .then((response) => {
@@ -39,8 +64,19 @@ function loadSalesReport() {
     })
     .then((data) => {
       if (!data || data.error) return;
-      if (!data.labels || !data.values) return;
-      updateCharts(data);
+
+      const productData = Array.isArray(data.product_data) ? data.product_data : [];
+      const customerData = Array.isArray(data.customer_data) ? data.customer_data : [];
+
+      const normalized = {
+        labels: productData.map((x) => x.product_name),
+        values: productData.map((x) => x.count),
+        customer_labels: customerData.map((x) => x.customer_category),
+        customer_values: customerData.map((x) => x.count),
+      };
+
+      if (!normalized.labels.length && !normalized.customer_labels.length) return;
+      updateCharts(normalized);
     })
     .catch(() => {});
 }

@@ -561,9 +561,17 @@ class SalesReportView(View):
         if not start_date_str or not end_date_str:
             return JsonResponse({"error": "開始日と終了日が必要です"}, status=400)
 
+        def _parse_date(s: str):
+            for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except ValueError:
+                    continue
+            raise ValueError("invalid date format")
+
         try:
-            start_date = datetime.strptime(start_date_str, "%Y/%m/%d").date()
-            end_date = datetime.strptime(end_date_str, "%Y/%m/%d").date()
+            start_date = _parse_date(start_date_str)
+            end_date = _parse_date(end_date_str)
         except ValueError:
             return JsonResponse({"error": "日付形式が正しくありません"}, status=400)
 
