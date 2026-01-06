@@ -59,29 +59,51 @@ function updateCharts(data) {
   if (productChart) productChart.destroy();
   if (customerChart) customerChart.destroy();
 
+  const colors = [
+    "#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
+    "#edc949", "#af7aa1", "#ff9da7", "#9c755f", "#bab0ab",
+  ];
+  const makeColors = (n) => Array.from({ length: n }, (_, i) => colors[i % colors.length]);
+
+  // 商品別
   productChart = new Chart(productCtx, {
-    type: "bar",
+    type: "pie",
     data: {
       labels: data.labels,
-      datasets: [{ label: "商品別売上", data: data.values }],
+      datasets: [
+        {
+          label: "商品別売上",
+          data: data.values,
+          backgroundColor: makeColors((data.labels || []).length),
+        },
+      ],
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } },
+      plugins: {
+        legend: { display: true }, 
+      },
     },
   });
 
+  // 業態別
   customerChart = new Chart(customerCtx, {
-    type: "bar",
+    type: "pie",
     data: {
       labels: data.customer_labels || [],
-      datasets: [{ label: "業態別売上", data: data.customer_values || [] }],
+      datasets: [
+        {
+          label: "業態別売上",
+          data: data.customer_values || [],
+          backgroundColor: makeColors((data.customer_labels || []).length),
+        },
+      ],
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } },
+      plugins: {
+        legend: { display: true },
+      },
     },
   });
 
