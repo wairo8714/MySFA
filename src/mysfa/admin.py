@@ -1,0 +1,40 @@
+from django.contrib import admin
+
+from .models import Group, IndustryMaster, JoinRequest, Post, ProductMaster
+
+
+@admin.register(Post)
+class PostAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "group", "product_name", "customer_category", "created_at", "likes_count")
+    list_filter = ("group", "created_at")
+    search_fields = ("product_name", "customer_category", "contents", "user__custom_user_id", "user__username")
+
+
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "custom_id", "is_active", "is_locked", "is_approval", "creator")
+    list_filter = ("is_active", "is_locked", "is_approval")
+    search_fields = ("name", "custom_id", "creator__custom_user_id", "creator__username")
+
+
+@admin.register(ProductMaster)
+class ProductMasterAdmin(admin.ModelAdmin):
+    list_display = ("id", "group", "product_code", "name", "category_main", "category_sub", "updated_at")
+    list_filter = ("group",)
+    search_fields = ("product_code", "name", "category_main", "category_sub")
+
+
+@admin.register(IndustryMaster)
+class IndustryMasterAdmin(admin.ModelAdmin):
+    list_display = ("id", "group", "industry_code", "name", "updated_at")
+    list_filter = ("group",)
+    search_fields = ("industry_code", "name")
+
+
+@admin.register(JoinRequest)
+class JoinRequestAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "group", "created_at")
+    list_filter = ("group", "created_at")
+    search_fields = ("user__custom_user_id", "user__username", "group__name", "group__custom_id")
+
+
