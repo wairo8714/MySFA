@@ -101,6 +101,89 @@ class Group(AuthGroup):
         return os.path.join("group_icons/", unique_filename)
 
 
+class ProductMaster(models.Model):
+    group = models.ForeignKey(
+        "Group",
+        on_delete=models.CASCADE,
+        related_name="product_masters",
+        verbose_name="グループ",
+    )
+
+    product_code = models.CharField(max_length=50, verbose_name="商品コード")
+    name = models.CharField(max_length=50, verbose_name="商品名")
+
+    category_main = models.CharField(max_length=50, null=True, blank=True, verbose_name="大分類")
+    category_sub = models.CharField(max_length=50, null=True, blank=True, verbose_name="小分類")
+
+    cost_price = models.IntegerField(null=True, blank=True, verbose_name="商品原価")
+
+    price_excl_tax = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="販売価格（税抜）"
+    )
+    price_incl_tax = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="販売価格（税込）"
+    )
+    
+    custom_text_1 = models.CharField(
+        max_length=255, null=True, blank=True, verbose_name="自由項目（文字1）"
+    )
+    custom_text_2 = models.CharField(
+        max_length=255, null=True, blank=True, verbose_name="自由項目（文字2）"
+    )
+    custom_text_3 = models.CharField(
+        max_length=255, null=True, blank=True, verbose_name="自由項目（文字3）"
+    )
+
+    custom_int_1 = models.IntegerField(null=True, blank=True, verbose_name="自由項目（数値1）")
+    custom_int_2 = models.IntegerField(null=True, blank=True, verbose_name="自由項目（数値2）")
+
+    custom_date_1 = models.DateField(null=True, blank=True, verbose_name="自由項目（日付1）")
+
+    description = models.TextField(null=True, blank=True, verbose_name="自由記入")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+
+    def __str__(self):
+        return f"{self.product_code} {self.name}"
+
+    class Meta:
+        ordering = ["group_id", "product_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group", "product_code"],
+                name="uq_productmaster_group_product_code",
+            ),
+        ]
+
+
+class IndustryMaster(models.Model):
+    group = models.ForeignKey(
+        "Group",
+        on_delete=models.CASCADE,
+        related_name="industry_masters",
+        verbose_name="グループ",
+    )
+
+    industry_code = models.CharField(max_length=50, verbose_name="業態コード")
+    name = models.CharField(max_length=50, verbose_name="業態名")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
+
+    def __str__(self):
+        return f"{self.industry_code} {self.name}"
+
+    class Meta:
+        ordering = ["group_id", "industry_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group", "industry_code"],
+                name="uq_industrymaster_group_industry_code",
+            ),
+        ]
+
+        
 class JoinRequest(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="依頼ユーザー"
