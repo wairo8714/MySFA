@@ -141,6 +141,9 @@ class ProductMaster(models.Model):
 
     description = models.TextField(null=True, blank=True, verbose_name="自由記入")
 
+    # 論理削除用（承認フローの「削除」はこれをFalseにする）
+    is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
 
@@ -168,6 +171,9 @@ class IndustryMaster(models.Model):
     industry_code = models.CharField(max_length=50, verbose_name="業態コード")
     name = models.CharField(max_length=50, verbose_name="業態名")
 
+    # 論理削除用（承認フローの「削除」はこれをFalseにする）
+    is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
 
@@ -183,7 +189,109 @@ class IndustryMaster(models.Model):
             ),
         ]
 
-        
+
+class ChangeRequest(models.Model):
+    class Kind(models.TextChoices):
+        PRODUCT = "PRODUCT", "商品"
+        INDUSTRY = "INDUSTRY", "業態"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "下書き"
+        PENDING = "PENDING", "承認待ち"
+        APPROVED = "APPROVED", "承認済み(反映済み)"
+        REJECTED = "REJECTED", "却下"
+
+    group = models.ForeignKey(
+        "Group",
+        on_delete=models.CASCADE,
+        related_name="change_requests",
+        verbose_name="対象グループ",
+    )
+
+    kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="種別")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        verbose_name="ステータス",
+    )
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="change_requests_requested",
+        verbose_name="依頼者",
+    )
+
+    approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="change_requests_approved",
+        verbose_name="承認者",
+    )
+
+    title = models.CharField(max_length=100, blank=True, default="", verbose_name="タイトル")
+    note = models.TextField(blank=True, default="", verbose_name="メモ")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+    submitted_at = models.DateTimeField(null=True, blank=True, verbose_name="依頼日時")
+    decided_at = models.DateTimeField(null=True, blank=True, verbose_name="承認/却下日時")
+
+    def __str__(self):
+        return f"{self.group_id} {self.kind} {self.status} ({self.id})"
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["group", "kind", "status"]),
+            models.Index(fields=["group", "created_at"]),
+        ]
+
+
+class ChangeRequestRow(models.Model):
+    class Op(models.TextChoices):
+        UPSERT = "UPSERT", "追加/更新"
+        DELETE = "DELETE", "削除"
+
+    change_request = models.ForeignKey(
+        ChangeRequest,
+        on_delete=models.CASCADE,
+        related_name="rows",
+        verbose_name="変更依頼",
+    )
+
+    row_index = models.PositiveIntegerField(verbose_name="行番号(1始まり)")
+    op = models.CharField(max_length=10, choices=Op.choices, verbose_name="操作")
+
+    code = models.CharField(max_length=50, verbose_name="コード")
+    name = models.CharField(max_length=50, blank=True, default="", verbose_name="名称")
+
+    is_valid = models.BooleanField(default=True, verbose_name="取込可能")
+    error_code = models.CharField(max_length=50, blank=True, default="", verbose_name="エラーコード")
+    error_message = models.TextField(blank=True, default="", verbose_name="エラーメッセージ")
+
+    diff_json = models.JSONField(null=True, blank=True, verbose_name="差分(JSON)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
+
+    def __str__(self):
+        return f"{self.change_request_id} #{self.row_index} {self.op} {self.code}"
+
+    class Meta:
+        ordering = ["row_index"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["change_request", "row_index"],
+                name="uq_change_request_row_change_request_row_index",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["change_request", "is_valid"]),
+            models.Index(fields=["change_request", "code"]),
+        ]
+
+
 class JoinRequest(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="依頼ユーザー"
