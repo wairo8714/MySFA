@@ -10,7 +10,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 開発用：コード変更や makemigrations の成果物をホスト側に残す
       - ./src:/app/src
     depends_on:
       - db
