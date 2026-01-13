@@ -141,7 +141,6 @@ class ProductMaster(models.Model):
 
     description = models.TextField(null=True, blank=True, verbose_name="自由記入")
 
-    # 論理削除用（承認フローの「削除」はこれをFalseにする）
     is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")

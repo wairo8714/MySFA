@@ -436,7 +436,7 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
 
 
 class ProductMasterEditView(LoginRequiredMixin, View):
-    template_name = "master/product_master_edit.html"
+    template_name = "master/product-master-edit.html"
 
     def get(self, request, custom_id, pk):
         group = get_object_or_404(

@@ -67,13 +67,14 @@ urlpatterns = [
     ),
     path(
         "group/<str:custom_id>/product-master/",
-         productMasterIndexView.as_view(),
+        ProductMasterIndexView.as_view(),
         name="product_master",
     ),
     path(
         "group/<str:custom_id>/product-master/<int:pk>/edit/",
-        ProductMasterEditView.as_view().
+        ProductMasterEditView.as_view(),
         name="product_master_edit",
+    ),
     path(
         "toggle_group_lock/<str:custom_id>/",
         ToggleGroupLockView.as_view(),
