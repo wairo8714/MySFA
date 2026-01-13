@@ -20,7 +20,7 @@
   </div>
 
   <div class="master-search">
-    <forms class="master-search__form" method="get">
+    <form class="master-search__form" method="get">
       <div class="master-search__field">
         <label class="master-search__label" for="master-search-input">検索</label>
         <input
@@ -29,5 +29,13 @@
           type="text"
           name="search"
           value="{{ search }}"
-          placeholder="商品コード / 
+          placeholder="商品コード / 商品名で検索"
+        >
+      </div>
+      <div class="master-search-actions">
+        <button class="master-search__submit type="submit">検索</button>
+      </div>
+    </form>
   </div>
+
+  <div class="
