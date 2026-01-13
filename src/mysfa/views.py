@@ -4,8 +4,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Q
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
@@ -14,8 +14,9 @@ from django.views.generic import ListView
 
 from accounts.models import CustomUser
 
-from .forms import GroupForm, PostForm, UserProfileForm
-from .models import Group, JoinRequest, Post
+from .forms import GroupForm, ProductMasterForm, PostForm, UserProfileForm
+from .models import Group, ProductMaster, JoinRequest, Post
+
 
 def _transfer_creator_or_archive(group):
     members = group.users.order_by("custom_user_id")
@@ -28,6 +29,7 @@ def _transfer_creator_or_archive(group):
     group.creator = None
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
+
 
 class Timeline(LoginRequiredMixin, ListView):
     model = Post
@@ -248,7 +250,6 @@ class GroupPost(LoginRequiredMixin, ListView):
             post.delete()
             return redirect("mysfa:group_posts", custom_id=self.kwargs["custom_id"])
 
-        # その他のPOSTリクエストはGETビューを呼び出し
         return self.get(request, *args, **kwargs)
 
 
@@ -349,6 +350,7 @@ class DeleteGroupView(View):
         group.save(update_fields=["is_active"])
         return redirect("home")
 
+
 class RemoveMemberView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
@@ -365,6 +367,120 @@ class RemoveMemberView(LoginRequiredMixin, View):
             messages.error(request, "この操作を行う権限がありません。")
 
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
+
+
+class ProductMasterIndexView(LoginRequiredMixin, View):
+    template_name = "master/product_master.html"
+
+    def get(self, request, custom_id):
+        group = get_object_or_404(
+            Group,
+            custom_id=custom_id,
+            is_active=True,
+            users=request.user,
+        )
+
+        search = request.GET.get("search", "").strip()
+
+        masters = ProductMaster.objects.filter(
+            group=group,
+            is_active=True,
+        ).order_by("product_code")
+
+        if search:
+            masters = masters.filter(
+                Q(product_code__icontains=search) | Q(name__icontains=search)
+            )
+
+        context = {
+            "group": group,
+            "search": search,
+            "masters": masters,
+            "form": ProductMasterForm(),
+            "is_creator": (group.creator_id == request.user.id),
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, custom_id):
+        group = get_object_or_404(
+            Group,
+            custom_id=custom_id,
+            is_active=True,
+            users=request.user,
+        )
+
+        form = ProductMasterForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.group = group
+            obj.is_active = True
+            obj.save()
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        masters = ProductMaster.objects.filter(
+            group=group,
+            is_active=True,
+        ).order_by("product_code")
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "group": group,
+                "search": "",
+                "masters": masters,
+                "form": form,
+                "is_creator": (group.creator_id == request.user.id),
+            },
+        )
+
+
+class ProductMasterEditView(LoginRequiredMixin, View):
+    template_name = "master/product_master_edit.html"
+
+    def get(self, request, custom_id, pk):
+        group = get_object_or_404(
+            Group,
+            custom_id=custom_id,
+            is_active=True,
+            users=request.user,
+        )
+        master = get_object_or_404(ProductMaster, pk=pk, group=group)
+
+        form = ProductMasterForm(instance=master)
+        return render(
+            request,
+            self.template_name,
+            {
+                "group": group,
+                "master": master,
+                "form": form,
+            },
+        )
+
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(
+            Group,
+            custom_id=custom_id,
+            is_active=True,
+            users=request.user,
+        )
+        master = get_object_or_404(ProductMaster, pk=pk, group=group)
+
+        form = ProductMasterForm(request.POST, instance=master)
+        if form.is_valid():
+            form.save()
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "group": group,
+                "master": master,
+                "form": form,
+            },
+        )
 
 
 class CreateGroupView(View):
@@ -590,7 +706,6 @@ class SalesReportView(View):
                 user = CustomUser.objects.get(custom_user_id=user_id)
 
                 if selected_group_id:
-                    # 特定のグループが選択されている場合
                     try:
                         selected_group = Group.objects.get(custom_id=selected_group_id, is_active=True)
                         posts = Post.objects.filter(
@@ -604,8 +719,6 @@ class SalesReportView(View):
                             {"error": "選択されたグループが見つかりません"}, status=404
                         )
                 else:
-                    # グループが選択されていない場合（デフォルト：全グループ）
-                    # ユーザーが所属しているグループの投稿をすべて取得(アーカイブされていないもののみ)
                     user_groups = Group.objects.filter(users=user, is_active=True)
                     posts = Post.objects.filter(
                         group__in=user_groups,
