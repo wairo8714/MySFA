@@ -330,7 +330,7 @@ class RejectJoinRequestView(View):
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        was_creator = (group.creator_id == request.user.id)
+        was_creator = (group.creator_id == request.user.pk)
         request.user.groups.remove(group)
         group.users.remove(request.user)
         if was_creator:
@@ -397,7 +397,7 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
             "search": search,
             "masters": masters,
             "form": ProductMasterForm(),
-            "is_creator": (group.creator_id == request.user.id),
+            "is_creator": (group.creator_id == request.user.pk),
         }
         return render(request, self.template_name, context)
 
@@ -430,7 +430,7 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
                 "search": "",
                 "masters": masters,
                 "form": form,
-                "is_creator": (group.creator_id == request.user.id),
+                "is_creator": (group.creator_id == request.user.pk),
             },
         )
 
