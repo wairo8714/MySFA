@@ -2,13 +2,34 @@ from django import forms
 
 from accounts.models import CustomUser
 
-from .models import Group, Post
+from .models import Group, Post, ProductMaster
 
 
 class GroupForm(forms.ModelForm):
     class Meta:
         model = Group
         fields = ["name"]
+
+class ProductMasterForm(forms.ModelForm):
+    class Meta:
+        model = ProductMaster
+        fields = [
+            "product_code",
+            "name",
+            "category_main",
+            "category_sub",
+            "cost_price",
+            "price_excl_tax",
+            "price_incl_tax",
+            "custom_text_1",
+            "custom_text_2",
+            "custom_text_3",
+            "custom_int_1",
+            "custom_int_2",
+            "custom_int_3",
+            "custom_date_1",
+            "description",
+        ]
 
 
 class PostForm(forms.ModelForm):
