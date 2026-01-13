@@ -1,0 +1,33 @@
+{%extends 'base.html' %}
+{% load static %}
+
+{% block title %}商品マスタ | {{ group.name}} | MySFA{% endblock %}
+
+{%block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>商品マスタ ({{ group.name }}) </h1>
+    </div>
+
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+
+  <div class="master-search">
+    <forms class="master-search__form" method="get">
+      <div class="master-search__field">
+        <label class="master-search__label" for="master-search-input">検索</label>
+        <input
+          class="master-search__input"
+          id="master-search-input"
+          type="text"
+          name="search"
+          value="{{ search }}"
+          placeholder="商品コード / 
+  </div>
