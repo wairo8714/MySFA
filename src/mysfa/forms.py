@@ -26,7 +26,6 @@ class ProductMasterForm(forms.ModelForm):
             "custom_text_3",
             "custom_int_1",
             "custom_int_2",
-            "custom_int_3",
             "custom_date_1",
             "description",
         ]
