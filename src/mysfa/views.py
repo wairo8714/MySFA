@@ -370,7 +370,7 @@ class RemoveMemberView(LoginRequiredMixin, View):
 
 
 class ProductMasterIndexView(LoginRequiredMixin, View):
-    template_name = "master/product_master.html"
+    template_name = "master/product-master.html"
 
     def get(self, request, custom_id):
         group = get_object_or_404(
@@ -382,57 +382,105 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
 
         search = request.GET.get("search", "").strip()
 
-        masters = ProductMaster.objects.filter(
-            group=group,
-            is_active=True,
-        ).order_by("product_code")
+        allowed_per_page = (25, 50, 100, 500)
+        raw = request.GET.get("per_page", "50")
+        try:
+            per_page = int(raw)
+        except (TypeError, ValueError):
+            per_page = 50
+        if per_page not in allowed_per_page:
+            per_page = 50
+
+        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
 
         if search:
-            masters = masters.filter(
-                Q(product_code__icontains=search) | Q(name__icontains=search)
-            )
+            qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
+
+        total_count = qs.count()
+
+        paginator = Paginator(qs, per_page)
+        page = request.GET.get("page", 1)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        masters = page_obj
 
         context = {
             "group": group,
             "search": search,
             "masters": masters,
             "form": ProductMasterForm(),
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total_count": total_count,
+            "per_page": per_page,
+            "allowed_per_page": allowed_per_page,
             "is_creator": (group.creator_id == request.user.pk),
         }
         return render(request, self.template_name, context)
 
     def post(self, request, custom_id):
-        group = get_object_or_404(
-            Group,
-            custom_id=custom_id,
-            is_active=True,
-            users=request.user,
-        )
+    group = get_object_or_404(
+        Group,
+        custom_id=custom_id,
+        is_active=True,
+        users=request.user,
+    )
 
-        form = ProductMasterForm(request.POST)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.group = group
-            obj.is_active = True
-            obj.save()
-            return redirect("mysfa:product_master", custom_id=custom_id)
+    form = ProductMasterForm(request.POST)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        obj.group = group
+        obj.is_active = True
+        obj.save()
+        return redirect("mysfa:product_master", custom_id=custom_id)
 
-        masters = ProductMaster.objects.filter(
-            group=group,
-            is_active=True,
-        ).order_by("product_code")
+    search = request.GET.get("search", "").strip()
 
-        return render(
-            request,
-            self.template_name,
-            {
-                "group": group,
-                "search": "",
-                "masters": masters,
-                "form": form,
-                "is_creator": (group.creator_id == request.user.pk),
-            },
-        )
+    allowed_per_page = (25, 50, 100, 500)
+    raw = request.GET.get("per_page", "50")
+    try:
+        per_page = int(raw)
+    except (TypeError, ValueError):
+        per_page = 50
+    if per_page not in allowed_per_page:
+        per_page = 50
+
+    qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
+    if search:
+        qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
+
+    total_count = qs.count()
+
+    paginator = Paginator(qs, per_page)
+    page = request.GET.get("page", 1)
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    masters = page_obj
+
+    context = {
+        "group": group,
+        "search": search,
+        "masters": masters,
+        "form": form,  # エラー付きフォーム
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "total_count": total_count,
+        "per_page": per_page,
+        "allowed_per_page": allowed_per_page,
+        "is_creator": (group.creator_id == request.user.pk),
+    }
+    return render(request, self.template_name, context)
+
 
 
 class ProductMasterEditView(LoginRequiredMixin, View):
