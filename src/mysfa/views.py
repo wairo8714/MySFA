@@ -531,6 +531,19 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         )
 
 
+class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(ProductMaster, pk=pk, group=group, is_active=True)
+        exists = ChangeRequestRow.objects.filter(
+            change_request__group=group,
+            change_request__kind=ChangeRequest.Kind.PRODUCT,
+            change_request__status=ChangeRequest.Status.PENDING,
+            op=ChangeRequestRow.Op.DELETE,
+            code=str(master.product_code),
+        ).exists()
+        if exists:
+            messages.info(request, "
 class CreateGroupView(View):
     def get(self, request):
         form = GroupForm()
