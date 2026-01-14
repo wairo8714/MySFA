@@ -543,7 +543,68 @@ class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
             code=str(master.product_code),
         ).exists()
         if exists:
-            messages.info(request, "
+            messages.info(request, "この商品はすでに削除依頼中です。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+            with transaction.atomic():
+                cr  ChangeRequest.objects.create(
+                    group=group,
+                    kind=ChangeRequest.Kind.PRODUCT,
+                    status=ChangeRequest.Status.PENDING,
+                    requested_by=request.user,
+                    submitted_at=datetime.now(),
+                )
+                ChangeRequestRow.objects.create(
+                    change_request=cr,
+                    row_index=1,
+                    op=ChangeRequestRow.Op.DELETE,
+                    code=str(master.product_code),
+                    name=master.name,
+                    is_valid=True,
+                )
+            messages.success(request, "削除依頼を送信しました。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+class ProductChangeRequestInboxView(LoginRequiredMixin, View):
+    template_name = "master/product-change-requests.html"
+    def get(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        if request.user != group.creator:
+            return HttpResoinseForbidden("グループ管理者以外は閲覧できません。")
+            requests_qs = ChangeRequest.Kind.PRODUCT,
+            status=ChangeRequest.Status.PENDING,
+        ).prefetch_related("rows")
+
+        return render(request, self.template_name, {"group": group, "requests": requests_qs})  
+
+
+class ProductChangeRequestDecideView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, cr_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        if request.user != group.creator:
+            return HttpResponseForbidden("グループ管理者以外は操作できません。")
+        cr = get_object_or_404(
+            ChangeRequest,
+            id=cr_id,
+            group=group,
+            kind=ChangeRequest.Kind.PRODUCT,
+            status=ChangeRequest.Status.PENDING,
+        )
+        action = request,POST.get("action"):
+        if action == "approve":
+            for row in cr.rows.all():
+                if row.op == ChangeRequestRow.Op.DELETE:
+                    ProductMaster.objects.filter(
+                        group=group,
+                        product_code=row.code,
+                        is_active=True,
+                    ).update(is_active=False)
+
+            cr.status = ChangeRequest.Status.APPROVED
+            cr.decided_at = datetime.now()
+            cr.save()
+
+            messages.success(request, 削除依頼を
+
 class CreateGroupView(View):
     def get(self, request):
         form = GroupForm()
