@@ -4,7 +4,7 @@
 {% block content %}
 <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 
-<div class="group-info-container">
+<div class="group-info-container master-page">
   <div class="group-info-header">
     <div class="group-info-header-text">
       <h1>商品変更申請（承認待ち）（{{ group.name }}）</h1>
@@ -47,9 +47,9 @@
                 <td class="master-table__td">{{ cr.submitted_at|date:"Y/m/d H:i" }}</td>
                 <td class="master-table__td">
                   {% if cr.rows.all %}
-                    <div style="display:flex; flex-direction:column; gap: 6px;">
+                    <div class="master-cr-rows">
                       {% for row in cr.rows.all %}
-                        <div>
+                        <div class="master-cr-row">
                           {{ row.row_index }}:
                           {{ row.get_op_display }}
                           /
@@ -63,15 +63,15 @@
                   {% endif %}
                 </td>
                 <td class="master-table__td">
-                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" style="display:inline;">
+                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" class="master-inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="approve">
-                    <button type="submit">承認</button>
+                    <button type="submit" class="master-action-button master-action-button--approve">承認</button>
                   </form>
-                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" style="display:inline;">
+                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" class="master-inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="reject">
-                    <button type="submit">却下</button>
+                    <button type="submit" class="master-action-button master-action-button--reject">却下</button>
                   </form>
                 </td>
               </tr>
@@ -80,7 +80,7 @@
         </table>
       </div>
     {% else %}
-      <div class="master-form-errors" style="margin-top: 12px;">
+      <div class="master-form-errors">
         承認待ちの申請はありません。
       </div>
     {% endif %}

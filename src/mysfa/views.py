@@ -422,10 +422,33 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
 
         form = ProductMasterForm(request.POST)
         if form.is_valid():
-            obj = form.save(commit=False)
-            obj.group = group
-            obj.is_active = True
-            obj.save()
+            product_code = form.cleaned_data["product_code"]
+            existing = ProductMaster.objects.filter(group=group, product_code=product_code).first()
+
+            payload = {field: form.cleaned_data.get(field) for field in form.Meta.fields}
+            payload["product_code"] = product_code
+
+            with transaction.atomic():
+                title_prefix = "商品更新申請" if existing else "商品追加申請"
+                cr = ChangeRequest.objects.create(
+                    group=group,
+                    kind=ChangeRequest.Kind.PRODUCT,
+                    status=ChangeRequest.Status.PENDING,
+                    requester=request.user,
+                    submitted_at=timezone.now(),
+                    title=f"{title_prefix}: {product_code} {payload.get('name','')}",
+                )
+                ChangeRequestRow.objects.create(
+                    change_request=cr,
+                    row_index=1,
+                    op=ChangeRequestRow.Op.UPSERT,
+                    code=str(product_code),
+                    name=payload.get("name", ""),
+                    diff_json=payload,
+                    is_valid=True,
+                )
+
+            messages.success(request, "変更申請を送信しました（承認後に反映されます）。")
             return redirect("mysfa:product_master", custom_id=custom_id)
 
         search = request.GET.get("search", "").strip()
@@ -479,6 +502,8 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(instance=master)
+        if "product_code" in form.fields:
+            form.fields["product_code"].disabled = True
         return render(
             request,
             self.template_name,
@@ -494,8 +519,34 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(request.POST, instance=master)
+        if "product_code" in form.fields:
+            form.fields["product_code"].disabled = True
         if form.is_valid():
-            form.save()
+            product_code = master.product_code
+            payload = {field: form.cleaned_data.get(field) for field in form.Meta.fields}
+            payload["product_code"] = product_code
+            payload["_target_pk"] = master.pk
+
+            with transaction.atomic():
+                cr = ChangeRequest.objects.create(
+                    group=group,
+                    kind=ChangeRequest.Kind.PRODUCT,
+                    status=ChangeRequest.Status.PENDING,
+                    requester=request.user,
+                    submitted_at=timezone.now(),
+                    title=f"商品更新申請: {product_code} {payload.get('name','')}",
+                )
+                ChangeRequestRow.objects.create(
+                    change_request=cr,
+                    row_index=1,
+                    op=ChangeRequestRow.Op.UPSERT,
+                    code=str(product_code),
+                    name=payload.get("name", ""),
+                    diff_json=payload,
+                    is_valid=True,
+                )
+
+            messages.success(request, "変更申請を送信しました（承認後に反映されます）。")
             return redirect("mysfa:product_master", custom_id=custom_id)
 
         return render(
@@ -612,24 +663,40 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
             if action == "approve":
                 for row in cr.rows.all():
                     if row.op == ChangeRequestRow.Op.DELETE:
-                        ProductMaster.objects.filter(
-                            group=group,
-                            product_code=row.code,
-                            is_active=True,
-                        ).update(is_active=False)
+                        ProductMaster.objects.filter(group=group, product_code=row.code).update(is_active=False)
+                        continue
+
+                    if row.op == ChangeRequestRow.Op.UPSERT:
+                        data = row.diff_json or {}
+                        code = str(row.code)
+                        obj = ProductMaster.objects.filter(group=group, product_code=code).first()
+                        if not obj:
+                            obj = ProductMaster(group=group, product_code=code)
+
+                        # apply payload (ignore unknown keys)
+                        for key, value in data.items():
+                            if key in ("_target_pk", "group", "is_active", "created_at", "updated_at"):
+                                continue
+                            if hasattr(obj, key):
+                                setattr(obj, key, value)
+
+                        obj.group = group
+                        obj.product_code = code
+                        obj.is_active = True
+                        obj.save()
 
                 cr.status = ChangeRequest.Status.APPROVED
                 cr.approver = request.user
                 cr.decided_at = timezone.now()
                 cr.save()
 
-                messages.success(request, "削除依頼を承認しました。")
+                messages.success(request, "申請を承認しました。")
             else:
                 cr.status = ChangeRequest.Status.REJECTED
                 cr.decided_at = timezone.now()
                 cr.save()
 
-                messages.info(request, "削除依頼を却下しました。")
+                messages.info(request, "申請を却下しました。")
 
         return redirect("mysfa:product_change_requests", custom_id=custom_id)
 
