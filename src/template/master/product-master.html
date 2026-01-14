@@ -18,6 +18,7 @@
   </div>
   <div class="master-search">
     <form class="master-search__form" method="get">
+      <input type="hidden" name="per_page" value="{{ per_page }}">
       <div class="master-search__field">
         <label class="master-search__label" for="master-search-input">検索</label>
         <input
@@ -126,7 +127,21 @@
   <div class="master-list">
     <div class="master-list__header">
       <h2 class="master-section-title">登録済み一覧</h2>
-      <div class="master-list__count">件数：{{ masters|length }}</div>
+      <form class="master-list__per-page" method="get">
+        <input type="hidden" name="search" value="{{ search }}">
+        <label class="master-list__per-page-label" for="master-per-page">表示件数</label>
+        <select
+          class="master-list__per-page-select"
+          id="master-per-page"
+          name="per_page"
+          onchange="this.form.submit()"
+        >
+          {% for n in allowed_per_page %}
+            <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <div class="master-list__count">総件数：{{ total_count }}件</div>
     </div>
     <div class="master-table-wrap">
       <table class="master-table">
@@ -159,6 +174,25 @@
           {% endfor %}
         </tbody>
       </table>
+      <div class="master-pagination">
+        {% if page_obj.has_previous %}
+          <a class="master-pagination__link" href="?search={{ search }}&per_page={{ per_page }}&page=1">«</a>
+          <a class="master-pagination__link" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.previous_page_number }}">‹</a>
+        {% else %}
+          <span class="master-pagination__disabled">«</span>
+          <span class="master-pagination__disabled">‹</span>
+        {% endif %}
+
+        <span class="master-pagination__status">{{ page_obj.number }} / {{ paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+          <a class="master-pagination__link" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.next_page_number }}">›</a>
+          <a class="master-pagination__link" href="?search={{ search }}&per_page={{ per_page }}&page={{ paginator.num_pages }}">»</a>
+        {% else %}
+          <span class="master-pagination__disabled">›</span>
+          <span class="master-pagination__disabled">»</span>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
