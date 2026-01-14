@@ -530,8 +530,9 @@ class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
                 group=group,
                 kind=ChangeRequest.Kind.PRODUCT,
                 status=ChangeRequest.Status.PENDING,
-                requested_by=request.user,
+                requester=request.user,
                 submitted_at=timezone.now(),
+                title=f"商品削除依頼: {master.product_code} {master.name}",
             )
             ChangeRequestRow.objects.create(
                 change_request=cr,
@@ -594,6 +595,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
                         ).update(is_active=False)
 
                 cr.status = ChangeRequest.Status.APPROVED
+                cr.approver = request.user
                 cr.decided_at = timezone.now()
                 cr.save()
 
