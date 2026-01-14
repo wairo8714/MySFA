@@ -1,3 +1,4 @@
+```django
 {% extends 'base.html' %}
 {% load static %}
 
@@ -127,6 +128,12 @@
   <div class="master-list">
     <div class="master-list__header">
       <h2 class="master-section-title">登録済み一覧</h2>
+
+      <div class="master-list__csv-actions">
+        <button type="button" disabled>CSVアップロード（準備中）</button>
+        <button type="button" disabled>CSV出力（準備中）</button>
+      </div>
+
       <form class="master-list__per-page" method="get">
         <input type="hidden" name="search" value="{{ search }}">
         <label class="master-list__per-page-label" for="master-per-page">表示件数</label>
@@ -165,6 +172,11 @@
                 <a class="master-edit-link" href="{% url 'mysfa:product_master_edit' group.custom_id m.id %}">
                   編集
                 </a>
+
+                <form method="post" action="{% url 'mysfa:product_delete_request' group.custom_id m.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit">削除依頼</button>
+                </form>
               </td>
             </tr>
           {% empty %}
@@ -197,3 +209,4 @@
   </div>
 </div>
 {% endblock %}
+```
