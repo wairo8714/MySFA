@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}商品マスタ | 承認待ち一覧 | {{ group.name }} | MySFA{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>商品変更申請（承認待ち）（{{ group.name }}）</h1>
+    </div>
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:product_master' group.custom_id %}">
+        商品マスタへ戻る
+      </a>
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+
+  <div class="master-list">
+    <div class="master-list__header">
+      <h2 class="master-section-title">申請一覧</h2>
+      <div class="master-list__count">件数：{{ requests|length }}</div>
+    </div>
+
+    {% if requests %}
+      <div class="master-table-wrap">
+        <table class="master-table">
+          <thead class="master-table__head">
+            <tr class="master-table__row">
+              <th class="master-table__th">申請ID</th>
+              <th class="master-table__th">タイトル</th>
+              <th class="master-table__th">申請者</th>
+              <th class="master-table__th">申請日時</th>
+              <th class="master-table__th">内容</th>
+              <th class="master-table__th">操作</th>
+            </tr>
+          </thead>
+          <tbody class="master-table__body">
+            {% for cr in requests %}
+              <tr class="master-table__row">
+                <td class="master-table__td">#{{ cr.id }}</td>
+                <td class="master-table__td">{{ cr.title|default:"(無題)" }}</td>
+                <td class="master-table__td">{{ cr.requester.username }}</td>
+                <td class="master-table__td">{{ cr.submitted_at|date:"Y/m/d H:i" }}</td>
+                <td class="master-table__td">
+                  {% if cr.rows.all %}
+                    <div style="display:flex; flex-direction:column; gap: 6px;">
+                      {% for row in cr.rows.all %}
+                        <div>
+                          {{ row.row_index }}:
+                          {{ row.get_op_display }}
+                          /
+                          {{ row.code }}
+                          {% if row.name %}（{{ row.name }}）{% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="master-table__td">
+                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <button type="submit">承認</button>
+                  </form>
+                  <form method="post" action="{% url 'mysfa:product_change_request_decide' group.custom_id cr.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject">
+                    <button type="submit">却下</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="master-form-errors" style="margin-top: 12px;">
+        承認待ちの申請はありません。
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+

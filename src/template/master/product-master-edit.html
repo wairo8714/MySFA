@@ -78,33 +78,6 @@
             {% endif %}
           </div>
         </div>
-        <div class="master-form-row">
-          <label class="master-form-label" for="{{ form.cost_price.id_for_label }}">商品原価</label>
-          <div class="master-form-control">
-            {{ form.cost_price }}
-            {% if form.cost_price.errors %}
-              <div class="master-field-errors">{{ form.cost_price.errors }}</div>
-            {% endif %}
-          </div>
-        </div>
-        <div class="master-form-row">
-          <label class="master-form-label" for="{{ form.price_excl_tax.id_for_label }}">販売価格（税抜）</label>
-          <div class="master-form-control">
-            {{ form.price_excl_tax }}
-            {% if form.price_excl_tax.errors %}
-              <div class="master-field-errors">{{ form.price_excl_tax.errors }}</div>
-            {% endif %}
-          </div>
-        </div>
-        <div class="master-form-row">
-          <label class="master-form-label" for="{{ form.price_incl_tax.id_for_label }}">販売価格（税込）</label>
-          <div class="master-form-control">
-            {{ form.price_incl_tax }}
-            {% if form.price_incl_tax.errors %}
-              <div class="master-field-errors">{{ form.price_incl_tax.errors }}</div>
-            {% endif %}
-          </div>
-        </div>
 
         <div class="master-form-row master-form-row--full">
           <label class="master-form-label" for="{{ form.description.id_for_label }}">自由記入</label>
@@ -133,7 +106,6 @@
             <th class="master-table__th">商品コード</th>
             <th class="master-table__th">商品名</th>
             <th class="master-table__th">分類</th>
-            <th class="master-table__th">価格（税抜/税込）</th>
             <th class="master-table__th">操作</th>
           </tr>
         </thead>
@@ -143,7 +115,6 @@
               <td class="master-table__td">{{ m.product_code }}</td>
               <td class="master-table__td">{{ m.name }}</td>
               <td class="master-table__td">{{ m.category_main|default:"-" }} / {{ m.category_sub|default:"-" }}</td>
-              <td class="master-table__td">{{ m.price_excl_tax|default:"-" }} / {{ m.price_incl_tax|default:"-" }}</td>
               <td class="master-table__td">
                 <a class="master-edit-link" href="{% url 'mysfa:product_master_edit' group.custom_id m.id %}">
                   編集
@@ -152,7 +123,7 @@
             </tr>
           {% empty %}
             <tr class="master-table__row">
-              <td class="master-table__td" colspan="5">まだ登録がありません。</td>
+              <td class="master-table__td" colspan="4">まだ登録がありません。</td>
             </tr>
           {% endfor %}
         </tbody>

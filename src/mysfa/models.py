@@ -114,15 +114,6 @@ class ProductMaster(models.Model):
 
     category_main = models.CharField(max_length=50, null=True, blank=True, verbose_name="大分類")
     category_sub = models.CharField(max_length=50, null=True, blank=True, verbose_name="小分類")
-
-    cost_price = models.IntegerField(null=True, blank=True, verbose_name="商品原価")
-
-    price_excl_tax = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="販売価格（税抜）"
-    )
-    price_incl_tax = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="販売価格（税込）"
-    )
     
     custom_text_1 = models.CharField(
         max_length=255, null=True, blank=True, verbose_name="自由項目（文字1）"
