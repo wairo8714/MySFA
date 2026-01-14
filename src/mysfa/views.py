@@ -8,6 +8,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import ListView
@@ -15,7 +17,14 @@ from django.views.generic import ListView
 from accounts.models import CustomUser
 
 from .forms import GroupForm, ProductMasterForm, PostForm, UserProfileForm
-from .models import Group, ProductMaster, JoinRequest, Post
+from .models import (
+    ChangeRequest,
+    ChangeRequestRow,
+    Group,
+    JoinRequest,
+    Post,
+    ProductMaster,
+)
 
 
 def _transfer_creator_or_archive(group):
@@ -55,6 +64,7 @@ class Timeline(LoginRequiredMixin, ListView):
         context["user_groups"] = Group.objects.filter(users=self.request.user, is_active=True)
         context["selected_group_id"] = custom_id
         context["form"] = PostForm(user=self.request.user)
+
         queryset = self.get_queryset()
         paginator = Paginator(queryset, self.paginate_by)
         page = self.request.GET.get("page")
@@ -78,9 +88,11 @@ class Timeline(LoginRequiredMixin, ListView):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+
+            base = reverse("mysfa:timeline")
             if custom_id:
-                return redirect(f"mysfa:timeline?custom_id={custom_id}")
-            return redirect("mysfa:timeline")
+                return redirect(f"{base}?custom_id={custom_id}")
+            return redirect(base)
 
         form = PostForm(request.POST, request.FILES, user=request.user)
 
@@ -95,15 +107,16 @@ class Timeline(LoginRequiredMixin, ListView):
                 post.image = request.FILES["image"]
             post.save()
 
+            base = reverse("mysfa:timeline")
             if custom_id:
-                return redirect(f"mysfa:timeline?custom_id={custom_id}")
-            return redirect("mysfa:timeline")
-        else:
-            self.object_list = self.get_queryset()
-            context = self.get_context_data()
-            context["form"] = form
-            context["selected_group_id"] = custom_id
-            return self.render_to_response(context)
+                return redirect(f"{base}?custom_id={custom_id}")
+            return redirect(base)
+
+        self.object_list = self.get_queryset()
+        context = self.get_context_data()
+        context["form"] = form
+        context["selected_group_id"] = custom_id
+        return self.render_to_response(context)
 
 
 class MyPost(LoginRequiredMixin, ListView):
@@ -116,6 +129,7 @@ class MyPost(LoginRequiredMixin, ListView):
         custom_user_id = self.kwargs["custom_user_id"]
         user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
         queryset = Post.objects.filter(user=user)
+
         custom_id = self.request.GET.get("custom_id")
         if custom_id:
             try:
@@ -128,17 +142,13 @@ class MyPost(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         custom_user_id = self.kwargs["custom_user_id"]
-        context["displayed_user"] = get_object_or_404(
-            CustomUser, custom_user_id=custom_user_id
-        )
+        context["displayed_user"] = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
         context["current_user"] = self.request.user
         context["form"] = UserProfileForm(instance=self.request.user)
 
         from django.conf import settings
 
         context["MEDIA_URL"] = settings.MEDIA_URL
-
-        from .models import Group
 
         user_groups = Group.objects.filter(users=context["displayed_user"], is_active=True)
         context["user_groups"] = user_groups
@@ -161,6 +171,8 @@ class MyPost(LoginRequiredMixin, ListView):
         if "delete_post_id" in request.POST:
             post_id = request.POST.get("delete_post_id")
             post = get_object_or_404(Post, id=post_id, user=request.user)
+            if post.image:
+                post.image.delete(save=False)
             post.delete()
             return redirect("mysfa:mypost", custom_user_id=request.user.custom_user_id)
 
@@ -168,6 +180,7 @@ class MyPost(LoginRequiredMixin, ListView):
         if form.is_valid():
             form.save()
             return redirect("mysfa:mypost", custom_user_id=request.user.custom_user_id)
+
         context = self.get_context_data()
         context["form"] = form
         return render(request, self.template_name, context)
@@ -182,15 +195,13 @@ class UploadIconView(View):
         if "profile_image" in request.FILES:
             if user.profile_image and user.profile_image.name != default_image_path:
                 user.profile_image.delete(save=False)
-
             user.profile_image = request.FILES["profile_image"]
         else:
             if not user.profile_image:
                 user.profile_image = default_image_path
 
         user.save()
-        custom_user_id = user.custom_user_id
-        return redirect("mysfa:mypost", custom_user_id=custom_user_id)
+        return redirect("mysfa:mypost", custom_user_id=user.custom_user_id)
 
 
 class UpdateUsernameView(View):
@@ -219,14 +230,13 @@ class GroupPost(LoginRequiredMixin, ListView):
         members = group.users.all()
 
         context["group"] = group
-        context["is_member"] = user.groups.filter(id=group.id).exists()
+        context["is_member"] = group.users.filter(pk=user.pk).exists()
         context["creator"] = creator
         context["members"] = members
         context["member_count"] = members.count()
-        context["user_has_requested"] = JoinRequest.objects.filter(
-            user=user, group=group
-        ).exists()
+        context["user_has_requested"] = JoinRequest.objects.filter(user=user, group=group).exists()
         context["join_requests"] = JoinRequest.objects.filter(group=group)
+
         queryset = self.get_queryset()
         paginator = Paginator(queryset, self.paginate_by)
         page = self.request.GET.get("page")
@@ -268,8 +278,7 @@ class UploadGroupIconView(View):
                 group.icon = default_image_path
 
         group.save()
-        custom_id = group.custom_id
-        return redirect("mysfa:group_posts", custom_id=custom_id)
+        return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
 
 class ToggleGroupLockView(View):
@@ -300,18 +309,16 @@ class JoinGroupRequestView(View):
             if not JoinRequest.objects.filter(user=request.user, group=group).exists():
                 JoinRequest.objects.create(user=request.user, group=group)
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
-        else:
-            request.user.groups.add(group)
-            group.users.add(request.user)
-            return redirect("mysfa:group_posts", custom_id=group.custom_id)
+
+        request.user.groups.add(group)
+        group.users.add(request.user)
+        return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
 
 class ApproveJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
-        join_request = get_object_or_404(
-            JoinRequest, user__custom_user_id=request_id, group=group
-        )
+        join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         group.users.add(join_request.user)
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
@@ -320,9 +327,7 @@ class ApproveJoinRequestView(View):
 class RejectJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
-        join_request = get_object_or_404(
-            JoinRequest, user__custom_user_id=request_id, group=group
-        )
+        join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
 
@@ -330,14 +335,13 @@ class RejectJoinRequestView(View):
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        was_creator = (group.creator_id == request.user.pk)
+        was_creator = group.creator_id == request.user.pk
         request.user.groups.remove(group)
         group.users.remove(request.user)
-        if was_creator:
+
+        if was_creator or group.users.count() == 0:
             _transfer_creator_or_archive(group)
-        else:
-            if group.users.count() == 0:
-                _transfer_creator_or_archive(group)
+
         return redirect("home")
 
 
@@ -354,15 +358,11 @@ class DeleteGroupView(View):
 class RemoveMemberView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        user_to_remove = get_object_or_404(
-            CustomUser, custom_user_id=kwargs["custom_user_id"]
-        )
+        user_to_remove = get_object_or_404(CustomUser, custom_user_id=kwargs["custom_user_id"])
 
         if request.user == group.creator and user_to_remove in group.users.all():
             group.users.remove(user_to_remove)
-            messages.success(
-                request, f"{user_to_remove.username}をグループから退会させました。"
-            )
+            messages.success(request, f"{user_to_remove.username}をグループから退会させました。")
         else:
             messages.error(request, "この操作を行う権限がありません。")
 
@@ -373,12 +373,7 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
     template_name = "master/product-master.html"
 
     def get(self, request, custom_id):
-        group = get_object_or_404(
-            Group,
-            custom_id=custom_id,
-            is_active=True,
-            users=request.user,
-        )
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
 
         search = request.GET.get("search", "").strip()
 
@@ -392,7 +387,6 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
             per_page = 50
 
         qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
-
         if search:
             qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
 
@@ -419,80 +413,69 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
             "total_count": total_count,
             "per_page": per_page,
             "allowed_per_page": allowed_per_page,
-            "is_creator": (group.creator_id == request.user.pk),
+            "is_creator": group.creator_id == request.user.pk,
         }
         return render(request, self.template_name, context)
 
     def post(self, request, custom_id):
-    group = get_object_or_404(
-        Group,
-        custom_id=custom_id,
-        is_active=True,
-        users=request.user,
-    )
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
 
-    form = ProductMasterForm(request.POST)
-    if form.is_valid():
-        obj = form.save(commit=False)
-        obj.group = group
-        obj.is_active = True
-        obj.save()
-        return redirect("mysfa:product_master", custom_id=custom_id)
+        form = ProductMasterForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.group = group
+            obj.is_active = True
+            obj.save()
+            return redirect("mysfa:product_master", custom_id=custom_id)
 
-    search = request.GET.get("search", "").strip()
+        search = request.GET.get("search", "").strip()
 
-    allowed_per_page = (25, 50, 100, 500)
-    raw = request.GET.get("per_page", "50")
-    try:
-        per_page = int(raw)
-    except (TypeError, ValueError):
-        per_page = 50
-    if per_page not in allowed_per_page:
-        per_page = 50
+        allowed_per_page = (25, 50, 100, 500)
+        raw = request.GET.get("per_page", "50")
+        try:
+            per_page = int(raw)
+        except (TypeError, ValueError):
+            per_page = 50
+        if per_page not in allowed_per_page:
+            per_page = 50
 
-    qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
-    if search:
-        qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
+        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
+        if search:
+            qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
 
-    total_count = qs.count()
+        total_count = qs.count()
 
-    paginator = Paginator(qs, per_page)
-    page = request.GET.get("page", 1)
-    try:
-        page_obj = paginator.page(page)
-    except PageNotAnInteger:
-        page_obj = paginator.page(1)
-    except EmptyPage:
-        page_obj = paginator.page(paginator.num_pages)
+        paginator = Paginator(qs, per_page)
+        page = request.GET.get("page", 1)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
 
-    masters = page_obj
+        masters = page_obj
 
-    context = {
-        "group": group,
-        "search": search,
-        "masters": masters,
-        "form": form,  # エラー付きフォーム
-        "page_obj": page_obj,
-        "paginator": paginator,
-        "total_count": total_count,
-        "per_page": per_page,
-        "allowed_per_page": allowed_per_page,
-        "is_creator": (group.creator_id == request.user.pk),
-    }
-    return render(request, self.template_name, context)
-
+        context = {
+            "group": group,
+            "search": search,
+            "masters": masters,
+            "form": form,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total_count": total_count,
+            "per_page": per_page,
+            "allowed_per_page": allowed_per_page,
+            "is_creator": group.creator_id == request.user.pk,
+        }
+        return render(request, self.template_name, context)
 
 
 class ProductMasterEditView(LoginRequiredMixin, View):
     template_name = "master/product-master-edit.html"
 
     def get(self, request, custom_id, pk):
-        group = get_object_or_404(
-            Group,
-            custom_id=custom_id,
-            is_active=True,
-            users=request.user,
-        )
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(instance=master)
@@ -507,12 +490,7 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         )
 
     def post(self, request, custom_id, pk):
-        group = get_object_or_404(
-            Group,
-            custom_id=custom_id,
-            is_active=True,
-            users=request.user,
-        )
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(request.POST, instance=master)
@@ -535,6 +513,7 @@ class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
     def post(self, request, custom_id, pk):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         master = get_object_or_404(ProductMaster, pk=pk, group=group, is_active=True)
+
         exists = ChangeRequestRow.objects.filter(
             change_request__group=group,
             change_request__kind=ChangeRequest.Kind.PRODUCT,
@@ -545,36 +524,47 @@ class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
         if exists:
             messages.info(request, "この商品はすでに削除依頼中です。")
             return redirect("mysfa:product_master", custom_id=custom_id)
-            with transaction.atomic():
-                cr  ChangeRequest.objects.create(
-                    group=group,
-                    kind=ChangeRequest.Kind.PRODUCT,
-                    status=ChangeRequest.Status.PENDING,
-                    requested_by=request.user,
-                    submitted_at=datetime.now(),
-                )
-                ChangeRequestRow.objects.create(
-                    change_request=cr,
-                    row_index=1,
-                    op=ChangeRequestRow.Op.DELETE,
-                    code=str(master.product_code),
-                    name=master.name,
-                    is_valid=True,
-                )
-            messages.success(request, "削除依頼を送信しました。")
-            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        with transaction.atomic():
+            cr = ChangeRequest.objects.create(
+                group=group,
+                kind=ChangeRequest.Kind.PRODUCT,
+                status=ChangeRequest.Status.PENDING,
+                requested_by=request.user,
+                submitted_at=timezone.now(),
+            )
+            ChangeRequestRow.objects.create(
+                change_request=cr,
+                row_index=1,
+                op=ChangeRequestRow.Op.DELETE,
+                code=str(master.product_code),
+                name=master.name,
+                is_valid=True,
+            )
+
+        messages.success(request, "削除依頼を送信しました。")
+        return redirect("mysfa:product_master", custom_id=custom_id)
+
 
 class ProductChangeRequestInboxView(LoginRequiredMixin, View):
     template_name = "master/product-change-requests.html"
+
     def get(self, request, custom_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         if request.user != group.creator:
-            return HttpResoinseForbidden("グループ管理者以外は閲覧できません。")
-            requests_qs = ChangeRequest.Kind.PRODUCT,
-            status=ChangeRequest.Status.PENDING,
-        ).prefetch_related("rows")
+            return HttpResponseForbidden("グループ管理者以外は閲覧できません。")
 
-        return render(request, self.template_name, {"group": group, "requests": requests_qs})  
+        requests_qs = (
+            ChangeRequest.objects.filter(
+                group=group,
+                kind=ChangeRequest.Kind.PRODUCT,
+                status=ChangeRequest.Status.PENDING,
+            )
+            .prefetch_related("rows")
+            .order_by("-submitted_at", "-id")
+        )
+
+        return render(request, self.template_name, {"group": group, "requests": requests_qs})
 
 
 class ProductChangeRequestDecideView(LoginRequiredMixin, View):
@@ -582,6 +572,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         if request.user != group.creator:
             return HttpResponseForbidden("グループ管理者以外は操作できません。")
+
         cr = get_object_or_404(
             ChangeRequest,
             id=cr_id,
@@ -589,21 +580,33 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
             kind=ChangeRequest.Kind.PRODUCT,
             status=ChangeRequest.Status.PENDING,
         )
-        action = request,POST.get("action"):
-        if action == "approve":
-            for row in cr.rows.all():
-                if row.op == ChangeRequestRow.Op.DELETE:
-                    ProductMaster.objects.filter(
-                        group=group,
-                        product_code=row.code,
-                        is_active=True,
-                    ).update(is_active=False)
 
-            cr.status = ChangeRequest.Status.APPROVED
-            cr.decided_at = datetime.now()
-            cr.save()
+        action = request.POST.get("action")
 
-            messages.success(request, 削除依頼を
+        with transaction.atomic():
+            if action == "approve":
+                for row in cr.rows.all():
+                    if row.op == ChangeRequestRow.Op.DELETE:
+                        ProductMaster.objects.filter(
+                            group=group,
+                            product_code=row.code,
+                            is_active=True,
+                        ).update(is_active=False)
+
+                cr.status = ChangeRequest.Status.APPROVED
+                cr.decided_at = timezone.now()
+                cr.save()
+
+                messages.success(request, "削除依頼を承認しました。")
+            else:
+                cr.status = ChangeRequest.Status.REJECTED
+                cr.decided_at = timezone.now()
+                cr.save()
+
+                messages.info(request, "削除依頼を却下しました。")
+
+        return redirect("mysfa:product_change_requests", custom_id=custom_id)
+
 
 class CreateGroupView(View):
     def get(self, request):
@@ -629,12 +632,8 @@ class SearchGroupView(LoginRequiredMixin, View):
         query = request.GET.get("q", "")
         groups = Group.objects.filter(name__icontains=query, is_active=True)
         for group in groups:
-            group.is_member = group.users.filter(
-                custom_user_id=request.user.custom_user_id
-            ).exists()
-        return render(
-            request, "group/search_group.html", {"groups": groups, "query": query}
-        )
+            group.is_member = group.users.filter(custom_user_id=request.user.custom_user_id).exists()
+        return render(request, "group/search_group.html", {"groups": groups, "query": query})
 
     def post(self, request, custom_id):
         group = Group.objects.get(custom_id=custom_id, is_active=True)
@@ -658,9 +657,7 @@ class SearchProductsView(LoginRequiredMixin, View):
                     group__in=user_groups,
                 )
             else:
-                posts = Post.objects.filter(
-                    product_name__icontains=query, group__in=user_groups
-                )
+                posts = Post.objects.filter(product_name__icontains=query, group__in=user_groups)
         else:
             posts = []
 
@@ -684,6 +681,8 @@ class SearchProductsView(LoginRequiredMixin, View):
         if "delete_post_id" in request.POST:
             post_id = request.POST.get("delete_post_id")
             post = get_object_or_404(Post, id=post_id, user=request.user)
+            if post.image:
+                post.image.delete(save=False)
             post.delete()
             return redirect("mysfa:search_products")
 
@@ -703,9 +702,7 @@ class SearchCustomersView(LoginRequiredMixin, View):
                     group__in=user_groups,
                 )
             else:
-                customers = Post.objects.filter(
-                    customer_category__icontains=query, group__in=user_groups
-                )
+                customers = Post.objects.filter(customer_category__icontains=query, group__in=user_groups)
         else:
             customers = []
 
@@ -729,6 +726,8 @@ class SearchCustomersView(LoginRequiredMixin, View):
         if "delete_post_id" in request.POST:
             post_id = request.POST.get("delete_post_id")
             post = get_object_or_404(Post, id=post_id, user=request.user)
+            if post.image:
+                post.image.delete(save=False)
             post.delete()
             return redirect("mysfa:search_customers")
 
@@ -739,9 +738,7 @@ class SearchUsersView(LoginRequiredMixin, View):
         page = request.GET.get("page", 1)
 
         if query:
-            users = CustomUser.objects.filter(
-                Q(username__icontains=query) | Q(custom_user_id__icontains=query)
-            )
+            users = CustomUser.objects.filter(Q(username__icontains=query) | Q(custom_user_id__icontains=query))
         else:
             users = CustomUser.objects.none()
 
@@ -837,9 +834,7 @@ class SalesReportView(View):
                             created_at__date__lte=end_date,
                         )
                     except Group.DoesNotExist:
-                        return JsonResponse(
-                            {"error": "選択されたグループが見つかりません"}, status=404
-                        )
+                        return JsonResponse({"error": "選択されたグループが見つかりません"}, status=404)
                 else:
                     user_groups = Group.objects.filter(users=user, is_active=True)
                     posts = Post.objects.filter(
@@ -856,23 +851,13 @@ class SalesReportView(View):
 
         for post in posts:
             if post.product_name:
-                product_counts[post.product_name] = (
-                    product_counts.get(post.product_name, 0) + 1
-                )
+                product_counts[post.product_name] = product_counts.get(post.product_name, 0) + 1
 
             if post.customer_category:
-                customer_counts[post.customer_category] = (
-                    customer_counts.get(post.customer_category, 0) + 1
-                )
+                customer_counts[post.customer_category] = customer_counts.get(post.customer_category, 0) + 1
 
-        product_data = [
-            {"product_name": name, "count": count}
-            for name, count in product_counts.items()
-        ]
-        customer_data = [
-            {"customer_category": category, "count": count}
-            for category, count in customer_counts.items()
-        ]
+        product_data = [{"product_name": name, "count": count} for name, count in product_counts.items()]
+        customer_data = [{"customer_category": category, "count": count} for category, count in customer_counts.items()]
 
         product_data.sort(key=lambda x: x["count"], reverse=True)
         customer_data.sort(key=lambda x: x["count"], reverse=True)
@@ -888,9 +873,7 @@ class SalesReportView(View):
             top_customers = customer_data[:5]
             other_count = sum(item["count"] for item in customer_data[5:])
             if other_count > 0:
-                top_customers.append(
-                    {"customer_category": "その他", "count": other_count}
-                )
+                top_customers.append({"customer_category": "その他", "count": other_count})
             customer_data = top_customers
 
         response_data = {
