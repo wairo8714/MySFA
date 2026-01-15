@@ -703,53 +703,68 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
 
 class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
     
-def post(self, request, custom_id):
-    group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
 
-    selected_ids = request.POST.getlist("selected_ids")
-    if not selected_ids:
-        messages.error(request, "削除する商品を選択してください。")
+        selected_ids = request.POST.getlist("selected_ids")
+        if not selected_ids:
+            messages.error(request, "削除する商品を選択してください。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        masters_qs = (
+            ProductMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
+            .order_by("product_code")
+        )
+        masters = list(masters_qs)
+
+        if len(masters) != len(set(selected_ids)):
+            messages.error(request, "選択された商品の中に、存在しない商品または無効な商品があります。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        codes = [str(m.product_code) for m in masters]
+
+        pending_codes = set(
+            ChangeRequestRow.objects.filter(
+                change_request__group=group,
+                change_request__kind=ChangeRequest.Kind.PRODUCT,
+                change_request__status=ChangeRequest.Status.PENDING,
+                op=ChangeRequestRow.Op.DELETE,
+                 code__in=codes,
+            ).values_list("code", flat=True)
+         )
+
+    if pending_codes:
+        pending_list = ", ".join(sorted(pending_codes))
+        messages.error(
+            request,
+            f"承認待ち商品が含まれているため、中止しました。対象商品コード: {pending_list}",
+        )
         return redirect("mysfa:product_master", custom_id=custom_id)
 
-    masters_qs = (
-        ProductMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
-        .order_by("product_code")
-    )
-    masters = list(masters_qs)
+    with transaction.atomic():
+        cr = ChangeRequest.objects.create(
+            group=group,
+            kind=ChangeRequest.Kind.PRODUCT,
+            status=ChangeRequest.Status.PENDING,
+            requester=request.user,
+            submitted_at=timezone.now(),
+            title=f"商品削除依頼: {len(masters)}件",
+        )
+        rows = [
+            ChangeRequestRow(
+                change_request=cr,
+                row_index=i + 1,
+                op=ChangeRequestRow.Op.DELETE,
+                code=str(m.product_code),
+                name=m.name,
+                is_valid=True,
+            )
+            for i, m in enumerate(masters)
+        ]
+        ChangeRequestRow.objects.bulk_create(rows)
 
-    if len(masters) != ken(set(selected_ids)):
-        messages.error(request, "選択された商品の中に、存在しない商品または無効な商品があります。")
-        return redirect("mysfa:product_master", custom_id=custom_id)
-
-    codes = [str(m.product_code) for m in masters]
-
-    pending_codes = set(
-        ChangeRequestRow.objects.filter(
-            change_request__group=group,
-            change_request__kind=ChangeRequest.Kind.PRODUCT,
-            change_request__status=ChangeRequest.Status.PENDING,
-            op=ChangeRequestRow.Op.DELETE,
-            code__in=codes,
-        ).values_list("code", flatTrue)
-    )
-
-if pending_codes:
-    pending_list = ", ".join(sorted(pending_codes))
-    messages.error(
-        request,
-        f"承認待ち商品が含まれているため、中止しました。対象商品コード: {pending_list}",
-    )
+    messages.success(request, f"削除依頼を送信しました({len(masters)}件)。")
     return redirect("mysfa:product_master", custom_id=custom_id)
-
-with transaction.atomic():
-    cr = ChangeRequest.objects.create(
-        group=group,
-        kind=ChangeRequest.Kind.PRODUCT,
-        status=ChangeRequest.Status.PENDING,
-        requester=request.user,
-        submitted_at=timezone.now(),
-        title=f"商品削除依頼: {len(masters)}件",
-    )
 
 class CreateGroupView(View):
     def get(self, request):
