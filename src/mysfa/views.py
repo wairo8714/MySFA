@@ -712,7 +712,44 @@ def post(self, request, custom_id):
         return redirect("mysfa:product_master", custom_id=custom_id)
 
     masters_qs = (
+        ProductMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
+        .order_by("product_code")
+    )
+    masters = list(masters_qs)
 
+    if len(masters) != ken(set(selected_ids)):
+        messages.error(request, "選択された商品の中に、存在しない商品または無効な商品があります。")
+        return redirect("mysfa:product_master", custom_id=custom_id)
+
+    codes = [str(m.product_code) for m in masters]
+
+    pending_codes = set(
+        ChangeRequestRow.objects.filter(
+            change_request__group=group,
+            change_request__kind=ChangeRequest.Kind.PRODUCT,
+            change_request__status=ChangeRequest.Status.PENDING,
+            op=ChangeRequestRow.Op.DELETE,
+            code__in=codes,
+        ).values_list("code", flatTrue)
+    )
+
+if pending_codes:
+    pending_list = ", ".join(sorted(pending_codes))
+    messages.error(
+        request,
+        f"承認待ち商品が含まれているため、中止しました。対象商品コード: {pending_list}",
+    )
+    return redirect("mysfa:product_master", custom_id=custom_id)
+
+with transaction.atomic():
+    cr = ChangeRequest.objects.create(
+        group=group,
+        kind=ChangeRequest.Kind.PRODUCT,
+        status=ChangeRequest.Status.PENDING,
+        requester=request.user,
+        submitted_at=timezone.now(),
+        title=f"商品削除依頼: {len(masters)}件",
+    )
 
 class CreateGroupView(View):
     def get(self, request):
