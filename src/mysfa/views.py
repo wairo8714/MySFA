@@ -701,6 +701,19 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
         return redirect("mysfa:product_change_requests", custom_id=custom_id)
 
 
+class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
+    
+def post(self, request, custom_id):
+    group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+
+    selected_ids = request.POST.getlist("selected_ids")
+    if not selected_ids:
+        messages.error(request, "削除する商品を選択してください。")
+        return redirect("mysfa:product_master", custom_id=custom_id)
+
+    masters_qs = (
+
+
 class CreateGroupView(View):
     def get(self, request):
         form = GroupForm()
