@@ -13,6 +13,7 @@ from .views import (
     ProductChangeRequestDecideView,
     ProductChangeRequestInboxView,
     ProductDeleteRequestCreateView,
+    ProductDeleteRequestBulkCreateView,
     ProductMasterEditView,
     ProductMasterIndexView,
     RejectJoinRequestView,
@@ -80,6 +81,11 @@ urlpatterns = [
         "group/<str:custom_id>/product-master/<int:pk>/delete-request/",
         ProductDeleteRequestCreateView.as_view(),
         name="product_delete_request",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/delete-request/",
+        ProductDeleteRequestBulkCreateView.as_view(),
+        name="product_delete_request_bulk",
     ),
     path(
         "group/<str:custom_id>/product-change-requests/",
