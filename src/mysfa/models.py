@@ -157,25 +157,20 @@ class IndustryMaster(models.Model):
         related_name="industry_masters",
         verbose_name="グループ",
     )
-
-    industry_code = models.CharField(max_length=50, verbose_name="業態コード")
     name = models.CharField(max_length=50, verbose_name="業態名")
-
-    # 論理削除用（承認フローの「削除」はこれをFalseにする）
     is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
-
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新日時")
 
     def __str__(self):
-        return f"{self.industry_code} {self.name}"
+        return f"{self.id} {self.name}"
 
     class Meta:
-        ordering = ["group_id", "industry_code"]
+        ordering = ["group_id", "name", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["group", "industry_code"],
-                name="uq_industrymaster_group_industry_code",
+                fields=["group", "name"],
+                name="uq_industrymaster_group_name",
             ),
         ]
 
