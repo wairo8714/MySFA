@@ -10,6 +10,15 @@ from .views import (
     LeaveGroupView,
     LikePostView,
     MyPost,
+    ProductChangeRequestDecideView,
+    ProductChangeRequestInboxView,
+    ProductDeleteRequestCreateView,
+    ProductDeleteRequestBulkCreateView,
+    ProductMasterCsvSubmitView,
+    ProductMasterCsvTemplateView,
+    ProductMasterCsvValidateView,
+    ProductMasterEditView,
+    ProductMasterIndexView,
     RejectJoinRequestView,
     RemoveMemberView,
     SalesReportView,
@@ -55,13 +64,56 @@ urlpatterns = [
         name="request_join_group",
     ),
     path("group/leave/<str:custom_id>/", LeaveGroupView.as_view(), name="leave_group"),
-    path(
-        "group/delete/<str:custom_id>/", DeleteGroupView.as_view(), name="delete_group"
-    ),
+    path("group/delete/<str:custom_id>/", DeleteGroupView.as_view(), name="delete_group"),
     path(
         "group/remove_member/<str:custom_id>/<str:custom_user_id>/",
         RemoveMemberView.as_view(),
         name="remove_member",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/",
+        ProductMasterIndexView.as_view(),
+        name="product_master",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-template/",
+        ProductMasterCsvTemplateView.as_view(),
+        name="product_master_csv_template",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-validate/",
+        ProductMasterCsvValidateView.as_view(),
+        name="product_master_csv_validate",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-submit/",
+        ProductMasterCsvSubmitView.as_view(),
+        name="product_master_csv_submit",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/<int:pk>/edit/",
+        ProductMasterEditView.as_view(),
+        name="product_master_edit",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/<int:pk>/delete-request/",
+        ProductDeleteRequestCreateView.as_view(),
+        name="product_delete_request",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/delete-request/",
+        ProductDeleteRequestBulkCreateView.as_view(),
+        name="product_delete_request_bulk",
+    ),
+    path(
+        "group/<str:custom_id>/product-change-requests/",
+        ProductChangeRequestInboxView.as_view(),
+        name="product_change_requests",
+    ),
+    path(
+        "group/<str:custom_id>/product-change-requests/<int:cr_id>/decide/",
+        ProductChangeRequestDecideView.as_view(),
+        name="product_change_request_decide",
     ),
     path(
         "toggle_group_lock/<str:custom_id>/",

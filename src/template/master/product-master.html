@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}商品マスタ | {{ group.name }} | MySFA{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container master-page">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>商品マスタ（{{ group.name }}）</h1>
+    </div>
+
+    <div class="group-actions">
+      {% if is_creator %}
+        <a class="group-function-button" href="{% url 'mysfa:product_change_requests' group.custom_id %}">
+          承認待ち一覧
+        </a>
+      {% endif %}
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+
+  <div class="master-search">
+    <form class="master-search__form" method="get">
+      <input type="hidden" name="per_page" value="{{ per_page }}">
+      <div class="master-search__field">
+        <label class="master-search__label" for="master-search-input">検索</label>
+        <input
+          class="master-search__input"
+          id="master-search-input"
+          type="text"
+          name="search"
+          value="{{ search }}"
+          placeholder="商品コード / 商品名で検索"
+        >
+      </div>
+      <div class="master-search__actions">
+        <button class="master-search__submit" type="submit">検索</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="master-create">
+    <h2 class="master-section-title">新規登録</h2>
+
+    <div class="master-csv-actions">
+      <button
+        type="button"
+        class="master-create__submit master-csv-open-btn"
+        id="open-csv-modal-btn"
+      >CSVで一括登録</button>
+    </div>
+
+    <form class="master-create__form" method="post">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="master-form-errors">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="master-form-grid">
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.product_code.id_for_label }}">商品コード</label>
+          <div class="master-form-control">
+            {{ form.product_code }}
+            {% if form.product_code.errors %}
+              <div class="master-field-errors">{{ form.product_code.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.name.id_for_label }}">商品名</label>
+          <div class="master-form-control">
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="master-field-errors">{{ form.name.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.category_main.id_for_label }}">大分類</label>
+          <div class="master-form-control">
+            {{ form.category_main }}
+            {% if form.category_main.errors %}
+              <div class="master-field-errors">{{ form.category_main.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.category_sub.id_for_label }}">小分類</label>
+          <div class="master-form-control">
+            {{ form.category_sub }}
+            {% if form.category_sub.errors %}
+              <div class="master-field-errors">{{ form.category_sub.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="master-form-row master-form-row--full">
+          <label class="master-form-label" for="{{ form.description.id_for_label }}">自由記入</label>
+          <div class="master-form-control">
+            {{ form.description }}
+            {% if form.description.errors %}
+              <div class="master-field-errors">{{ form.description.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="master-create__actions">
+        <button class="master-create__submit" type="submit">申請</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="master-list">
+    <div class="master-list__header">
+      <h2 class="master-section-title">登録済み一覧</h2>
+
+      <form class="master-list__per-page" method="get">
+        <input type="hidden" name="search" value="{{ search }}">
+        <label class="master-list__per-page-label" for="master-per-page">表示件数</label>
+        <select
+          class="master-list__per-page-select"
+          id="master-per-page"
+          name="per_page"
+          onchange="this.form.submit()"
+        >
+          {% for n in allowed_per_page %}
+            <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <div class="master-list__meta">
+        <div class="master-list__count">総件数：{{ total_count }}件</div>
+        <div class="master-list__filters">
+          <span class="master-filter-badge">表示：{{ per_page }}件</span>
+          {% if search %}
+            <span class="master-filter-badge master-filter-badge--search">
+              検索：{{ search }}
+              <a
+                class="master-filter-reset"
+                href="?per_page={{ per_page }}"
+                aria-label="検索条件をリセット"
+                data-tooltip="検索条件をリセット"
+                title="検索条件をリセット"
+              >×</a>
+            </span>
+          {% else %}
+            <span class="master-filter-badge is-muted">検索：なし</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="master-list__bulk-actions">
+        <button type="button" id="select-all-btn" class="master-bulk-action-btn">全選択</button>
+        <button
+          type="submit"
+          form="bulk-delete-form"
+          id="bulk-delete-btn"
+          class="master-edit-link master-edit-link--danger master-bulk-delete-btn"
+          disabled
+        >選択商品の削除</button>
+      </div>
+    </div>
+
+    <form id="bulk-delete-form" method="post" action="{% url 'mysfa:product_delete_request_bulk' group.custom_id %}">
+      {% csrf_token %}
+    </form>
+
+    <div class="master-table-wrap">
+      <table class="master-table">
+        <thead class="master-table__head">
+          <tr class="master-table__row">
+            <th class="master-table__th">選択</th>
+            <th class="master-table__th">商品コード</th>
+            <th class="master-table__th">商品名</th>
+            <th class="master-table__th">分類</th>
+            <th class="master-table__th">操作</th>
+          </tr>
+        </thead>
+
+        <tbody class="master-table__body">
+          {% for m in masters %}
+            <tr class="master-table__row">
+              <td class="master-table__td">
+                <input
+                  type="checkbox"
+                  class="master-select-checkbox"
+                  form="bulk-delete-form"
+                  name="selected_ids"
+                  value="{{ m.id }}"
+                >
+              </td>
+              <td class="master-table__td">{{ m.product_code }}</td>
+              <td class="master-table__td">{{ m.name }}</td>
+              <td class="master-table__td">{{ m.category_main|default:"-" }} / {{ m.category_sub|default:"-" }}</td>
+              <td class="master-table__td">
+                <a class="master-edit-link" href="{% url 'mysfa:product_master_edit' group.custom_id m.id %}">
+                  変更申請
+                </a>
+                <a
+                  class="master-edit-link master-edit-link--danger"
+                  href="{% url 'mysfa:product_delete_request' group.custom_id m.id %}"
+                  data-confirm="削除依頼ページへ進みます。よろしいですか？"
+                >
+                  削除依頼
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr class="master-table__row">
+              <td class="master-table__td" colspan="5">まだ登録がありません。</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <span class="step-links">
+          {% if page_obj.has_previous %}
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page=1" aria-label="最初のページ">«</a>
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.previous_page_number }}" aria-label="前のページ">‹</a>
+          {% endif %}
+
+          {% for page_num in paginator.page_range %}
+            {% if page_num == page_obj.number %}
+              <span class="page-number current">{{ page_num }}</span>
+            {% elif page_num > page_obj.number|add:'-3' and page_num < page_obj.number|add:'3' %}
+              <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_num }}">{{ page_num }}</a>
+            {% elif page_num == 1 or page_num == paginator.num_pages %}
+              <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_num }}">{{ page_num }}</a>
+            {% elif page_num == page_obj.number|add:'-3' or page_num == page_obj.number|add:'3' %}
+              <span class="page-ellipsis">...</span>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.next_page_number }}" aria-label="次のページ">›</a>
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ paginator.num_pages }}" aria-label="最後のページ">»</a>
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CSV 一括登録モーダル -->
+<div class="modal-overlay" id="csv-modal-overlay" aria-hidden="true"></div>
+<div class="modal" id="csv-modal" role="dialog" aria-modal="true" aria-labelledby="csv-modal-title" aria-hidden="true">
+  <div class="modal__content">
+    <div class="modal__header">
+      <h3 class="modal__title" id="csv-modal-title">CSVで一括登録</h3>
+      <button type="button" class="modal__close" id="csv-modal-close-btn" aria-label="閉じる">×</button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__note">
+        CSVの内容はすぐには反映されず、送信後にグループ管理者の承認で反映されます。
+      </div>
+      <ol class="modal__steps">
+        <li>まず「テンプレートCSVをダウンロード」し、1行目の表記（ヘッダー）を変更しないでください。</li>
+        <li>2行目以降に、表記に沿って商品情報を入力してください（必須：商品コード・商品名）。</li>
+        <li>入力が終わったらCSVファイルとして保存し、この画面からアップロードしてください。</li>
+        <li>アップロード後、グループ管理者の承認が必要です（承認後に一覧へ反映されます）。</li>
+      </ol>
+
+      <div class="modal__actions">
+        <div class="modal__action-item">
+          <div class="modal__action-step">1</div>
+          <a class="master-create__submit" href="{% url 'mysfa:product_master_csv_template' group.custom_id %}">
+            テンプレートCSVをダウンロード
+          </a>
+        </div>
+        <div class="modal__action-item">
+          <div class="modal__action-step">2</div>
+          <input
+            type="file"
+            id="csv-file-input"
+            class="modal__file"
+            accept=".csv,text/csv"
+          >
+        </div>
+        <div class="modal__action-item">
+          <div class="modal__action-step">3</div>
+          <button
+            type="button"
+            class="master-create__submit"
+            id="csv-validate-btn"
+            disabled
+            data-validate-url="{% url 'mysfa:product_master_csv_validate' group.custom_id %}"
+          >チェック</button>
+        </div>
+        <div class="modal__action-item">
+          <div class="modal__action-step">4</div>
+          <button
+            type="button"
+            class="master-create__submit"
+            id="csv-submit-btn"
+            disabled
+            data-submit-url="{% url 'mysfa:product_master_csv_submit' group.custom_id %}"
+          >登録依頼</button>
+        </div>
+      </div>
+
+      <div class="modal__result" id="csv-result" aria-live="polite"></div>
+
+      <div class="modal__sample">
+        <div class="modal__sample-title">入力例</div>
+        <img
+          class="modal__sample-image"
+          src="{% static 'images/master/csv-sample.svg' %}"
+          alt="CSVテンプレートの入力例"
+          loading="lazy"
+        >
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/product-master.js' %}"></script>
+{% endblock %}
+
+

@@ -16,11 +16,17 @@ DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 ALLOWED_HOSTS_STR = os.getenv(
     "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,mysfa.net,app",
+    "localhost,127.0.0.1,0.0.0.0,mysfa.net,app",
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STR.split(",") if host.strip()]
 
-if not DEBUG:
+if DEBUG:
+    # docker compose の runserver は 0.0.0.0 で bind することが多く、
+    # ログのURLをクリックすると Host: 0.0.0.0 になって DisallowedHost になりがち。
+    # 開発時は 0.0.0.0 も許可しておく。
+    if "0.0.0.0" not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append("0.0.0.0")
+else:
     ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [

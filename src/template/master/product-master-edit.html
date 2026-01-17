@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}商品マスタ | {{ group.name }} | MySFA{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+<div class="group-info-container master-page">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>商品マスタ（変更申請）（{{ group.name }}）</h1>
+    </div>
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:product_master' group.custom_id %}">
+        商品マスタへ戻る
+      </a>
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+  <div class="master-create">
+    <h2 class="master-section-title">変更申請</h2>
+    <form class="master-create__form" method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="master-form-errors">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+      <div class="master-form-grid">
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.product_code.id_for_label }}">商品コード</label>
+          <div class="master-form-control">
+            {{ form.product_code }}
+            {% if form.product_code.errors %}
+              <div class="master-field-errors">{{ form.product_code.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.name.id_for_label }}">商品名</label>
+          <div class="master-form-control">
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="master-field-errors">{{ form.name.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.category_main.id_for_label }}">大分類</label>
+          <div class="master-form-control">
+            {{ form.category_main }}
+            {% if form.category_main.errors %}
+              <div class="master-field-errors">{{ form.category_main.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="master-form-row">
+          <label class="master-form-label" for="{{ form.category_sub.id_for_label }}">小分類</label>
+          <div class="master-form-control">
+            {{ form.category_sub }}
+            {% if form.category_sub.errors %}
+              <div class="master-field-errors">{{ form.category_sub.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="master-form-row master-form-row--full">
+          <label class="master-form-label" for="{{ form.description.id_for_label }}">自由記入</label>
+          <div class="master-form-control">
+            {{ form.description }}
+            {% if form.description.errors %}
+              <div class="master-field-errors">{{ form.description.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="master-create__actions">
+        <button class="master-create__submit" type="submit">申請</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

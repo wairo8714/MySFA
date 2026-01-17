@@ -1,0 +1,292 @@
+(function () {
+  function getCookie(name) {
+    var value = null;
+    if (document.cookie && document.cookie !== "") {
+      var cookies = document.cookie.split(";");
+      for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + "=")) {
+          value = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return value;
+  }
+
+  function qsa(sel) {
+    return Array.prototype.slice.call(document.querySelectorAll(sel));
+  }
+
+  function updateBulkDeleteState(cbs, deleteBtn) {
+    if (!deleteBtn) return;
+    var selected = cbs.filter(function (cb) { return cb.checked; });
+    deleteBtn.disabled = selected.length === 0;
+    deleteBtn.setAttribute("aria-disabled", deleteBtn.disabled ? "true" : "false");
+  }
+
+  function updateSelectAllLabel(selectAllBtn, cbs) {
+    if (!selectAllBtn) return;
+    if (cbs.length === 0) return;
+    var allChecked = cbs.every(function (cb) { return cb.checked; });
+    selectAllBtn.textContent = allChecked ? "全解除" : "全選択";
+  }
+
+  function init() {
+    var selectAllBtn = document.getElementById("select-all-btn");
+    var bulkForm = document.getElementById("bulk-delete-form");
+    var bulkDeleteBtn = document.getElementById("bulk-delete-btn");
+    var cbs = qsa(".master-select-checkbox");
+    var csvModal = document.getElementById("csv-modal");
+    var csvOverlay = document.getElementById("csv-modal-overlay");
+    var csvOpenBtn = document.getElementById("open-csv-modal-btn");
+    var csvCloseBtn = document.getElementById("csv-modal-close-btn");
+    var csvFileInput = document.getElementById("csv-file-input");
+    var csvValidateBtn = document.getElementById("csv-validate-btn");
+    var csvSubmitBtn = document.getElementById("csv-submit-btn");
+    var csvResult = document.getElementById("csv-result");
+    var csvValidateUrl = csvValidateBtn ? csvValidateBtn.getAttribute("data-validate-url") : null;
+    var csvSubmitUrl = csvSubmitBtn ? csvSubmitBtn.getAttribute("data-submit-url") : null;
+    var lastValidatedOk = false;
+
+    updateBulkDeleteState(cbs, bulkDeleteBtn);
+    updateSelectAllLabel(selectAllBtn, cbs);
+
+    // checkbox change -> enable/disable bulk delete + label update
+    cbs.forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        updateBulkDeleteState(cbs, bulkDeleteBtn);
+        updateSelectAllLabel(selectAllBtn, cbs);
+      });
+    });
+
+    // select all toggle
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener("click", function () {
+        if (cbs.length === 0) return;
+        var allChecked = cbs.every(function (cb) { return cb.checked; });
+        cbs.forEach(function (cb) { cb.checked = !allChecked; });
+        updateBulkDeleteState(cbs, bulkDeleteBtn);
+        updateSelectAllLabel(selectAllBtn, cbs);
+      });
+    }
+
+    // submit: guard + confirm with count
+    if (bulkForm) {
+      bulkForm.addEventListener("submit", function (e) {
+        var selected = cbs.filter(function (cb) { return cb.checked; });
+        if (selected.length === 0) {
+          e.preventDefault();
+          window.alert("削除する商品を選択してください。");
+          return;
+        }
+        var ok = window.confirm("選択した商品（" + selected.length + "件）の削除依頼を送信します。よろしいですか？");
+        if (!ok) e.preventDefault();
+      });
+    }
+
+    // CSV modal open/close
+    function openCsvModal() {
+      if (!csvModal || !csvOverlay) return;
+      csvOverlay.classList.add("is-open");
+      csvModal.classList.add("is-open");
+      csvOverlay.setAttribute("aria-hidden", "false");
+      csvModal.setAttribute("aria-hidden", "false");
+
+      // reset UI state on open
+      lastValidatedOk = false;
+      if (csvFileInput) csvFileInput.value = "";
+      if (csvValidateBtn) csvValidateBtn.disabled = true;
+      setCsvSubmitEnabled(false);
+      setCsvResult("", "");
+    }
+
+    function closeCsvModal() {
+      if (!csvModal || !csvOverlay) return;
+      csvOverlay.classList.remove("is-open");
+      csvModal.classList.remove("is-open");
+      csvOverlay.setAttribute("aria-hidden", "true");
+      csvModal.setAttribute("aria-hidden", "true");
+    }
+
+    if (csvOpenBtn) {
+      csvOpenBtn.addEventListener("click", function () {
+        openCsvModal();
+      });
+    }
+
+    if (csvCloseBtn) {
+      csvCloseBtn.addEventListener("click", function () {
+        closeCsvModal();
+      });
+    }
+
+    if (csvOverlay) {
+      csvOverlay.addEventListener("click", function () {
+        closeCsvModal();
+      });
+    }
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeCsvModal();
+    });
+
+    function setCsvResult(kind, html) {
+      if (!csvResult) return;
+      csvResult.classList.remove("is-ok", "is-error");
+      if (kind) csvResult.classList.add(kind === "ok" ? "is-ok" : "is-error");
+      csvResult.innerHTML = html;
+    }
+
+    function setCsvSubmitEnabled(enabled) {
+      if (!csvSubmitBtn) return;
+      csvSubmitBtn.disabled = !enabled;
+      csvSubmitBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
+    }
+
+    // endpoints (埋め込みが無い場合はURLを組み立て)
+    function buildCsvEndpoint(type) {
+      if (!bulkForm) return null;
+      var action = bulkForm.getAttribute("action") || "";
+      // /product-master/delete-request/ -> /product-master/csv-validate/ or /csv-submit/
+      return action.replace(/\/product-master\/delete-request\/?$/, "/product-master/" + type + "/");
+    }
+
+    if (!csvValidateUrl) csvValidateUrl = buildCsvEndpoint("csv-validate");
+    if (!csvSubmitUrl) csvSubmitUrl = buildCsvEndpoint("csv-submit");
+
+    if (csvFileInput) {
+      csvFileInput.addEventListener("change", function () {
+        lastValidatedOk = false;
+        if (csvValidateBtn) {
+          csvValidateBtn.disabled = !(csvFileInput.files && csvFileInput.files.length > 0);
+        }
+        setCsvSubmitEnabled(false);
+        setCsvResult("", "");
+      });
+    }
+
+    if (csvValidateBtn) {
+      csvValidateBtn.addEventListener("click", function () {
+        if (!csvFileInput || !csvFileInput.files || csvFileInput.files.length === 0) {
+          setCsvResult("error", "CSVファイルを選択してください。");
+          setCsvSubmitEnabled(false);
+          return;
+        }
+        if (!csvValidateUrl) {
+          setCsvResult("error", "検証URLが見つかりませんでした。");
+          setCsvSubmitEnabled(false);
+          return;
+        }
+
+        var fd = new FormData();
+        fd.append("file", csvFileInput.files[0]);
+
+        csvValidateBtn.disabled = true;
+        setCsvSubmitEnabled(false);
+        setCsvResult("", "チェック中…");
+
+        fetch(csvValidateUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "X-CSRFToken": getCookie("csrftoken") },
+          body: fd
+        })
+          .then(function (res) {
+            // 403などでHTMLが返るケースもあるのでガード
+            return res.text().then(function (t) {
+              var j = null;
+              try { j = JSON.parse(t); } catch (_) {}
+              return { status: res.status, ok: res.ok, json: j, text: t };
+            });
+          })
+          .then(function (r) {
+            if (!r.ok) {
+              setCsvResult("error", "チェックに失敗しました（" + r.status + "）。もう一度お試しください。");
+              setCsvSubmitEnabled(false);
+              return;
+            }
+
+            var j = r.json || {};
+            var total = j.total_count || 0;
+            var err = j.error_count || 0;
+            var okc = j.ok_count || 0;
+
+            var html = "アップロード数: <b>" + total + "</b> / エラー数: <b>" + err + "</b> / 登録依頼数: <b>" + okc + "</b>";
+            if (j.errors && j.errors.length) {
+              html += "<ul>" + j.errors.map(function (e) {
+                var prefix = (e.row && e.row > 0) ? ("行" + e.row + ": ") : "";
+                return "<li>" + prefix + (e.message || "") + "</li>";
+              }).join("") + "</ul>";
+            }
+
+            lastValidatedOk = !!j.ok;
+            if (lastValidatedOk) {
+              setCsvResult("ok", html);
+              setCsvSubmitEnabled(true);
+            } else {
+              setCsvResult("error", html);
+              setCsvSubmitEnabled(false);
+            }
+          })
+          .catch(function () {
+            setCsvResult("error", "チェックに失敗しました。しばらくしてから再度お試しください。");
+            setCsvSubmitEnabled(false);
+          })
+          .finally(function () {
+            csvValidateBtn.disabled = false;
+          });
+      });
+    }
+
+    if (csvSubmitBtn) {
+      csvSubmitBtn.addEventListener("click", function () {
+        if (!lastValidatedOk) return;
+        if (!csvSubmitUrl) {
+          setCsvResult("error", "登録依頼URLが見つかりませんでした。");
+          setCsvSubmitEnabled(false);
+          return;
+        }
+        if (!csvFileInput || !csvFileInput.files || csvFileInput.files.length === 0) {
+          setCsvResult("error", "CSVファイルを選択してください。");
+          setCsvSubmitEnabled(false);
+          return;
+        }
+
+        var ok = window.confirm("CSVの内容で登録依頼を送信します。よろしいですか？");
+        if (!ok) return;
+
+        var fd = new FormData();
+        fd.append("file", csvFileInput.files[0]);
+
+        csvSubmitBtn.disabled = true;
+        csvSubmitBtn.textContent = "送信中…";
+
+        fetch(csvSubmitUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "X-CSRFToken": getCookie("csrftoken") },
+          body: fd
+        })
+          .then(function (res) {
+            // セッション/messagesを確実に反映させるため、通常ナビゲーションでリロード
+            // （fetch後のreloadで反映されない環境があるため）
+            window.location.href = window.location.href;
+          })
+          .catch(function () {
+            csvSubmitBtn.disabled = false;
+            csvSubmitBtn.textContent = "登録依頼";
+            setCsvResult("error", "登録依頼に失敗しました。しばらくしてから再度お試しください。");
+          });
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+

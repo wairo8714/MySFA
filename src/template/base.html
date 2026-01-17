@@ -35,11 +35,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300&display=swap" rel="stylesheet">
     <!-- font area end-->
     <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
-    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script> -->
-    <script>
-        console.log('=== BASE.HTML SCRIPT LOADED ===');
-    </script>
     <script>
         // adブロッカー付きブラウザでTypekitが落ちた際も
         // Chart.js等を起動できる様エラーの局所化
@@ -174,6 +169,15 @@
         </nav>
     </header>
     <main>
+        {% if messages %}
+            <div class="flash-messages" role="status" aria-live="polite">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
         {% block content %}
         {% endblock %}
     </main>
@@ -190,6 +194,21 @@
     </footer>
 
     <script src="{% static 'js/base-ui.js' %}"></script>
+    <script>
+        // data-confirm を付けたリンク/ボタンに「よろしいですか？」を挟む
+        (function () {
+            document.addEventListener("click", function (e) {
+                var el = e.target && e.target.closest ? e.target.closest("[data-confirm]") : null;
+                if (!el) return;
+                var msg = el.getAttribute("data-confirm");
+                if (!msg) return;
+                if (!window.confirm(msg)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
+        })();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>  
 </html>
