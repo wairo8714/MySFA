@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .card { fill: #f8fafc; stroke: #e5e7eb; stroke-width: 2; }
+      .hdr { fill: #e6f7fb; stroke: #e5e7eb; stroke-width: 2; }
+      .txt { fill: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #64748b; }
+      .grid { stroke: #e5e7eb; stroke-width: 2; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="540" rx="0" />
+
+  <rect class="card" x="60" y="60" width="840" height="420" rx="16" />
+  <text class="txt" x="90" y="110" font-size="20" font-weight="800">CSV入力例（ヘッダーは変更しない）</text>
+  <text class="txt muted" x="90" y="140" font-size="14">2行目以降に「商品コード」「商品名」を必ず入力してください。</text>
+
+  <!-- table header -->
+  <rect class="hdr" x="90" y="170" width="780" height="54" rx="10" />
+  <line class="grid" x1="90" y1="224" x2="870" y2="224" />
+  <line class="grid" x1="330" y1="170" x2="330" y2="440" />
+  <line class="grid" x1="610" y1="170" x2="610" y2="440" />
+
+  <text class="txt" x="115" y="205" font-size="16" font-weight="800">商品コード</text>
+  <text class="txt" x="355" y="205" font-size="16" font-weight="800">商品名</text>
+  <text class="txt" x="635" y="205" font-size="16" font-weight="800">大分類</text>
+
+  <!-- row 1 -->
+  <text class="txt mono" x="115" y="270" font-size="16">P-0001</text>
+  <text class="txt" x="355" y="270" font-size="16">サンプル商品A</text>
+  <text class="txt" x="635" y="270" font-size="16">飲料</text>
+
+  <!-- row 2 -->
+  <text class="txt mono" x="115" y="320" font-size="16">P-0002</text>
+  <text class="txt" x="355" y="320" font-size="16">サンプル商品B</text>
+  <text class="txt" x="635" y="320" font-size="16">食品</text>
+
+  <!-- row 3 -->
+  <text class="txt mono" x="115" y="370" font-size="16">P-0003</text>
+  <text class="txt" x="355" y="370" font-size="16">サンプル商品C</text>
+  <text class="txt" x="635" y="370" font-size="16">日用品</text>
+
+  <!-- footer hint -->
+  <text class="txt muted" x="90" y="460" font-size="13">※ 実際のテンプレートCSVには他の列（小分類/自由項目など）も含まれます。</text>
+</svg>
+
+

@@ -1,3 +1,4 @@
+import csv
 from datetime import datetime
 
 from django.contrib import messages
@@ -6,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -25,6 +26,208 @@ from .models import (
     Post,
     ProductMaster,
 )
+
+
+PRODUCT_CSV_HEADERS = [
+    "商品コード",
+    "商品名",
+    "大分類",
+    "小分類",
+    "自由項目（文字1）",
+    "自由項目（文字2）",
+    "自由項目（文字3）",
+    "自由項目（数値1）",
+    "自由項目（数値2）",
+    "自由項目（日付1）",
+    "自由記入",
+]
+
+
+def _parse_csv_date(value: str):
+    value = (value or "").strip()
+    if not value:
+        return ""
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(value, fmt).date().isoformat()
+        except ValueError:
+            continue
+    raise ValueError("invalid date format")
+
+
+def _parse_csv_int(value: str):
+    value = (value or "").strip()
+    if value == "":
+        return None
+    return int(value)
+
+
+def _validate_product_csv(group, file_obj):
+    """
+    Returns:
+      {
+        ok_count: int,
+        error_count: int,
+        total_count: int,
+        errors: [{row: int, message: str}],
+        rows: [payload dict ...]  # only valid rows
+      }
+    """
+    import io
+    import unicodedata
+
+    raw = file_obj.read()
+
+    def _decode_bytes(b: bytes) -> str:
+        # まずUTF-8（BOM含む）を試し、それがダメならExcelで多いCP932を試す
+        for enc in ("utf-8-sig", "cp932"):
+            try:
+                return b.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        # 最終手段（文字化けはするが落とさない）
+        return b.decode("utf-8", errors="replace")
+
+    text = _decode_bytes(raw)
+    sio = io.StringIO(text)
+    csv_reader = csv.reader(sio)
+
+    try:
+        header_row = next(csv_reader)
+    except StopIteration:
+        return {
+            "ok_count": 0,
+            "error_count": 1,
+            "total_count": 0,
+            "errors": [{"row": 1, "message": "CSVが空です。テンプレートCSVを再ダウンロードして使用してください。"}],
+            "rows": [],
+        }
+
+    def _norm(s: str) -> str:
+        return unicodedata.normalize("NFKC", (s or "")).strip().replace("\ufeff", "")
+
+    header_norm = [_norm(h) for h in header_row]
+    expected_norm = [_norm(h) for h in PRODUCT_CSV_HEADERS]
+
+    # Excelで末尾に空列が付くことがあるので許容（末尾は空の見出しのみOK）
+    if header_norm[: len(expected_norm)] != expected_norm or any(h != "" for h in header_norm[len(expected_norm) :]):
+        return {
+            "ok_count": 0,
+            "error_count": 1,
+            "total_count": 0,
+            "errors": [
+                {
+                    "row": 1,
+                    "message": "CSVヘッダーがテンプレートと一致しません。テンプレートCSVを再ダウンロードして使用してください。",
+                }
+            ],
+            "rows": [],
+        }
+
+    # 以降の行は DictReader 相当で扱う（末尾空列は捨てる）
+    headers = PRODUCT_CSV_HEADERS
+    reader = (dict(zip(headers, (row + [""] * len(headers))[: len(headers)])) for row in csv_reader)
+
+    errors = []
+    valid_payloads = []
+    seen_codes = set()
+    total = 0
+
+    for i, row in enumerate(reader, start=2):  # 2行目からデータ
+        # 空行スキップ（全列が空）
+        if not row or all((v or "").strip() == "" for v in row.values()):
+            continue
+        total += 1
+        if total > 1000:
+            errors.append({"row": i, "message": "行数が上限（1000行）を超えています。"})
+            break
+
+        code = (row.get("商品コード") or "").strip()
+        name = (row.get("商品名") or "").strip()
+
+        if not code:
+            errors.append({"row": i, "message": "商品コードが未入力です。"})
+            continue
+        if not name:
+            errors.append({"row": i, "message": "商品名が未入力です。"})
+            continue
+
+        if code in seen_codes:
+            errors.append({"row": i, "message": f"商品コードがCSV内で重複しています: {code}"})
+            continue
+        seen_codes.add(code)
+
+        payload = {
+            "product_code": code,
+            "name": name,
+            "category_main": (row.get("大分類") or "").strip() or None,
+            "category_sub": (row.get("小分類") or "").strip() or None,
+            "custom_text_1": (row.get("自由項目（文字1）") or "").strip() or None,
+            "custom_text_2": (row.get("自由項目（文字2）") or "").strip() or None,
+            "custom_text_3": (row.get("自由項目（文字3）") or "").strip() or None,
+            "description": (row.get("自由記入") or "").strip() or None,
+        }
+
+        # 数値
+        try:
+            payload["custom_int_1"] = _parse_csv_int(row.get("自由項目（数値1）"))
+        except (ValueError, TypeError):
+            errors.append({"row": i, "message": "自由項目（数値1）は整数で入力してください。"})
+            continue
+        try:
+            payload["custom_int_2"] = _parse_csv_int(row.get("自由項目（数値2）"))
+        except (ValueError, TypeError):
+            errors.append({"row": i, "message": "自由項目（数値2）は整数で入力してください。"})
+            continue
+
+        # 日付（ISO文字列）
+        try:
+            d = _parse_csv_date(row.get("自由項目（日付1）"))
+            payload["custom_date_1"] = d or None
+        except ValueError:
+            errors.append({"row": i, "message": "自由項目（日付1）は YYYY-MM-DD もしくは YYYY/MM/DD で入力してください。"})
+            continue
+
+        valid_payloads.append(payload)
+
+    # 既存チェック（is_active=True はNG、is_active=False はOK）
+    codes = [p["product_code"] for p in valid_payloads]
+    if codes:
+        active_exists = set(
+            ProductMaster.objects.filter(group=group, is_active=True, product_code__in=codes).values_list(
+                "product_code", flat=True
+            )
+        )
+        if active_exists:
+            # codesに紐付く各行にエラー付け
+            for idx, p in enumerate(valid_payloads):
+                if p["product_code"] in active_exists:
+                    # 行番号は完全再現が難しいので、messageのみ（表示は十分）
+                    errors.append({"row": 0, "message": f"既に登録済みの商品コードが含まれています（追加のみ）: {p['product_code']}"})
+            valid_payloads = [p for p in valid_payloads if p["product_code"] not in active_exists]
+
+        # 承認待ちが被ってたらNG
+        pending_codes = set(
+            ChangeRequestRow.objects.filter(
+                change_request__group=group,
+                change_request__kind=ChangeRequest.Kind.PRODUCT,
+                change_request__status=ChangeRequest.Status.PENDING,
+                code__in=codes,
+            ).values_list("code", flat=True)
+        )
+        if pending_codes:
+            for p in valid_payloads:
+                if p["product_code"] in pending_codes:
+                    errors.append({"row": 0, "message": f"承認待ちの申請が既に存在する商品コードが含まれています: {p['product_code']}"})
+            valid_payloads = [p for p in valid_payloads if p["product_code"] not in pending_codes]
+
+    return {
+        "ok_count": len(valid_payloads),
+        "error_count": len(errors),
+        "total_count": total,
+        "errors": errors[:30],  # 画面には最大30件
+        "rows": valid_payloads,
+    }
 
 
 def _transfer_creator_or_archive(group):
@@ -560,6 +763,88 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         )
 
 
+class ProductMasterCsvTemplateView(LoginRequiredMixin, View):
+    def get(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+
+        # Excel由来の文字コード事故を減らすため、UTF-8 BOM付きで返す
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="product_master_template_{group.custom_id}.csv"'
+        )
+        response.write("\ufeff")
+
+        writer = csv.writer(response)
+        writer.writerow(PRODUCT_CSV_HEADERS)
+        return response
+
+
+class ProductMasterCsvValidateView(LoginRequiredMixin, View):
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        f = request.FILES.get("file")
+        if not f:
+            return JsonResponse({"ok": False, "message": "CSVファイルを選択してください。"}, status=400)
+
+        result = _validate_product_csv(group, f.file)
+        return JsonResponse(
+            {
+                "ok": result["error_count"] == 0 and result["total_count"] <= 1000,
+                "total_count": result["total_count"],
+                "error_count": result["error_count"],
+                "ok_count": result["ok_count"],
+                "errors": result["errors"],
+            }
+        )
+
+
+class ProductMasterCsvSubmitView(LoginRequiredMixin, View):
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        f = request.FILES.get("file")
+        if not f:
+            messages.error(request, "CSVファイルを選択してください。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        result = _validate_product_csv(group, f.file)
+        if result["total_count"] > 1000:
+            messages.error(request, "行数が上限（1000行）を超えています。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+        if result["error_count"] > 0:
+            messages.error(request, "CSVにエラーがあるため、登録依頼できません。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+        if result["ok_count"] == 0:
+            messages.error(request, "登録依頼できる行がありません。")
+            return redirect("mysfa:product_master", custom_id=custom_id)
+
+        payloads = result["rows"]
+        with transaction.atomic():
+            cr = ChangeRequest.objects.create(
+                group=group,
+                kind=ChangeRequest.Kind.PRODUCT,
+                status=ChangeRequest.Status.PENDING,
+                requester=request.user,
+                submitted_at=timezone.now(),
+                title=f"CSV一括登録: {len(payloads)}件",
+            )
+            rows = [
+                ChangeRequestRow(
+                    change_request=cr,
+                    row_index=i + 1,
+                    op=ChangeRequestRow.Op.UPSERT,
+                    code=str(p["product_code"]),
+                    name=p.get("name", ""),
+                    diff_json=p,
+                    is_valid=True,
+                )
+                for i, p in enumerate(payloads)
+            ]
+            ChangeRequestRow.objects.bulk_create(rows)
+
+        messages.success(request, f"CSV登録の依頼を送信しました（{len(payloads)}件）。")
+        return redirect("mysfa:product_master", custom_id=custom_id)
+
+
 class ProductDeleteRequestCreateView(LoginRequiredMixin, View):
     template_name = "master/product-delete-request.html"
 
@@ -702,7 +987,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
 
 
 class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
-    
+
     def post(self, request, custom_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
 
@@ -729,42 +1014,42 @@ class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
                 change_request__kind=ChangeRequest.Kind.PRODUCT,
                 change_request__status=ChangeRequest.Status.PENDING,
                 op=ChangeRequestRow.Op.DELETE,
-                 code__in=codes,
+                code__in=codes,
             ).values_list("code", flat=True)
-         )
-
-    if pending_codes:
-        pending_list = ", ".join(sorted(pending_codes))
-        messages.error(
-            request,
-            f"承認待ち商品が含まれているため、中止しました。対象商品コード: {pending_list}",
         )
-        return redirect("mysfa:product_master", custom_id=custom_id)
 
-    with transaction.atomic():
-        cr = ChangeRequest.objects.create(
-            group=group,
-            kind=ChangeRequest.Kind.PRODUCT,
-            status=ChangeRequest.Status.PENDING,
-            requester=request.user,
-            submitted_at=timezone.now(),
-            title=f"商品削除依頼: {len(masters)}件",
-        )
-        rows = [
-            ChangeRequestRow(
-                change_request=cr,
-                row_index=i + 1,
-                op=ChangeRequestRow.Op.DELETE,
-                code=str(m.product_code),
-                name=m.name,
-                is_valid=True,
+        if pending_codes:
+            pending_list = ", ".join(sorted(pending_codes))
+            messages.error(
+                request,
+                f"承認待ち商品が含まれているため、中止しました。対象商品コード: {pending_list}",
             )
-            for i, m in enumerate(masters)
-        ]
-        ChangeRequestRow.objects.bulk_create(rows)
+            return redirect("mysfa:product_master", custom_id=custom_id)
 
-    messages.success(request, f"削除依頼を送信しました({len(masters)}件)。")
-    return redirect("mysfa:product_master", custom_id=custom_id)
+        with transaction.atomic():
+            cr = ChangeRequest.objects.create(
+                group=group,
+                kind=ChangeRequest.Kind.PRODUCT,
+                status=ChangeRequest.Status.PENDING,
+                requester=request.user,
+                submitted_at=timezone.now(),
+                title=f"商品削除依頼: {len(masters)}件",
+            )
+            rows = [
+                ChangeRequestRow(
+                    change_request=cr,
+                    row_index=i + 1,
+                    op=ChangeRequestRow.Op.DELETE,
+                    code=str(m.product_code),
+                    name=m.name,
+                    is_valid=True,
+                )
+                for i, m in enumerate(masters)
+            ]
+            ChangeRequestRow.objects.bulk_create(rows)
+
+        messages.success(request, f"削除依頼を送信しました({len(masters)}件)。")
+        return redirect("mysfa:product_master", custom_id=custom_id)
 
 class CreateGroupView(View):
     def get(self, request):

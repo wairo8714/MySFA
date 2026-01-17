@@ -14,6 +14,9 @@ from .views import (
     ProductChangeRequestInboxView,
     ProductDeleteRequestCreateView,
     ProductDeleteRequestBulkCreateView,
+    ProductMasterCsvSubmitView,
+    ProductMasterCsvTemplateView,
+    ProductMasterCsvValidateView,
     ProductMasterEditView,
     ProductMasterIndexView,
     RejectJoinRequestView,
@@ -71,6 +74,21 @@ urlpatterns = [
         "group/<str:custom_id>/product-master/",
         ProductMasterIndexView.as_view(),
         name="product_master",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-template/",
+        ProductMasterCsvTemplateView.as_view(),
+        name="product_master_csv_template",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-validate/",
+        ProductMasterCsvValidateView.as_view(),
+        name="product_master_csv_validate",
+    ),
+    path(
+        "group/<str:custom_id>/product-master/csv-submit/",
+        ProductMasterCsvSubmitView.as_view(),
+        name="product_master_csv_submit",
     ),
     path(
         "group/<str:custom_id>/product-master/<int:pk>/edit/",

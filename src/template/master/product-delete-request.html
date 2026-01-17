@@ -54,7 +54,11 @@
           <a class="master-create__submit" href="{% url 'mysfa:product_master' group.custom_id %}">
             キャンセル
           </a>
-          <button class="master-create__submit" type="submit">削除依頼を送信</button>
+          <button
+            class="master-create__submit"
+            type="submit"
+            data-confirm="削除依頼を送信します。よろしいですか？"
+          >削除依頼を送信</button>
         </div>
       </form>
     {% endif %}
