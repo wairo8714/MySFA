@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}業態マスタ | {{ group.name }} | MySFA{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container master-page">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>業態マスタ（{{ group.name }}）</h1>
+    </div>
+
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+
+  <div class="master-search">
+    <form class="master-search__form" method="get">
+      <input type="hidden" name="per_page" value="{{ per_page }}">
+      <div class="master-search__field">
+        <label class="master-search__label" for="master-search-input">検索</label>
+        <input
+          class="master-search__input"
+          id="master-search-input"
+          type="text"
+          name="search"
+          value="{{ search }}"
+          placeholder="業態名で検索"
+        >
+      </div>
+      <div class="master-search__actions">
+        <button class="master-search__submit" type="submit">検索</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="master-create">
+    <h2 class="master-section-title">新規登録</h2>
+
+    <form class="master-create__form" method="post" action="{% url 'mysfa:industry_master' group.custom_id %}">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="master-form-errors">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="master-form-grid">
+        <div class="master-form-row master-form-row--full">
+          <label class="master-form-label" for="{{ form.name.id_for_label }}">業態名</label>
+          <div class="master-form-control">
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="master-field-errors">{{ form.name.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="master-create__actions">
+        <button class="master-create__submit" type="submit">登録</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="master-list">
+    <div class="master-list__header">
+      <h2 class="master-section-title">登録済み一覧</h2>
+
+      {# 表示件数（商品マスタに寄せる場合だけ使う） #}
+      <form class="master-list__per-page" method="get">
+        <input type="hidden" name="search" value="{{ search }}">
+        <label class="master-list__per-page-label" for="master-per-page">表示件数</label>
+        <select
+          class="master-list__per-page-select"
+          id="master-per-page"
+          name="per_page"
+          onchange="this.form.submit()"
+        >
+          {% for n in allowed_per_page %}
+            <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </form>
+
+      <div class="master-list__meta">
+        <div class="master-list__count">総件数：{{ total_count }}件</div>
+        <div class="master-list__filters">
+          <span class="master-filter-badge">表示：{{ per_page }}件</span>
+          {% if search %}
+            <span class="master-filter-badge master-filter-badge--search">
+              検索：{{ search }}
+              <a
+                class="master-filter-reset"
+                href="?per_page={{ per_page }}"
+                aria-label="検索条件をリセット"
+                title="検索条件をリセット"
+              >×</a>
+            </span>
+          {% else %}
+            <span class="master-filter-badge is-muted">検索：なし</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="master-list__bulk-actions">
+        <button type="button" id="select-all-btn" class="master-bulk-action-btn">全選択</button>
+        <button
+          type="submit"
+          form="bulk-delete-form"
+          id="bulk-delete-btn"
+          class="master-edit-link master-edit-link--danger master-bulk-delete-btn"
+          disabled
+          data-confirm="選択した業態を削除します。よろしいですか？"
+        >選択業態の削除</button>
+      </div>
+    </div>
+
+    <form
+      id="bulk-delete-form"
+      method="post"
+      action="{% url 'mysfa:industry_master_bulk_delete' group.custom_id %}"
+    >
+      {% csrf_token %}
+    </form>
+
+    <div class="master-table-wrap">
+      <table class="master-table">
+        <thead class="master-table__head">
+          <tr class="master-table__row">
+            <th class="master-table__th">選択</th>
+            <th class="master-table__th">業態名</th>
+            <th class="master-table__th">操作</th>
+          </tr>
+        </thead>
+
+        <tbody class="master-table__body">
+          {% for m in masters %}
+            <tr class="master-table__row">
+              <td class="master-table__td">
+                <input
+                  type="checkbox"
+                  class="master-select-checkbox"
+                  form="bulk-delete-form"
+                  name="selected_ids"
+                  value="{{ m.id }}"
+                >
+              </td>
+
+              <td class="master-table__td">{{ m.name }}</td>
+
+              <td class="master-table__td">
+                <a class="master-edit-link" href="{% url 'mysfa:industry_master_edit' group.custom_id m.id %}">
+                  編集
+                </a>
+
+                <form
+                  method="post"
+                  action="{% url 'mysfa:industry_master_delete' group.custom_id m.id %}"
+                  class="master-inline-form"
+                  style="display:inline;"
+                >
+                  {% csrf_token %}
+                  <button
+                    type="submit"
+                    class="master-edit-link master-edit-link--danger"
+                    data-confirm="この業態を削除します。よろしいですか？"
+                  >削除</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr class="master-table__row">
+              <td class="master-table__td" colspan="3">まだ登録がありません。</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <span class="step-links">
+          {% if page_obj.has_previous %}
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page=1" aria-label="最初のページ">«</a>
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.previous_page_number }}" aria-label="前のページ">‹</a>
+          {% endif %}
+
+          {% for page_num in paginator.page_range %}
+            {% if page_num == page_obj.number %}
+              <span class="page-number current">{{ page_num }}</span>
+            {% elif page_num > page_obj.number|add:'-3' and page_num < page_obj.number|add:'3' %}
+              <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_num }}">{{ page_num }}</a>
+            {% elif page_num == 1 or page_num == paginator.num_pages %}
+              <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_num }}">{{ page_num }}</a>
+            {% elif page_num == page_obj.number|add:'-3' or page_num == page_obj.number|add:'3' %}
+              <span class="page-ellipsis">...</span>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ page_obj.next_page_number }}" aria-label="次のページ">›</a>
+            <a class="page-number" href="?search={{ search }}&per_page={{ per_page }}&page={{ paginator.num_pages }}" aria-label="最後のページ">»</a>
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function() {
+    const selectAllBtn = document.getElementById("select-all-btn");
+    const deleteBtn = document.getElementById("bulk-delete-btn");
+
+    if (!selectAllBtn || !deleteBtn) return;
+
+    function getBoxes() {
+      return Array.from(document.querySelectorAll(".master-select-checkbox"));
+    }
+
+    function refreshDeleteBtn() {
+      const anyChecked = getBoxes().some(cb => cb.checked);
+      deleteBtn.disabled = !anyChecked;
+    }
+
+    selectAllBtn.addEventListener("click", function() {
+      const boxes = getBoxes();
+      const allChecked = boxes.length > 0 && boxes.every(cb => cb.checked);
+      boxes.forEach(cb => { cb.checked = !allChecked; });
+      refreshDeleteBtn();
+    });
+
+    document.addEventListener("change", function(e) {
+      if (e.target && e.target.classList.contains("master-select-checkbox")) {
+        refreshDeleteBtn();
+      }
+    });
+
+    refreshDeleteBtn();
+  })();
+</script>
+{% endblock %}

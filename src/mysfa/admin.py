@@ -34,9 +34,9 @@ class ProductMasterAdmin(admin.ModelAdmin):
 
 @admin.register(IndustryMaster)
 class IndustryMasterAdmin(admin.ModelAdmin):
-    list_display = ("id", "group", "industry_code", "name", "updated_at")
+    list_display = ("id", "group", "name", "updated_at")
     list_filter = ("group",)
-    search_fields = ("industry_code", "name")
+    search_fields = ("name",)
 
 
 @admin.register(JoinRequest)

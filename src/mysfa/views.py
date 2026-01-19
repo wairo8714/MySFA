@@ -17,7 +17,13 @@ from django.views.generic import ListView
 
 from accounts.models import CustomUser
 
-from .forms import GroupForm, ProductMasterForm, PostForm, UserProfileForm
+from .forms import (
+    GroupForm,
+    ProductMasterForm,
+    IndustryMasterForm,
+    PostForm, 
+    UserProfileForm,
+)
 from .models import (
     ChangeRequest,
     ChangeRequestRow,
@@ -25,6 +31,7 @@ from .models import (
     JoinRequest,
     Post,
     ProductMaster,
+    IndustryMaster,
 )
 
 
@@ -85,7 +92,6 @@ def _validate_product_csv(group, file_obj):
                 return b.decode(enc)
             except UnicodeDecodeError:
                 continue
-        # 最終手段（文字化けはするが落とさない）
         return b.decode("utf-8", errors="replace")
 
     text = _decode_bytes(raw)
@@ -109,7 +115,6 @@ def _validate_product_csv(group, file_obj):
     header_norm = [_norm(h) for h in header_row]
     expected_norm = [_norm(h) for h in PRODUCT_CSV_HEADERS]
 
-    # Excelで末尾に空列が付くことがあるので許容（末尾は空の見出しのみOK）
     if header_norm[: len(expected_norm)] != expected_norm or any(h != "" for h in header_norm[len(expected_norm) :]):
         return {
             "ok_count": 0,
@@ -124,7 +129,6 @@ def _validate_product_csv(group, file_obj):
             "rows": [],
         }
 
-    # 以降の行は DictReader 相当で扱う（末尾空列は捨てる）
     headers = PRODUCT_CSV_HEADERS
     reader = (dict(zip(headers, (row + [""] * len(headers))[: len(headers)])) for row in csv_reader)
 
@@ -168,7 +172,6 @@ def _validate_product_csv(group, file_obj):
             "description": (row.get("自由記入") or "").strip() or None,
         }
 
-        # 数値
         try:
             payload["custom_int_1"] = _parse_csv_int(row.get("自由項目（数値1）"))
         except (ValueError, TypeError):
@@ -180,7 +183,7 @@ def _validate_product_csv(group, file_obj):
             errors.append({"row": i, "message": "自由項目（数値2）は整数で入力してください。"})
             continue
 
-        # 日付（ISO文字列）
+        
         try:
             d = _parse_csv_date(row.get("自由項目（日付1）"))
             payload["custom_date_1"] = d or None
@@ -190,7 +193,6 @@ def _validate_product_csv(group, file_obj):
 
         valid_payloads.append(payload)
 
-    # 既存チェック（is_active=True はNG、is_active=False はOK）
     codes = [p["product_code"] for p in valid_payloads]
     if codes:
         active_exists = set(
@@ -202,7 +204,6 @@ def _validate_product_csv(group, file_obj):
             # codesに紐付く各行にエラー付け
             for idx, p in enumerate(valid_payloads):
                 if p["product_code"] in active_exists:
-                    # 行番号は完全再現が難しいので、messageのみ（表示は十分）
                     errors.append({"row": 0, "message": f"既に登録済みの商品コードが含まれています（追加のみ）: {p['product_code']}"})
             valid_payloads = [p for p in valid_payloads if p["product_code"] not in active_exists]
 
@@ -1051,6 +1052,94 @@ class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
         messages.success(request, f"削除依頼を送信しました({len(masters)}件)。")
         return redirect("mysfa:product_master", custom_id=custom_id)
 
+
+class IndustryMasterIndexView(LoginRequiredMixin, View):
+    template_name = "master/industry-master.html"
+
+    def get(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        masters = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name")
+        return render(request, self.template_name, {"group": group, "form": IndustryMasterForm(), "masters": masters})
+
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        form = IndustryMasterForm(request.POST)
+
+        masters = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name")
+        if not form.is_valid():
+            return render(request, self.template_name, {"group": group, "form": form, "masters": masters})
+
+        name = form.cleaned_data["name"].strip()
+        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exists():
+            messages.error(request, "既に登録されています。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
+
+        IndustryMaster.objects.create(group=group, name=name, is_active=True)
+        messages.success(request, "業態を登録しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+
+
+class IndustryMasterEditView(LoginRequiredMixin, View):
+    template_name = "master/industry-master-edit.html"
+
+    def get(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+        form = IndustryMasterForm(instance=master)
+        return render(request, self.template_name, {"group": group, "master": master, "form": form})
+
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+
+        form = IndustryMasterForm(request.POST, instance=master)
+        if not form.is_valid():
+            return render(request, self.template_name, {"group": group, "master": master, "form": form})
+
+        name = form.cleaned_data["name"].strip()
+        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exclude(pk=master.pk).exists():
+            messages.error(request, "既に登録されています。")
+            return redirect("mysfa:industry_master_edit", custom_id=custom_id, pk=pk)
+
+        master.name = name
+        master.save(update_fields=["name"])
+        messages.success(request, "業態を更新しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+
+
+class IndustryMasterDeleteView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+
+        master.is_active = False
+        master.save(update_fields=["is_active"])
+
+        messages.success(request, "業態を削除しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+
+
+class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        selected_ids = request.POST.getlist("selected_ids")
+
+        if not selected_ids:
+            messages.error(request, "削除する業態を選択してください。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
+
+        qs = IndustryMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
+        if qs.count() != len(set(selected_ids)):
+            messages.error(request, "選択された業態の中に、存在しないものが含まれています。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
+
+        count = qs.count()
+        qs.update(is_active=False)
+
+        messages.success(request, f"業態を削除しました（{count}件）。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+            
+        
 class CreateGroupView(View):
     def get(self, request):
         form = GroupForm()
