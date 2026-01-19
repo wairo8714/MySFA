@@ -164,6 +164,15 @@
 
       <div class="master-list__bulk-actions">
         <button type="button" id="select-all-btn" class="master-bulk-action-btn">全選択</button>
+        <span class="master-bulk-count" id="selected-count">選択中：0件</span>
+        <button
+          type="button"
+          id="bulk-edit-btn"
+          class="master-edit-link"
+          disabled
+          aria-disabled="true"
+          data-edit-url-template="/mysfa/group/{{ group.custom_id }}/product-master/__ID__/edit/"
+        >選択商品の変更</button>
         <button
           type="submit"
           form="bulk-delete-form"
@@ -186,7 +195,7 @@
             <th class="master-table__th">商品コード</th>
             <th class="master-table__th">商品名</th>
             <th class="master-table__th">分類</th>
-            <th class="master-table__th">操作</th>
+            <th class="master-table__th">自由記入</th>
           </tr>
         </thead>
 
@@ -206,16 +215,7 @@
               <td class="master-table__td">{{ m.name }}</td>
               <td class="master-table__td">{{ m.category_main|default:"-" }} / {{ m.category_sub|default:"-" }}</td>
               <td class="master-table__td">
-                <a class="master-edit-link" href="{% url 'mysfa:product_master_edit' group.custom_id m.id %}">
-                  変更申請
-                </a>
-                <a
-                  class="master-edit-link master-edit-link--danger"
-                  href="{% url 'mysfa:product_delete_request' group.custom_id m.id %}"
-                  data-confirm="削除依頼ページへ進みます。よろしいですか？"
-                >
-                  削除依頼
-                </a>
+                <div class="master-desc-cell">{{ m.description|default:"" }}</div>
               </td>
             </tr>
           {% empty %}

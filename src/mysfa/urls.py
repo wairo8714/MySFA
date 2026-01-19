@@ -12,7 +12,6 @@ from .views import (
     MyPost,
     ProductChangeRequestDecideView,
     ProductChangeRequestInboxView,
-    ProductDeleteRequestCreateView,
     ProductDeleteRequestBulkCreateView,
     ProductMasterCsvSubmitView,
     ProductMasterCsvTemplateView,
@@ -21,10 +20,11 @@ from .views import (
     ProductMasterIndexView,
     IndustryMasterIndexView,
     IndustryMasterEditView,
-    IndustryMasterDeleteView,
     IndustryMasterBulkDeleteView,
+    IndustryMasterSearchApiView,
     RejectJoinRequestView,
     RemoveMemberView,
+    ProductMasterSearchApiView,
     SalesReportView,
     SearchCustomersView,
     SearchGroupView,
@@ -100,11 +100,6 @@ urlpatterns = [
         name="product_master_edit",
     ),
     path(
-        "group/<str:custom_id>/product-master/<int:pk>/delete-request/",
-        ProductDeleteRequestCreateView.as_view(),
-        name="product_delete_request",
-    ),
-    path(
         "group/<str:custom_id>/product-master/delete-request/",
         ProductDeleteRequestBulkCreateView.as_view(),
         name="product_delete_request_bulk",
@@ -130,14 +125,19 @@ urlpatterns = [
         name="industry_master_edit",
     ),
     path(
-        "group/<str:custom_id>/industry-master/<int:pk>/delete/",
-        IndustryMasterDeleteView.as_view(),
-        name="industry_master_delete",
-    ),
-    path(
         "group/<str:custom_id>/industry-master/bulk-delete/",
         IndustryMasterBulkDeleteView.as_view(),
         name="industry_master_bulk_delete",
+    ),
+    path(
+        "group/<str:custom_id>/api/product-masters/",
+        ProductMasterSearchApiView.as_view(),
+        name="product_master_api",
+    ),
+    path(
+        "group/<str:custom_id>/api/industry-masters/",
+        IndustryMasterSearchApiView.as_view(),
+        name="industry_master_api",
     ),
     path(
         "toggle_group_lock/<str:custom_id>/",

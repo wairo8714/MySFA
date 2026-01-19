@@ -111,6 +111,15 @@
 
       <div class="master-list__bulk-actions">
         <button type="button" id="select-all-btn" class="master-bulk-action-btn">全選択</button>
+        <span class="master-bulk-count" id="selected-count">選択中：0件</span>
+        <button
+          type="button"
+          id="bulk-edit-btn"
+          class="master-edit-link"
+          disabled
+          aria-disabled="true"
+          data-edit-url-template="/mysfa/group/{{ group.custom_id }}/industry-master/__ID__/edit/"
+        >選択業態の変更</button>
         <button
           type="submit"
           form="bulk-delete-form"
@@ -136,7 +145,6 @@
           <tr class="master-table__row">
             <th class="master-table__th">選択</th>
             <th class="master-table__th">業態名</th>
-            <th class="master-table__th">操作</th>
           </tr>
         </thead>
 
@@ -154,30 +162,10 @@
               </td>
 
               <td class="master-table__td">{{ m.name }}</td>
-
-              <td class="master-table__td">
-                <a class="master-edit-link" href="{% url 'mysfa:industry_master_edit' group.custom_id m.id %}">
-                  編集
-                </a>
-
-                <form
-                  method="post"
-                  action="{% url 'mysfa:industry_master_delete' group.custom_id m.id %}"
-                  class="master-inline-form"
-                  style="display:inline;"
-                >
-                  {% csrf_token %}
-                  <button
-                    type="submit"
-                    class="master-edit-link master-edit-link--danger"
-                    data-confirm="この業態を削除します。よろしいですか？"
-                  >削除</button>
-                </form>
-              </td>
             </tr>
           {% empty %}
             <tr class="master-table__row">
-              <td class="master-table__td" colspan="3">まだ登録がありません。</td>
+              <td class="master-table__td" colspan="2">まだ登録がありません。</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -214,36 +202,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  (function() {
-    const selectAllBtn = document.getElementById("select-all-btn");
-    const deleteBtn = document.getElementById("bulk-delete-btn");
-
-    if (!selectAllBtn || !deleteBtn) return;
-
-    function getBoxes() {
-      return Array.from(document.querySelectorAll(".master-select-checkbox"));
-    }
-
-    function refreshDeleteBtn() {
-      const anyChecked = getBoxes().some(cb => cb.checked);
-      deleteBtn.disabled = !anyChecked;
-    }
-
-    selectAllBtn.addEventListener("click", function() {
-      const boxes = getBoxes();
-      const allChecked = boxes.length > 0 && boxes.every(cb => cb.checked);
-      boxes.forEach(cb => { cb.checked = !allChecked; });
-      refreshDeleteBtn();
-    });
-
-    document.addEventListener("change", function(e) {
-      if (e.target && e.target.classList.contains("master-select-checkbox")) {
-        refreshDeleteBtn();
-      }
-    });
-
-    refreshDeleteBtn();
-  })();
-</script>
+<script src="{% static 'js/industry-master.js' %}"></script>
 {% endblock %}

@@ -6,7 +6,7 @@
 <div class="search-products-container">
     <h1>商品を検索</h1>
     <form method="get" action="{% url 'mysfa:search_products' %}" class="search-products-form">
-        <input type="text" name="q" id="search-input" value="{{ query }}" placeholder="商品名で検索" class="search-products-input">
+        <input type="text" name="q" id="search-input" value="{{ query }}" placeholder="商品コード / 商品名で検索" class="search-products-input">
         <button type="submit" class="search-products-button">検索</button>
     </form>
 

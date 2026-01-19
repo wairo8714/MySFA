@@ -13,9 +13,16 @@ from .models import (
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "group", "product_name", "customer_category", "created_at", "likes_count")
+    list_display = ("id", "user", "group", "product", "industry", "created_at", "likes_count")
     list_filter = ("group", "created_at")
-    search_fields = ("product_name", "customer_category", "contents", "user__custom_user_id", "user__username")
+    search_fields = (
+        "product__product_code",
+        "product__name",
+        "industry__name",
+        "contents",
+        "user__custom_user_id",
+        "user__username",
+    )
 
 
 @admin.register(Group)
