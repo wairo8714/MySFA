@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}業態マスタ | 編集 | {{ group.name }} | MySFA{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container master-page">
+  <div class="group-info-header">
+    <div class="group-info-header-text">
+      <h1>業態マスタ（編集）（{{ group.name }}）</h1>
+    </div>
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:industry_master' group.custom_id %}">
+        一覧へ戻る
+      </a>
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+
+  <div class="master-create">
+    <h2 class="master-section-title">編集</h2>
+
+    <form class="master-create__form" method="post">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="master-form-errors">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div class="master-form-grid">
+        <div class="master-form-row master-form-row--full">
+          <label class="master-form-label" for="{{ form.name.id_for_label }}">業態名</label>
+          <div class="master-form-control">
+            {{ form.name }}
+            {% if form.name.errors %}
+              <div class="master-field-errors">{{ form.name.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="master-create__actions master-create__actions--row">
+        <a class="master-create__submit" href="{% url 'mysfa:industry_master' group.custom_id %}">
+          キャンセル
+        </a>
+        <button class="master-create__submit" type="submit">更新</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
