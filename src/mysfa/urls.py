@@ -19,6 +19,10 @@ from .views import (
     ProductMasterCsvValidateView,
     ProductMasterEditView,
     ProductMasterIndexView,
+    IndustryMasterIndexView,
+    IndustryMasterEditView,
+    IndustryMasterDeleteView,
+    IndustryMasterBulkDeleteView,
     RejectJoinRequestView,
     RemoveMemberView,
     SalesReportView,
@@ -114,6 +118,26 @@ urlpatterns = [
         "group/<str:custom_id>/product-change-requests/<int:cr_id>/decide/",
         ProductChangeRequestDecideView.as_view(),
         name="product_change_request_decide",
+    ),
+    path(
+        "group/<str:custom_id>/industry-master/",
+        IndustryMasterIndexView.as_view(),
+        name="industry_master",
+    ),
+    path(
+        "group/<str:custom_id>/industry-master/<int:pk>/edit/",
+        IndustryMasterEditView.as_view(),
+        name="industry_master_edit",
+    ),
+    path(
+        "group/<str:custom_id>/industry-master/<int:pk>/delete/",
+        IndustryMasterDeleteView.as_view(),
+        name="industry_master_delete",
+    ),
+    path(
+        "group/<str:custom_id>/industry-master/bulk-delete/",
+        IndustryMasterBulkDeleteView.as_view(),
+        name="industry_master_bulk_delete",
     ),
     path(
         "toggle_group_lock/<str:custom_id>/",
