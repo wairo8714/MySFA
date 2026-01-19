@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.models import CustomUser
 
-from .models import Group, Post, ProductMaster
+from .models import Group, Post, ProductMaster, IndustryMaster
 
 
 class GroupForm(forms.ModelForm):
@@ -27,6 +27,11 @@ class ProductMasterForm(forms.ModelForm):
             "description",
         ]
 
+
+class IndustryMasterForm(forms.ModelForm):
+    class Meta:
+        model = IndustryMaster
+        fields = ["name"]
 
 class PostForm(forms.ModelForm):
     class Meta:
