@@ -1057,32 +1057,89 @@ class IndustryMasterIndexView(LoginRequiredMixin, View):
     template_name = "master/industry-master.html"
 
     def get(self, request, custom_id):
-        group = get.object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         masters = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name")
-
-        context = {
-            "group": group,
-            "form": IndustryMasterForm(),
-            "masters": masters,
-        }
-        return render(request, self.template_name, context)
-        group = get_object_or_404(Group, custom_id, is 
+        return render(request, self.template_name, {"group": group, "form": IndustryMasterForm(), "masters": masters})
 
     def post(self, request, custom_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        form = IndustryMasterForm(request.POST)
 
-        form = industryMasterForm(request.POST)
+        masters = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name")
         if not form.is_valid():
-            masters = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name")
             return render(request, self.template_name, {"group": group, "form": form, "masters": masters})
 
         name = form.cleaned_data["name"].strip()
+        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exists():
+            messages.error(request, "既に登録されています。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
 
-    if IndustryMaster.objects.fiter(group=group, name=name, is_active=True).exists():
-        messages.error(request, "既に登録されています。")
+        IndustryMaster.objects.create(group=group, name=name, is_active=True)
+        messages.success(request, "業態を登録しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
 
 
+class IndustryMasterEditView(LoginRequiredMixin, View):
+    template_name = "master/industry-master-edit.html"
 
+    def get(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+        form = IndustryMasterForm(instance=master)
+        return render(request, self.template_name, {"group": group, "master": master, "form": form})
+
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+
+        form = IndustryMasterForm(request.POST, instance=master)
+        if not form.is_valid():
+            return render(request, self.template_name, {"group": group, "master": master, "form": form})
+
+        name = form.cleaned_data["name"].strip()
+        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exclude(pk=master.pk).exists():
+            messages.error(request, "既に登録されています。")
+            return redirect("mysfa:industry_master_edit", custom_id=custom_id, pk=pk)
+
+        master.name = name
+        master.save(update_fields=["name"])
+        messages.success(request, "業態を更新しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+
+
+class IndustryMasterDeleteView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, pk):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
+
+        master.is_active = False
+        master.save(update_fields=["is_active"])
+
+        messages.success(request, "業態を削除しました。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+
+
+class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
+    def post(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        selected_ids = request.POST.getlist("selected_ids")
+
+        if not selected_ids:
+            messages.error(request, "削除する業態を選択してください。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
+
+        qs = IndustryMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
+        if qs.count() != len(set(selected_ids)):
+            messages.error(request, "選択された業態の中に、存在しないものが含まれています。")
+            return redirect("mysfa:industry_master", custom_id=custom_id)
+
+        count = qs.count()
+        qs.update(is_active=False)
+
+        messages.success(request, f"業態を削除しました（{count}件）。")
+        return redirect("mysfa:industry_master", custom_id=custom_id)
+            
+        
 class CreateGroupView(View):
     def get(self, request):
         form = GroupForm()
