@@ -30,12 +30,6 @@ class Post(models.Model):
         related_name="posts",
         verbose_name="業態",
     )
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
     contents = models.TextField(
         verbose_name="投稿文",
         max_length=100,
@@ -48,7 +42,6 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="投稿日時")
     liked_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        through="PostLike",
         related_name="liked_posts",
         blank=True,
         verbose_name="いいねしたユーザー",
@@ -75,34 +68,6 @@ class Post(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-
-class PostLike(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="likes")
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_likes")
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="いいね日時")
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["post","user"],
-                name="uq_postlike_post_user",
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["post", "created_at"]),
-            models.Index(fields=["trial_session_id"]),
-        ]
-        
-    def __str__(self):
-        return f"{self.post_id} liked by {self.user_id}"
-        
 
 class Group(AuthGroup):
     custom_id = models.CharField(
@@ -246,12 +211,7 @@ class ChangeRequest(models.Model):
         related_name="change_requests",
         verbose_name="対象グループ",
     )
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
+
     kind = models.CharField(max_length=20, choices=Kind.choices, verbose_name="種別")
     status = models.CharField(
         max_length=20,
@@ -291,7 +251,6 @@ class ChangeRequest(models.Model):
         indexes = [
             models.Index(fields=["group", "kind", "status"]),
             models.Index(fields=["group", "created_at"]),
-            models.Index(fields=["trial_session_id"]),
         ]
 
 
@@ -306,12 +265,7 @@ class ChangeRequestRow(models.Model):
         related_name="rows",
         verbose_name="変更依頼",
     )
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
+
     row_index = models.PositiveIntegerField(verbose_name="行番号(1始まり)")
     op = models.CharField(max_length=10, choices=Op.choices, verbose_name="操作")
 
@@ -347,12 +301,6 @@ class JoinRequest(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="依頼ユーザー"
     )
     group = models.ForeignKey(Group, on_delete=models.CASCADE, verbose_name="グループ")
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="依頼日時")
 
     def __str__(self):
