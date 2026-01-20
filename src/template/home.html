@@ -33,7 +33,10 @@
                                 <p id="subtitle">- SNS sales assistant -</p>
                                 <a href="{% url 'login' %}" class="guide-button" id="guide-login">ログイン</a>
                                 <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration">新規登録</a>
-                                {# デモ導線は一旦停止（ユーザー設定見直しのため） #}
+                                <form method="post" action="{% url 'mysfa:trial_start' %}" style="display:block; width:70%; margin:30px auto;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="guide-button guide-button--trial" id="guide-trial" style="width:100%; margin:0;">お試しログイン</button>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -72,7 +75,10 @@
                     <div class="form-guide-inner">
                         <a href="{% url 'login' %}" class="guide-button" id="guide-login2">ログイン</a>
                         <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration2">新規登録</a>
-                        {# デモ導線は一旦停止（ユーザー設定見直しのため） #}
+                        <form method="post" action="{% url 'mysfa:trial_start' %}" style="display:block; width:30%;">
+                            {% csrf_token %}
+                            <button type="submit" class="guide-button guide-button--trial" id="guide-trial2" style="width:100%; margin:0;">お試しログイン</button>
+                        </form>
                     </div>
                 </div>
             </div>

@@ -1,11 +1,14 @@
 import csv
-from datetime import datetime
+import secrets
+import uuid
+from datetime import datetime, timedelta
 
 from django.contrib import messages
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -242,6 +245,66 @@ def _transfer_creator_or_archive(group):
     group.creator = None
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
+
+
+class TrialPingView(View):
+    def get(self, request):
+        return JsonResponse({"ok": True})
+
+
+class TrialStartView(View):
+    TRIAL_DURATION_MINUTES = 30
+    DEMO_GROUP_CUSTOM_ID = "72014332"
+
+    def post(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect("home")
+
+        trial_session_id = uuid.uuid4()
+        expires_at = timezone.now() + timedelta(minutes=self.TRIAL_DURATION_MINUTES)
+        raw_password = secrets.token_urlsafe(32)
+        trial_question = "trial用質問"
+        trial_answer = secrets.token_urlsafe(16)
+
+        user = None
+        for _ in range(30):
+            n = secrets.randbelow(1000)
+            custom_user_id = f"trial{n:03d}"
+            username = f"お試しユーザー{n:03d}"
+
+            try:
+                with transaction.atomic():
+                    user = CustomUser(
+                        custom_user_id=custom_user_id,
+                        username=username,
+                        question=trial_question,
+                        answer=trial_answer,
+                    )
+                    user.set_password(raw_password)
+                    user.save()
+
+                    demo_group = get_object_or_404(
+                        Group,
+                        custom_id=self.DEMO_GROUP_CUSTOM_ID,
+                        is_active=True,
+                    )
+                    user.groups.add(demo_group)
+                    demo_group.users.add(user)
+
+                break
+            except IntegrityError:
+                user = None
+                continue
+
+        if user is None:
+            messages.error(request, "お試しユーザーの作成に失敗しました。少し時間をおいて再度お試しください。")
+            return redirect("home")
+
+        request.session["trial_session_id"] = str(trial_session_id)
+        request.session["trial_expires_at"] = str(expires_at.timestamp())
+
+        login(request, user)
+        return redirect("home")
 
 
 class Timeline(LoginRequiredMixin, ListView):

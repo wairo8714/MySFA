@@ -209,6 +209,37 @@
             });
         })();
     </script>
+    <script>
+(function () {
+    var isAuthenticated = {{ request.user.is_authenticated|yesno:"true,false" }};
+    var customUserId = "{{ request.user.custom_user_id|default:'' }}";
+    var isTrial = isAuthenticated && customUserId.startsWith("trial");
+    if (!isTrial) return;
+
+    var pingUrl = "{% url 'mysfa:trial_ping' %}";
+    var homeUrl = "{% url 'home' %}";
+    var intervalMs = 60 * 1000;
+
+    async function ping() {
+        try {
+            var res = await fetch(pingUrl, {
+                method: "GET",
+                credentials: "same-origin"
+            });
+
+            var ct = res.headers.get("content-type") || "";
+            if (!ct.includes("application/json")) {
+                window.location.href = homeUrl;
+                return;
+            }
+        } catch (e) {
+        }
+    }
+
+    ping();
+    setInterval(ping, intervalMs);
+})();
+    </script>
     {% block extra_js %}{% endblock %}
 </body>  
 </html>
