@@ -96,13 +96,8 @@
                 <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:product_master' group.custom_id %}">
                   商品マスタ
                 </a>
-                <a
-                  class="group-function-button group-function-link master-nav is-disabled"
-                  href="#"
-                  aria-disabled="true"
-                  tabindex="-1"
-                >
-                  業態マスタ（準備中）
+                <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:industry_master' group.custom_id %}">
+                  業態マスタ
                 </a>
               </div>
             {% endif %}

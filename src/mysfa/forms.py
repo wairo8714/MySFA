@@ -36,28 +36,28 @@ class IndustryMasterForm(forms.ModelForm):
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ["product_name", "customer_category", "contents", "group", "image"]
+        fields = ["group", "product", "industry", "contents", "image"]
         widgets = {
-            "product_name": forms.TextInput(attrs={"class": "form-control"}),
-            "customer_category": forms.TextInput(attrs={"class": "form-control"}),
-            "contents": forms.Textarea(attrs={"class": "form-control"}),
             "group": forms.Select(attrs={"class": "form-control"}),
+            "product": forms.Select(attrs={"class": "form-control"}),
+            "industry": forms.Select(attrs={"class": "form-control"}),
+            "contents": forms.Textarea(attrs={"class": "form-control"}),
             "image": forms.FileInput(
                 attrs={"class": "form-control", "accept": "image/*"}
             ),
         }
         labels = {
-            "product_name": "商品名",
-            "customer_category": "業態",
-            "contents": "内容",
             "group": "グループ",
+            "product": "商品",
+            "industry": "業態",
+            "contents": "内容",
             "image": "画像",
         }
         help_texts = {
-            "product_name": "商品名を入力してください。",
-            "customer_category": "業態を入力してください。",
+            "group": "投稿先グループを選択してください。",
+            "product": "商品を選択してください。",
+            "industry": "業態を選択してください。",
             "contents": "投稿内容を入力してください。",
-            "group": "グループを選択してください。",
             "image": "画像を選択してください。",
         }
 
@@ -82,9 +82,45 @@ class PostForm(forms.ModelForm):
         user = kwargs.pop("user", None)
         super(PostForm, self).__init__(*args, **kwargs)
         if user:
-            user_groups = Group.objects.filter(users=user)
-            print(f"User Groups: {user_groups}")
-            self.fields["group"].queryset = user_groups
+            self.fields["group"].queryset = Group.objects.filter(users=user, is_active=True)
+
+        # グループ未選択の間は商品/業態を選べないようにする
+        group = None
+        if self.is_bound:
+            raw = self.data.get("group")
+            if raw:
+                try:
+                    group = Group.objects.filter(pk=raw).first()
+                except (TypeError, ValueError):
+                    group = None
+        elif getattr(self.instance, "group_id", None):
+            group = self.instance.group
+        elif self.initial.get("group"):
+            raw = self.initial.get("group")
+            try:
+                group = Group.objects.filter(pk=raw).first()
+            except (TypeError, ValueError):
+                group = None
+
+        if group:
+            self.fields["product"].queryset = ProductMaster.objects.filter(
+                group=group, is_active=True
+            ).order_by("product_code")
+            self.fields["industry"].queryset = IndustryMaster.objects.filter(
+                group=group, is_active=True
+            ).order_by("name", "id")
+            self.fields["product"].disabled = False
+            self.fields["industry"].disabled = False
+        else:
+            self.fields["product"].queryset = ProductMaster.objects.none()
+            self.fields["industry"].queryset = IndustryMaster.objects.none()
+            self.fields["product"].disabled = True
+            self.fields["industry"].disabled = True
+
+        # DBはnull許容で移行しやすくしているが、画面上は必須にする
+        self.fields["group"].required = True
+        self.fields["product"].required = True
+        self.fields["industry"].required = True
 
 
 class UserProfileForm(forms.ModelForm):

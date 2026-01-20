@@ -10,21 +10,47 @@
             <form method="post" enctype="multipart/form-data" action="{% url 'mysfa:timeline' %}{% if selected_group_id %}?custom_id={{ selected_group_id }}{% endif %}">
                 {% csrf_token %}
                 <div class="form-group">
-                    <label for="id_product_name">商品名</label>
-                    {{ form.product_name }}
+                    <label for="id_group">グループ</label>
+                    {{ form.group }}
                 </div>
                 <div class="form-group">
-                    <label for="id_customer_category">業態</label>
-                    {{ form.customer_category }}
+                    <div id="product-field" class="post-master-field post-master-field--disabled" aria-disabled="true">
+                        <div class="post-master-field__header">
+                            <label for="product-search" class="post-master-field__label">商品</label>
+                        </div>
+
+                        {# 送信用（UIは検索メインなので非表示） #}
+                        <div class="post-master-field__hidden">
+                            {{ form.product }}
+                        </div>
+
+                        <div class="post-master-field__row">
+                            <button type="button" id="product-open" class="btn btn-secondary" disabled>商品を選択</button>
+                            <div id="product-selected" class="post-master-chip" style="display:none;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div id="industry-field" class="post-master-field post-master-field--disabled" aria-disabled="true">
+                        <div class="post-master-field__header">
+                            <label for="industry-search" class="post-master-field__label">業態</label>
+                        </div>
+
+                        {# 送信用（UIは検索メインなので非表示） #}
+                        <div class="post-master-field__hidden">
+                            {{ form.industry }}
+                        </div>
+
+                        <div class="post-master-field__row">
+                            <button type="button" id="industry-open" class="btn btn-secondary" disabled>業態を選択</button>
+                            <div id="industry-selected" class="post-master-chip" style="display:none;"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="id_contents">内容</label>
                     {{ form.contents }}
                     <div class="char-counter" id="char-counter">0/100</div>
-                </div>
-                <div class="form-group">
-                    <label for="id_group">グループ</label>
-                    {{ form.group }}
                 </div>
                 <div class="form-group">
                     <label for="id_image">画像</label>
@@ -41,6 +67,27 @@
                     <button type="submit" class="btn btn-primary">投稿</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    {# --- マスタ検索モーダル（商品/業態共通） --- #}
+    <div id="master-modal-overlay" class="modal-overlay"></div>
+    <div id="master-modal" class="modal" aria-hidden="true">
+        <div class="modal__content">
+            <div class="modal__header">
+                <h3 id="master-modal-title" class="modal__title">マスタ検索</h3>
+                <button type="button" id="master-modal-close" class="modal__close" aria-label="閉じる">×</button>
+            </div>
+            <div class="modal__body">
+                <div class="post-master-modal__top">
+                    <input id="master-modal-search" type="text" class="form-control" placeholder="">
+                    <a id="master-modal-master-link" class="post-master-modal__linkbtn" href="#" target="_blank" rel="noopener noreferrer">マスタを開く</a>
+                </div>
+                <div class="post-master-modal__listwrap">
+                    <p id="master-modal-empty" class="post-master-empty" style="display:none;">該当なし</p>
+                    <ul id="master-modal-results" class="post-master-results"></ul>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -143,4 +190,12 @@
 {% block extra_js %}
 <script src="{% static 'js/like.js' %}"></script>
 <script src="{% static 'js/post-form.js' %}"></script>
+<script>
+  window.__GROUP_ID_TO_CUSTOM_ID__ = {
+    {% for g in user_groups %}
+      "{{ g.id }}": "{{ g.custom_id }}"{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  };
+</script>
+<script src="{% static 'js/post-master-picker.js' %}"></script>
 {% endblock %}

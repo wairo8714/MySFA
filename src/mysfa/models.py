@@ -14,17 +14,21 @@ class Post(models.Model):
     group = models.ForeignKey(
         AuthGroup, on_delete=models.CASCADE, verbose_name="グループ"
     )
-    product_name = models.CharField(
-        max_length=50,
-        blank=False,
-        verbose_name="商品名",
-        error_messages={"blank": "商品名を入力してください"},
+    product = models.ForeignKey(
+        "ProductMaster",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="posts",
+        verbose_name="商品",
     )
-    customer_category = models.CharField(
-        max_length=50,
-        blank=False,
-        verbose_name="顧客カテゴリ",
-        error_messages={"blank": "顧客カテゴリを入力してください"},
+    industry = models.ForeignKey(
+        "IndustryMaster",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="posts",
+        verbose_name="業態",
     )
     contents = models.TextField(
         verbose_name="投稿文",
@@ -42,6 +46,21 @@ class Post(models.Model):
         blank=True,
         verbose_name="いいねしたユーザー",
     )
+
+    @property
+    def product_name(self) -> str:
+        """
+        互換用（旧: product_name CharField）。
+        テンプレ側で `post.product_name` を参照していても壊れないようにする。
+        """
+        return self.product.name if self.product_id else ""
+
+    @property
+    def customer_category(self) -> str:
+        """
+        互換用（旧: customer_category CharField / 画面上の業態）。
+        """
+        return self.industry.name if self.industry_id else ""
 
     def __str__(self):
         return self.product_name

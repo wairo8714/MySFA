@@ -29,11 +29,12 @@
       <div class="master-form-grid">
         <div class="master-form-row">
           <label class="master-form-label" for="{{ form.product_code.id_for_label }}">商品コード</label>
-          <div class="master-form-control">
+          <div class="master-form-control is-readonly">
             {{ form.product_code }}
             {% if form.product_code.errors %}
               <div class="master-field-errors">{{ form.product_code.errors }}</div>
             {% endif %}
+            <div class="master-readonly-hint">商品コードは変更できません</div>
           </div>
         </div>
         <div class="master-form-row">

@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from .models import Group, Post
+from .models import Group, IndustryMaster, Post, ProductMaster
 
 User = get_user_model()
 
@@ -52,17 +52,20 @@ class MySFATestCase(TestCase):
         group.users.add(self.user)
         self.user.groups.add(group)
 
+        product = ProductMaster.objects.create(group=group, product_code="P001", name="Test Product", is_active=True)
+        industry = IndustryMaster.objects.create(group=group, name="Test Category", is_active=True)
+
         response = self.client.post(
             reverse("mysfa:timeline"),
             {
-                "product_name": "Test Product",
-                "customer_category": "Test Category",
+                "product": product.id,
+                "industry": industry.id,
                 "contents": "This is a test post",
                 "group": group.id,
             },
         )
         self.assertEqual(response.status_code, 302)  # リダイレクト
-        self.assertTrue(Post.objects.filter(product_name="Test Product").exists())
+        self.assertTrue(Post.objects.filter(product=product, industry=industry).exists())
 
     def test_group_creation(self):
         """グループ作成が正常に動作することをテスト"""
