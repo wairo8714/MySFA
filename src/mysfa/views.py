@@ -1,16 +1,15 @@
 import csv
-import uuid
 import secrets
-
+import uuid
 from datetime import datetime, timedelta
 
 from django.contrib import messages
-from dhango.contrib.auth import login
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db import transaction, IntegrityError
-from django.db.models import Count, Q, F
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -249,6 +248,10 @@ def _transfer_creator_or_archive(group):
     group.save(update_fields=["creator", "is_active"])
 
 
+class TrialPingView(View):
+    def get(self, request):
+        return JsonResponse({"ok": True})
+
 
 class TrialStartView(View):
     TRIAL_DURATION_MINUTES = 30
@@ -288,7 +291,7 @@ class TrialStartView(View):
                     )
                     user.groups.add(demo_group)
                     demo_group.users.add(user)
-                    
+
                 break
             except IntegrityError:
                 user = None

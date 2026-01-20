@@ -1,5 +1,41 @@
+from datetime import datetime
+
+from django.contrib.auth import logout
 from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
+
+
+class TrialExpiryMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        if not request.user.is_authenticated:
+            return None
+
+        custom_user_id = getattr(request.user, "custom_user_id", "")
+        if not custom_user_id or not custom_user_id.startswith("trial"):
+            return None
+
+        expires_at_str = request.session.get("trial_expires_at")
+        if not expires_at_str:
+            self._cleanup_trial(request)
+            return redirect("home")
+
+        try:
+            expires_at = datetime.fromtimestamp(float(expires_at_str), tz=timezone.utc)
+        except (ValueError, TypeError, OSError):
+            self._cleanup_trial(request)
+            return redirect("home")
+
+        if timezone.now() >= expires_at:
+            self._cleanup_trial(request)
+            return redirect("home")
+
+        return None
+
+    def _cleanup_trial(self, request):
+        request.session.flush()
+        logout(request)
 
 
 class HealthCheckMiddleware(MiddlewareMixin):

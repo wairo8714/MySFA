@@ -252,6 +252,9 @@
         overflow: hidden;
         transition: color .3s ease, background-color .3s ease, border-color .3s ease,
             box-shadow .3s ease, transform .3s ease;
+        line-height: 1.5;
+        font-size: 16px;
+        font-weight: 900;
     }
 
     .guide-button::after {
@@ -294,6 +297,28 @@
         border-color: #48c0d9;
         color: #22849c;
         box-shadow: 0 18px 30px rgba(34, 132, 156, 0.25);
+    }
+
+    .guide-button--trial,
+    #guide-trial,
+    #guide-trial2 {
+        background-color: #f59e0b;
+        color: #fff;
+        border: 2px solid #f59e0b;
+        width: 30%;
+    }
+
+    #guide-trial {
+        width: 100%;
+    }
+
+    .guide-button--trial:hover,
+    #guide-trial:hover,
+    #guide-trial2:hover {
+        background-color: #d97706;
+        border-color: #d97706;
+        color: #fff;
+        box-shadow: 0 18px 30px rgba(217, 119, 6, 0.35);
     }
 
     .index-feature-inner {
@@ -406,13 +431,13 @@
     }
 
     #guide-login2 {
-        width: 40%;
+        width: 30%;
         background-color: #39AEC8;
         color:white;
     }
 
     #guide-registration2 {
-        width: 40%;
+        width: 30%;
         background-color: white;
         border: 2px solid #39AEC8;
         color: #39AEC8;

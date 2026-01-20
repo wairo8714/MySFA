@@ -34,6 +34,8 @@ from .views import (
     TrialPingView,
     Timeline,
     ToggleGroupLockView,
+    TrialPingView,
+    TrialStartView,
     UpdateUsernameView,
     UploadGroupIconView,
     UploadIconView,
@@ -160,7 +162,7 @@ urlpatterns = [
     path("search_customers/", SearchCustomersView.as_view(), name="search_customers"),
     path("search_users/", SearchUsersView.as_view(), name="search_users"),
     path("like-post/<int:post_id>/", LikePostView.as_view(), name="like_post"),
-    ptth("trial/start/", TrialStartView.as_view(), name="trial_start"),
+    path("trial/start/", TrialStartView.as_view(), name="trial_start"),
     path("trial/ping/", TrialPingView.as_view(), name="trial_ping"),
     path("sales-report/", SalesReportView.as_view(), name="sales_report"),
     path(
