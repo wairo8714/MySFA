@@ -30,6 +30,8 @@ from .views import (
     SearchGroupView,
     SearchProductsView,
     SearchUsersView,
+    TrialStartView,
+    TrialPingView,
     Timeline,
     ToggleGroupLockView,
     TrialPingView,

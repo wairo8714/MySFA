@@ -33,6 +33,7 @@ from .models import (
     Group,
     JoinRequest,
     Post,
+    PostLike,
     ProductMaster,
     IndustryMaster,
 )
@@ -1425,32 +1426,35 @@ class SearchUsersView(LoginRequiredMixin, View):
 @method_decorator(login_required, name="dispatch")
 class LikePostView(View):
     def post(self, request, post_id):
-        try:
-            post = get_object_or_404(Post, id=post_id)
+        post = get_object_or_404(Post, id=post_id)
 
-            if request.user in post.liked_users.all():
-                post.liked_users.remove(request.user)
-                post.likes_count -= 1
-                status = "unliked"
-            else:
-                post.liked_users.add(request.user)
-                post.likes_count += 1
-                status = "liked"
+        trial_session_id = request.session.get("trial_session_id")
+        if trial_session_id:
+            try:
+                trial_session_id = uuid.UUID(str(trial_session_id))
+            except (ValueError, TypeError):
+                trial_session_id = None
 
-            post.save()
-
-            return JsonResponse(
-                {
-                    "status": status,
-                    "count": post.likes_count,
-                    "message": f"Post {status} successfully",
-                }
+        with transaction.atomic():
+            like_obj, created = PostLike.objects.get_or_create(
+                post=post,
+                user=request.user,
+                defaults={"trial_session_id": trial_session_id},
             )
 
-        except Exception as e:
-            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+            if created:
+                Post.objects.filter(id=post.id).update(likes_count=F("likes_count") + 1)
+                liked = True
+            else:
+                like_obj.delete()
+                Post.objects.filter(id=post.id).update(likes_count=F("likes_count") - 1)
+                liked = False
 
+        post.refresh_from_db(fields=["likes_count"])
 
+        return JsonResponse({"liked": liked, "likes_count": post.likes_count})
+
+        
 @method_decorator(login_required, name="dispatch")
 class SalesReportView(View):
     def get(self, request, user_id=None, group_id=None):
