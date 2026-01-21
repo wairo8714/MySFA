@@ -184,7 +184,13 @@
 
 {% if current_user == displayed_user %}
 <div class="user-actions">
-    <a href="{% url 'accounts:logout' %}" class="btn-logout">ログアウト</a>
+    <a
+        href="{% url 'accounts:logout' %}"
+        class="btn-logout"
+        {% if request.session.trial_session_id %}
+            data-confirm="お試しログインの履歴は全て削除されます。よろしいですか？"
+        {% endif %}
+    >ログアウト</a>
     <a href="{% url 'accounts:delete_account' %}" class="btn-delete-account">アカウント削除</a>
 </div>
 {% endif %}

@@ -34,8 +34,6 @@ from .views import (
     TrialPingView,
     Timeline,
     ToggleGroupLockView,
-    TrialPingView,
-    TrialStartView,
     UpdateUsernameView,
     UploadGroupIconView,
     UploadIconView,

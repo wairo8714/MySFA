@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.html import format_html
 from django.views import View
 from django.views.generic import ListView
 
@@ -33,7 +34,6 @@ from .models import (
     Group,
     JoinRequest,
     Post,
-    PostLike,
     ProductMaster,
     IndustryMaster,
 )
@@ -284,11 +284,13 @@ class TrialStartView(View):
                     user.set_password(raw_password)
                     user.save()
 
-                    demo_group = get_object_or_404(
-                        Group,
+                    demo_group, _created = Group.objects.get_or_create(
                         custom_id=self.DEMO_GROUP_CUSTOM_ID,
-                        is_active=True,
+                        defaults={"name": "お試しグループ", "is_active": True},
                     )
+                    if not demo_group.is_active:
+                        demo_group.is_active = True
+                        demo_group.save(update_fields=["is_active"])
                     user.groups.add(demo_group)
                     demo_group.users.add(user)
 
@@ -305,6 +307,15 @@ class TrialStartView(View):
         request.session["trial_expires_at"] = str(expires_at.timestamp())
 
         login(request, user)
+        messages.success(
+            request,
+            format_html(
+                "お試しログインへようこそ！<br><br>"
+                "以下の機能を除いて、MySFAの機能をお試しいただけます。<br>"
+                "・グループの作成・削除<br>"
+                "・アカウント削除"
+            ),
+        )
         return redirect("home")
 
 
@@ -1428,29 +1439,18 @@ class LikePostView(View):
     def post(self, request, post_id):
         post = get_object_or_404(Post, id=post_id)
 
-        trial_session_id = request.session.get("trial_session_id")
-        if trial_session_id:
-            try:
-                trial_session_id = uuid.UUID(str(trial_session_id))
-            except (ValueError, TypeError):
-                trial_session_id = None
-
         with transaction.atomic():
-            like_obj, created = PostLike.objects.get_or_create(
-                post=post,
-                user=request.user,
-                defaults={"trial_session_id": trial_session_id},
-            )
-
-            if created:
-                Post.objects.filter(id=post.id).update(likes_count=F("likes_count") + 1)
-                liked = True
-            else:
-                like_obj.delete()
-                Post.objects.filter(id=post.id).update(likes_count=F("likes_count") - 1)
+            already_liked = post.liked_users.filter(pk=request.user.pk).exists()
+            if already_liked:
+                post.liked_users.remove(request.user)
+                post.likes_count = max(0, post.likes_count - 1)
                 liked = False
+            else:
+                post.liked_users.add(request.user)
+                post.likes_count += 1
+                liked = True
 
-        post.refresh_from_db(fields=["likes_count"])
+            post.save(update_fields=["likes_count"])
 
         return JsonResponse({"liked": liked, "likes_count": post.likes_count})
 
