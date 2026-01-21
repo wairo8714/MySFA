@@ -216,7 +216,7 @@
     var isTrial = isAuthenticated && customUserId.startsWith("trial");
     if (!isTrial) return;
 
-    var pingUrl = "{% url 'mysfa:trial_ping' %}";
+    var pingUrl = "/trial/ping/";
     var homeUrl = "{% url 'home' %}";
     var intervalMs = 60 * 1000;
 
