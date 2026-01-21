@@ -117,21 +117,21 @@ https://mysfa.net
 
 ![システム構成図](/docs/img/header/mysfa-architecture.png)
 
-### アプリケーション / インフラ構築フロー
+### 構築 / デプロイ
 
-- **①** Django, Terraform, Dockerfileコードを編集・コミットし、GitHubリポジトリにpush
-- **②** GitHub ActionsからTerraformを実行し、AWSインフラ一式を構築・更新
-- **③** GitHub ActionsでDockerイメージをビルドし、ECRへのpushとECSへのデプロイを行うCI/CDフェーズ  
-- **④** ECS起動時にECRからコンテナイメージを取得してアプリケーションを実行
+- **①** コード変更をGitHubへpush (Django/Terraform/Dockerfile)
+- **②** GitHub ActionsでTerraformを実行し、AWSリソースをを構築・更新
+- **③** GitHub ActionsでDockerイメージをビルド→ECRへpush→ECSを更新(デプロイ)  
+- **④** ECS起動時にECRからイメージをプルしてアプリを実行
 
-### アプリ実行フロー
+### アプリ実行
 
-- **⑤** ドメイン名からALBへの名前解決の実行
-- **⑥** クライアントからのHTTPS通信がInternetGatewayを経由してPublicサブネット上のALBに到達
-- **⑦** プライベートサブネット内のECSタスクへリクエストを振り分ける  
-- **⑧** RDS(MySQL)に接続し、業務データの読み書き
-- **⑨** S3に対して静的ファイル・メディアファイルを保存・取得
-- **⑩** プライベートサブネット内のECSがNAT Gateway経由でアウトバウンド通信
+- **⑤** Route53でドメインをALBに名前解決
+- **⑥** クライアント→Internet→ALBにHTTPSで到達
+- **⑦** ALB→ECSタスクに転送  
+- **⑧** ECS→RDS(MySQL)に接続してデータ読み書き
+- **⑨** ECS→S3に静的/メディアを保存・取得
+
 <br />
 
 ## ER 図
