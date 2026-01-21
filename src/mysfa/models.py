@@ -48,7 +48,6 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="投稿日時")
     liked_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        through="PostLike",
         related_name="liked_posts",
         blank=True,
         verbose_name="いいねしたユーザー",
@@ -74,35 +73,6 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-
-
-class PostLike(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="likes")
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_likes")
-    trial_session_id = models.UUIDField(
-        null=True,
-        blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
-    )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="いいね日時")
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["post","user"],
-                name="uq_postlike_post_user",
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["post", "created_at"]),
-            models.Index(fields=["trial_session_id"]),
-        ]
-        
-    def __str__(self):
-        return f"{self.post_id} liked by {self.user_id}"
-        
 
 class Group(AuthGroup):
     custom_id = models.CharField(
