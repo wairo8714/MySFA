@@ -46,10 +46,15 @@
                     </div>
                 </div>
 
-                <fieldset class="form-group">
-                    <legend>進捗</legend>
-                    {{ form.status }}
-                </fieldset>
+                <div class="form-group">
+                    <label>ステータス</label>
+                    <div class="status-toggle" role="group" aria-label="投稿ステータス">
+                        {% for w in form.status %}
+                        {{ w.tag }}
+                        <label for="{{ w.id_for_label }}" class="status-toggle__btn">{{ w.choice_label }}</label>
+                    {% endfor %}
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="id_contents">内容</label>
                     {{ form.contents }}
@@ -131,7 +136,7 @@
                         <span class="timeline-team-name">{{ post.group.name }}</span>
                     </div>
                     <div class="timeline-item-content">
-                        <p class="timeline-status">{{ post.get_status_display }}</p>
+                        <p class="timeline-status" data-status="{{ post.status }}">{{ post.get_status_display }}</p>
                         <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
                         <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
                         <p class="timeline-description">{{ post.contents }}</p>
