@@ -19,7 +19,6 @@
                             <label for="product-search" class="post-master-field__label">商品</label>
                         </div>
 
-                        {# 送信用（UIは検索メインなので非表示） #}
                         <div class="post-master-field__hidden">
                             {{ form.product }}
                         </div>
@@ -36,7 +35,6 @@
                             <label for="industry-search" class="post-master-field__label">業態</label>
                         </div>
 
-                        {# 送信用（UIは検索メインなので非表示） #}
                         <div class="post-master-field__hidden">
                             {{ form.industry }}
                         </div>
@@ -47,6 +45,11 @@
                         </div>
                     </div>
                 </div>
+
+                <fieldset class="form-group">
+                    <legend>進捗</legend>
+                    {{ form.status }}
+                </fieldset>
                 <div class="form-group">
                     <label for="id_contents">内容</label>
                     {{ form.contents }}
@@ -70,7 +73,6 @@
         </div>
     </div>
 
-    {# --- マスタ検索モーダル（商品/業態共通） --- #}
     <div id="master-modal-overlay" class="modal-overlay"></div>
     <div id="master-modal" class="modal" aria-hidden="true">
         <div class="modal__content">
@@ -129,6 +131,7 @@
                         <span class="timeline-team-name">{{ post.group.name }}</span>
                     </div>
                     <div class="timeline-item-content">
+                        <p class="timeline-status">{{ post.get_status_display }}</p>
                         <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
                         <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
                         <p class="timeline-description">{{ post.contents }}</p>
