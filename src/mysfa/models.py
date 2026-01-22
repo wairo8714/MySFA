@@ -8,6 +8,19 @@ from django.db import models
 
 
 class Post(models.Model):
+    class Status(models.TextChoices):
+        NEGOTIATING = "NEGOTIATING", "交渉中"
+        ADOPTED = "ADOPTED", "採用"
+        REJECTED = "REJECTED", "不採用"
+        USING = "USING", "使用中"
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.NEGOTIATING,
+        db_index=True,
+    )
+    
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="投稿者", on_delete=models.CASCADE
     )
