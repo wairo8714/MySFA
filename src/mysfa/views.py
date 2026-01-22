@@ -1515,7 +1515,8 @@ class SalesReportView(View):
             except CustomUser.DoesNotExist:
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
-        # DB側で集計してN+1やPythonループを避ける
+        posts_all = posts
+        posts = posts.filter(status__in=[Post.Status.ADOPTED]
         product_data = list(
             posts.filter(product__isnull=False)
             .values("product__name")
