@@ -36,11 +36,12 @@ class IndustryMasterForm(forms.ModelForm):
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ["group", "product", "industry", "contents", "image"]
+        fields = ["group", "product", "industry", "status", "contents", "image"]
         widgets = {
             "group": forms.Select(attrs={"class": "form-control"}),
             "product": forms.Select(attrs={"class": "form-control"}),
             "industry": forms.Select(attrs={"class": "form-control"}),
+            "status": forms.RadioSelect(),
             "contents": forms.Textarea(attrs={"class": "form-control"}),
             "image": forms.FileInput(
                 attrs={"class": "form-control", "accept": "image/*"}
@@ -50,6 +51,7 @@ class PostForm(forms.ModelForm):
             "group": "グループ",
             "product": "商品",
             "industry": "業態",
+            "status": "ステータス",
             "contents": "内容",
             "image": "画像",
         }
@@ -57,6 +59,7 @@ class PostForm(forms.ModelForm):
             "group": "投稿先グループを選択してください。",
             "product": "商品を選択してください。",
             "industry": "業態を選択してください。",
+            "status": "営業状況を選択してください。",
             "contents": "投稿内容を入力してください。",
             "image": "画像を選択してください。",
         }
@@ -117,10 +120,10 @@ class PostForm(forms.ModelForm):
             self.fields["product"].disabled = True
             self.fields["industry"].disabled = True
 
-        # DBはnull許容で移行しやすくしているが、画面上は必須にする
         self.fields["group"].required = True
         self.fields["product"].required = True
         self.fields["industry"].required = True
+        self.fields["status"].required = True
 
 
 class UserProfileForm(forms.ModelForm):

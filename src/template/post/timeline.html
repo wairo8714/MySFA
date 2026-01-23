@@ -19,7 +19,6 @@
                             <label for="product-search" class="post-master-field__label">商品</label>
                         </div>
 
-                        {# 送信用（UIは検索メインなので非表示） #}
                         <div class="post-master-field__hidden">
                             {{ form.product }}
                         </div>
@@ -36,7 +35,6 @@
                             <label for="industry-search" class="post-master-field__label">業態</label>
                         </div>
 
-                        {# 送信用（UIは検索メインなので非表示） #}
                         <div class="post-master-field__hidden">
                             {{ form.industry }}
                         </div>
@@ -45,6 +43,16 @@
                             <button type="button" id="industry-open" class="btn btn-secondary" disabled>業態を選択</button>
                             <div id="industry-selected" class="post-master-chip" style="display:none;"></div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>ステータス</label>
+                    <div class="status-toggle" role="group" aria-label="投稿ステータス">
+                        {% for w in form.status %}
+                        {{ w.tag }}
+                        <label for="{{ w.id_for_label }}" class="status-toggle__btn">{{ w.choice_label }}</label>
+                    {% endfor %}
                     </div>
                 </div>
                 <div class="form-group">
@@ -70,7 +78,6 @@
         </div>
     </div>
 
-    {# --- マスタ検索モーダル（商品/業態共通） --- #}
     <div id="master-modal-overlay" class="modal-overlay"></div>
     <div id="master-modal" class="modal" aria-hidden="true">
         <div class="modal__content">
@@ -129,6 +136,7 @@
                         <span class="timeline-team-name">{{ post.group.name }}</span>
                     </div>
                     <div class="timeline-item-content">
+                        <p class="timeline-status" data-status="{{ post.status }}">{{ post.get_status_display }}</p>
                         <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
                         <p class="timeline-industry">業態: <strong>{{ post.customer_category }}</strong></p>
                         <p class="timeline-description">{{ post.contents }}</p>
