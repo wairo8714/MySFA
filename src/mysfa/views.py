@@ -1516,7 +1516,7 @@ class SalesReportView(View):
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
         posts_all = posts
-        posts = posts.filter(status__in=[Post.Status.ADOPTED]
+        posts = posts.filter(status__in=[Post.Status.ADOPTED])
         product_data = list(
             posts.filter(product__isnull=False)
             .values("product__name")
