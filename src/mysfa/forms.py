@@ -118,7 +118,7 @@ class PostForm(forms.ModelForm):
             self.fields["product"].queryset = ProductMaster.objects.none()
             self.fields["industry"].queryset = IndustryMaster.objects.none()
             self.fields["product"].disabled = True
-            self.fields["industry"].disabled = Tru
+            self.fields["industry"].disabled = True
 
         self.fields["group"].required = True
         self.fields["product"].required = True

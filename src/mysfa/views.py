@@ -338,11 +338,11 @@ class Timeline(LoginRequiredMixin, ListView):
             group = get_object_or_404(Group, custom_id=custom_id, users=user, is_active=True)
             queryset = Post.objects.filter(group=group).select_related(
                 "user", "group", "product", "industry"
-            ).distinct()
+            ).prefetch_related("comments__author").distinct()
         else:
             queryset = Post.objects.filter(group__in=user_groups).select_related(
                 "user", "group", "product", "industry"
-            ).distinct()
+            ).prefetch_related("comments__author").distinct()
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -561,7 +561,7 @@ class GroupPost(LoginRequiredMixin, ListView):
         group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
         return Post.objects.filter(group=group).select_related(
             "user", "group", "product", "industry"
-        ).distinct()
+        ).prefetch_related("comments__author").distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1457,6 +1457,37 @@ class LikePostView(View):
             post.save(update_fields=["likes_count"])
 
         return JsonResponse({"liked": liked, "likes_count": post.likes_count})
+
+
+@method_decorator(login_required, name="dispatch")
+class PostCommentCreateView(View):
+    def post(self, request, post_id: int):
+        post = get_object_or_404(Post, id=post_id)
+
+        # 投稿が所属グループ外のユーザーからコメントされないようにする
+        is_member = Group.objects.filter(
+            id=post.group_id,
+            is_active=True,
+            users=request.user,
+        ).exists()
+        if not is_member:
+            raise PermissionDenied
+
+        form = PostCommentForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "コメント内容を入力してください。")
+            next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+            return redirect(next_url)
+
+        PostComment.objects.create(
+            post=post,
+            author=request.user,
+            body=form.cleaned_data["body"],
+        )
+        messages.success(request, "コメントしました。")
+
+        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+        return redirect(next_url)
 
         
 @method_decorator(login_required, name="dispatch")
