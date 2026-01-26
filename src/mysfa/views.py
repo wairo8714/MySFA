@@ -35,6 +35,7 @@ from .models import (
     ChangeRequest,
     ChangeRequestRow,
     Group,
+    GroupMembership,
     JoinRequest,
     Post,
     PostComment,
@@ -240,9 +241,22 @@ def _validate_product_csv(group, file_obj):
 
 
 def _transfer_creator_or_archive(group):
-    members = group.users.order_by("custom_user_id")
-    if members.exists():
-        group.creator = members.first()
+    qs = GroupMembership.objects.select_for_update().filter(
+        group=group,
+        is_active=True,
+        user__is_active=True,
+    )
+
+    candidate = qs.filter(role=GroupMembership.Role.ADMIN).order_by("joined_at", "id").first()
+    if not candidate:
+        candidate = qs.filter(role=GroupMembership.Role.MEMBER).order_by("joined_at", "id").first()
+
+    if candidate:
+        qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(role=GroupMembership.Role.ADMIN)
+        candidate.role = GroupMembership.Role.OWNER
+        candidate.save(update_fields=["role"])
+
+        group.creator_id = candidate.user_id
         group.is_active = True
         group.save(update_fields=["creator", "is_active"])
         return
@@ -250,6 +264,35 @@ def _transfer_creator_or_archive(group):
     group.creator = None
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
+
+
+def get_membership(user, group):
+    return GroupMembership.objects.filter(
+        group=group,
+        user=user,
+        is_active=True,
+        user__is_active=True,
+    ).first()
+
+
+def is_group_admin(user, group):
+    m = get_membership(user, group)
+    return bool(m and m.role in (GroupMembership.Role.OWNER, GroupMembership.Role.ADMIN))
+
+
+def is_group_owner(user, group):
+    m = get_membership(user, group)
+    return bool(m and m.role == GroupMembership.Role.OWNER)
+
+
+def require_group_admin(user, group):
+    if not is_group_admin(user, group):
+        raise PermissionDenied
+
+
+def require_group_owner(user, group):
+    if not is_group_owner(user, group):
+        raise PermissionDenied
 
 
 class TrialPingView(View):
@@ -623,11 +666,12 @@ class UploadGroupIconView(View):
 
 
 class ToggleGroupLockView(View):
-    def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        if request.user in group.users.all():
-            group.is_locked = not group.is_locked
-            group.save()
+    def post(self, request, *args. **kwargs):
+        group = get_object_or_404(Group, custom_id=kwargs{"custom_id"], is_active=True)
+        require_group_admin(request.user, group)
+
+        group.is_locked = not group.is_locked
+        group.save(update_fields=["is_locked"])
         return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
 
@@ -659,8 +703,18 @@ class JoinGroupRequestView(View):
 class ApproveJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_admin(request.user, group)
+        
         join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         group.users.add(join_request.user)
+        join_request.user.groups.add(group)
+
+        GroupMembership.objects.get_or_create(
+            group=group,
+            user=join_request.user,
+            defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
+        )
+
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
 
@@ -668,10 +722,11 @@ class ApproveJoinRequestView(View):
 class RejectJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_admin(request.user, group)
+
         join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
-
 
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
@@ -689,25 +744,15 @@ class LeaveGroupView(View):
 class DeleteGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        if request.user != group.creator:
-            return HttpResponseForbidden("グループの作成者のみ削除を行うことができます。")
+        require_group_owner(request.user, group)
+
         group.is_active = False
         group.save(update_fields=["is_active"])
         return redirect("home")
-
+                                  
 
 class RemoveMemberView(LoginRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        user_to_remove = get_object_or_404(CustomUser, custom_user_id=kwargs["custom_user_id"])
-
-        if request.user == group.creator and user_to_remove in group.users.all():
-            group.users.remove(user_to_remove)
-            messages.success(request, f"{user_to_remove.username}をグループから退会させました。")
-        else:
-            messages.error(request, "この操作を行う権限がありません。")
-
-        return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
+    
 
 
 class ProductMasterIndexView(LoginRequiredMixin, View):
