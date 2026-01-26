@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.models import CustomUser
 
-from .models import Group, Post, ProductMaster, IndustryMaster
+from .models import Group, Post, ProductMaster, IndustryMaster, PostComment
 
 
 class GroupForm(forms.ModelForm):
@@ -124,6 +124,21 @@ class PostForm(forms.ModelForm):
         self.fields["product"].required = True
         self.fields["industry"].required = True
         self.fields["status"].required = True
+
+
+class PostCommentForm(forms.ModelForm):
+    class Meta:
+        model = PostComment
+        fields = ["body"]
+        widgets = {
+            "body": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_body(self):
+        body = self.cleaned_data["body"].strip()
+        if not body:
+            raise forms.ValidationError("コメント内容を入力してください。")
+        return body
 
 
 class UserProfileForm(forms.ModelForm):

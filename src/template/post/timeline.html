@@ -161,6 +161,33 @@
                                 </button>
                             </form>
                         {% endif %}
+
+                        <div class="post-comments">
+                            <div class="post-comments__header">
+                                <span class="post-comments__title">コメント</span>
+                                <span class="post-comments__count">({{ post.comments.count }})</span>
+                            </div>
+
+                            <ul class="post-comments__list">
+                                {% for c in post.comments.all %}
+                                    <li class="post-comment">
+                                        <span class="post-comment__author">{{ c.author.username }}</span>
+                                        <span class="post-comment__meta">@{{ c.author.custom_user_id }} · {{ c.created_at|date:"Y-m-d H:i" }}</span>
+                                        <div class="post-comment__body">{{ c.body|linebreaksbr }}</div>
+                                    </li>
+                                {% empty %}
+                                    <li class="post-comments__empty">まだコメントはありません。</li>
+                                {% endfor %}
+                            </ul>
+
+                            <form method="post" action="{% url 'mysfa:post_comment_create' post.id %}?next={{ request.get_full_path|urlencode }}" class="post-comment-form">
+                                {% csrf_token %}
+                                <textarea name="body" rows="3" class="post-comment-form__textarea" placeholder="コメントを書く"></textarea>
+                                <div class="post-comment-form__actions">
+                                    <button type="submit" class="btn btn-secondary">送信</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             {% endfor %}

@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
@@ -15,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_POST
 from django.utils.html import format_html
 from django.views import View
 from django.views.generic import ListView
@@ -26,6 +28,7 @@ from .forms import (
     ProductMasterForm,
     IndustryMasterForm,
     PostForm, 
+    PostCommentForm,
     UserProfileForm,
 )
 from .models import (
@@ -34,6 +37,7 @@ from .models import (
     Group,
     JoinRequest,
     Post,
+    PostComment,
     ProductMaster,
     IndustryMaster,
 )
@@ -334,11 +338,11 @@ class Timeline(LoginRequiredMixin, ListView):
             group = get_object_or_404(Group, custom_id=custom_id, users=user, is_active=True)
             queryset = Post.objects.filter(group=group).select_related(
                 "user", "group", "product", "industry"
-            ).distinct()
+            ).prefetch_related("comments__author").distinct()
         else:
             queryset = Post.objects.filter(group__in=user_groups).select_related(
                 "user", "group", "product", "industry"
-            ).distinct()
+            ).prefetch_related("comments__author").distinct()
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -557,7 +561,7 @@ class GroupPost(LoginRequiredMixin, ListView):
         group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
         return Post.objects.filter(group=group).select_related(
             "user", "group", "product", "industry"
-        ).distinct()
+        ).prefetch_related("comments__author").distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1453,6 +1457,37 @@ class LikePostView(View):
             post.save(update_fields=["likes_count"])
 
         return JsonResponse({"liked": liked, "likes_count": post.likes_count})
+
+
+@method_decorator(login_required, name="dispatch")
+class PostCommentCreateView(View):
+    def post(self, request, post_id: int):
+        post = get_object_or_404(Post, id=post_id)
+
+        # 投稿が所属グループ外のユーザーからコメントされないようにする
+        is_member = Group.objects.filter(
+            id=post.group_id,
+            is_active=True,
+            users=request.user,
+        ).exists()
+        if not is_member:
+            raise PermissionDenied
+
+        form = PostCommentForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "コメント内容を入力してください。")
+            next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+            return redirect(next_url)
+
+        PostComment.objects.create(
+            post=post,
+            author=request.user,
+            body=form.cleaned_data["body"],
+        )
+        messages.success(request, "コメントしました。")
+
+        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+        return redirect(next_url)
 
         
 @method_decorator(login_required, name="dispatch")

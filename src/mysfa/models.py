@@ -87,6 +87,31 @@ class Post(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+
+class PostComment(models.Model):
+    post = models.ForeignKey("Post", on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_comments")
+    body = models.TextField(max_length=2000)
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="replies",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["post", "created_at"]),
+            models.Index(fields=["parent", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"comment:{self.id} post:{self.post_id} author:{self.author_id}"
+
+
 class Group(AuthGroup):
     custom_id = models.CharField(
         max_length=8,
