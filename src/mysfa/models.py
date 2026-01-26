@@ -235,6 +235,29 @@ class IndustryMaster(models.Model):
                 name="uq_industrymaster_group_name",
             ),
         ]
+class GroupMembership(models.Model):
+    class Role(models.TextChoices):
+        OWNER = "OWNER", "オーナー"
+        ADMIN = "ADMIN", "管理者"
+        MEMBER = "MEMBER","メンバー"
+
+    group = models.ForeignKey("Group", on_delete=models.CASCADE, related_name="memberships")
+    user = models.Foreignkey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="group_memberships")
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["group", "user"], name="uq_group_membership_group_user"),
+        ]
+        indexes = [
+            models.Index(fields=["group", "role", "is_active"]),
+            models.Index(fields=["user", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.group_id}:{self.user_id}:{self.role}"
 
 
 class ChangeRequest(models.Model):
