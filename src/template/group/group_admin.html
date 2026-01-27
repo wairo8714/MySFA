@@ -72,7 +72,7 @@
 
               <form method="post" action="{% url 'mysfa:remove_member' group.custom_id row.user.custom_user_id %}" onsubmit="return confirm('本当にこのメンバーを強制退会させますか？');">
                 {% csrf_token %}
-                <button type="submit" class="member-admin-btn member-admin-btn--danger">強制退会</button>
+                <button type="submit" class="member-admin-btn member-admin-btn--danger">退会させる</button>
               </form>
             {% endif %}
           </div>
