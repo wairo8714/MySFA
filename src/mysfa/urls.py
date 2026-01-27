@@ -1,5 +1,7 @@
 from django.urls import path
 
+from . import api_views
+
 from .views import (
     ApproveJoinRequestView,
     CreateGroupView,
@@ -46,6 +48,7 @@ from .views import (
 app_name = "mysfa"
 
 urlpatterns = [
+    path("api/health/", api_views.health, name="api_health"),
     path("timeline/", Timeline.as_view(), name="timeline"),
     path("mypost/<str:custom_user_id>/", MyPost.as_view(), name="mypost"),
     path(
