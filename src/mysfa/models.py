@@ -8,6 +8,19 @@ from django.db import models
 
 
 class Post(models.Model):
+    class Status(models.TextChoices):
+        NEGOTIATING = "NEGOTIATING", "交渉中"
+        ADOPTED = "ADOPTED", "採用"
+        REJECTED = "REJECTED", "不採用"
+        USING = "USING", "使用中"
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.NEGOTIATING,
+        db_index=True,
+    )
+    
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="投稿者", on_delete=models.CASCADE
     )
@@ -48,7 +61,6 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="投稿日時")
     liked_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        through="PostLike",
         related_name="liked_posts",
         blank=True,
         verbose_name="いいねしたユーザー",
@@ -76,33 +88,29 @@ class Post(models.Model):
         ordering = ["-created_at"]
 
 
-class PostLike(models.Model):
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="likes")
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_likes")
-    trial_session_id = models.UUIDField(
+class PostComment(models.Model):
+    post = models.ForeignKey("Post", on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_comments")
+    body = models.TextField(max_length=2000)
+    parent = models.ForeignKey(
+        "self",
         null=True,
         blank=True,
-        db_index=True,
-        verbose_name="トライアルセッションID",
+        on_delete=models.CASCADE,
+        related_name="replies",
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="いいね日時")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["post","user"],
-                name="uq_postlike_post_user",
-            ),
-        ]
+        ordering = ["created_at"]
         indexes = [
             models.Index(fields=["post", "created_at"]),
-            models.Index(fields=["trial_session_id"]),
+            models.Index(fields=["parent", "created_at"]),
         ]
-        
+
     def __str__(self):
-        return f"{self.post_id} liked by {self.user_id}"
-        
+        return f"comment:{self.id} post:{self.post_id} author:{self.author_id}"
+
 
 class Group(AuthGroup):
     custom_id = models.CharField(
@@ -227,6 +235,35 @@ class IndustryMaster(models.Model):
                 name="uq_industrymaster_group_name",
             ),
         ]
+
+
+class GroupMembership(models.Model):
+    class Role(models.TextChoices):
+        OWNER = "OWNER", "オーナー"
+        ADMIN = "ADMIN", "管理者"
+        MEMBER = "MEMBER", "メンバー"
+
+    group = models.ForeignKey("Group", on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="group_memberships",
+    )
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["group", "user"], name="uq_group_membership_group_user"),
+        ]
+        indexes = [
+            models.Index(fields=["group", "role", "is_active"]),
+            models.Index(fields=["user", "is_active"]),
+        ]
+
+    def __str__(self):
+        return f"{self.group_id}:{self.user_id}:{self.role}"
 
 
 class ChangeRequest(models.Model):

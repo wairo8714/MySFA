@@ -68,13 +68,13 @@
                     {% endif %}
                 {% endif %}
             {% endif %}
-            {% if user == group.creator %}
+            {% if can_group_owner %}
                 <form method="post" action="{% url 'mysfa:delete_group' group.custom_id %}" onsubmit="return confirm('本当に削除しますか？');">
                     {% csrf_token %}
                     <button type="submit" class="group-function-button delete-group">グループを削除</button>
                 </form>
             {% endif %}
-            {% if user in group.users.all %}
+            {% if can_group_admin %}
                 <form method="post" action="{% url 'mysfa:toggle_group_lock' group.custom_id %}" class="lock-group-form">
                     {% csrf_token %}
                     {% if group.is_locked %}
@@ -98,6 +98,14 @@
                 </a>
                 <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:industry_master' group.custom_id %}">
                   業態マスタ
+                </a>
+              </div>
+            {% endif %}
+
+            {% if can_group_admin %}
+              <div class="group-master-actions">
+                <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:group_admin' group.custom_id %}">
+                  グループ管理
                 </a>
               </div>
             {% endif %}
@@ -130,32 +138,26 @@
 <div class="group-members-section">
     <h2>所属メンバー</h2>
     <ul class="group-members-list">
-        {% for member in members %}
+        {% for row in member_rows %}
             <li>
-                <a href="{% url 'mysfa:mypost' member.custom_user_id %}">
-                    {% if member.profile_image %}
-                    <img class="member-profile-image" src="{{ member.profile_image.url }}" alt="{{ member.username }}のアイコン">
+                <a href="{% url 'mysfa:mypost' row.user.custom_user_id %}">
+                    {% if row.user.profile_image %}
+                    <img class="member-profile-image" src="{{ row.user.profile_image.url }}" alt="{{ row.user.username }}のアイコン">
                     {% else %}
-                    <img class="member-profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="{{ member.username }}のアイコン">
+                    <img class="member-profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="{{ row.user.username }}のアイコン">
                     {% endif %}
-                    <span class="member-username">{{ member.username }}
-                    {% if user == group.creator and member != group.creator %}
-                        <form method="post" action="{% url 'mysfa:remove_member' group.custom_id member.custom_user_id %}" class="remove-member-form" onsubmit="return confirm('本当にこのメンバーを退会させますか？');">
-                            {% csrf_token %}
-                            <button type="submit" class="remove-member-button">退会</button>
-                        </form>
-                    {% endif %}
-                        {% if member == group.creator %}
-                            <img class="creator-flag" src="{% static 'images/flag-regular.svg' %}" alt="グループ作成者">
-                        {% endif %}
+                    <span class="member-username">{{ row.user.username }}
+                        <span class="role-badge role-badge--{{ row.membership.role|lower }}">
+                            {{ row.membership.get_role_display }}
+                        </span>
                     </span>
-                    <span class="member-id">#{{ member.custom_user_id }}</span>
+                    <span class="member-id">#{{ row.user.custom_user_id }}</span>
                 </a>
             </li>
         {% endfor %}
     </ul>
 </div>
-{% if join_requests %}
+{% if join_requests and can_group_admin %}
 <div id="group-request-section">
     <h2 id="group-request-title">グループへの承認待ちユーザー</h2>
     <ul id="group-request-list">
@@ -234,6 +236,33 @@
                             </button>
                         </form>
                     {% endif %}
+
+                        <div class="post-comments">
+                            <div class="post-comments__header">
+                                <span class="post-comments__title">コメント</span>
+                                <span class="post-comments__count">({{ post.comments.count }})</span>
+                            </div>
+
+                            <ul class="post-comments__list">
+                                {% for c in post.comments.all %}
+                                    <li class="post-comment">
+                                        <span class="post-comment__author">{{ c.author.username }}</span>
+                                        <span class="post-comment__meta">@{{ c.author.custom_user_id }} · {{ c.created_at|date:"Y-m-d H:i" }}</span>
+                                        <div class="post-comment__body">{{ c.body|linebreaksbr }}</div>
+                                    </li>
+                                {% empty %}
+                                    <li class="post-comments__empty">まだコメントはありません。</li>
+                                {% endfor %}
+                            </ul>
+
+                            <form method="post" action="{% url 'mysfa:post_comment_create' post.id %}?next={{ request.get_full_path|urlencode }}" class="post-comment-form">
+                                {% csrf_token %}
+                                <textarea name="body" rows="3" class="post-comment-form__textarea" placeholder="コメントを書く"></textarea>
+                                <div class="post-comment-form__actions">
+                                    <button type="submit" class="btn btn-secondary">送信</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             {% endfor %}

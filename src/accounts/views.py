@@ -182,8 +182,22 @@ class CheckUserIdView(View):
 
 class CustomLogoutView(View):
     def get(self, request):
+        trial_user_pk = None
+        try:
+            user = getattr(request, "user", None)
+            custom_user_id = getattr(user, "custom_user_id", "") if user else ""
+            if user and getattr(user, "is_authenticated", False) and custom_user_id.startswith("trial"):
+                trial_user_pk = user.pk
+        except Exception:
+            trial_user_pk = None
+
         request.session.flush()
         logout(request)
+
+        # trialユーザーはログアウト時にDBからも削除
+        if trial_user_pk:
+            CustomUser.objects.filter(pk=trial_user_pk).delete()
+
         return redirect("home")
 
 

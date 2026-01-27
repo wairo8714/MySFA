@@ -160,7 +160,14 @@
                         <li id="terms-of-service-in-sidebar"><a href="{% url 'terms-of-service' %}">利用規約</a></li>
                         {% if request.user.is_authenticated %}
                         <li id="logout-in-sidebar">
-                            <p id="logout-in-sidebar-chara"><a href="{% url 'accounts:logout' %}">ログアウト</a></p>
+                            <p id="logout-in-sidebar-chara">
+                                <a
+                                    href="{% url 'accounts:logout' %}"
+                                    {% if request.session.trial_session_id %}
+                                        data-confirm="お試しログインの履歴は全て削除されます。よろしいですか？"
+                                    {% endif %}
+                                >ログアウト</a>
+                            </p>
                         </li>
                         {% endif %}
                     </div>
