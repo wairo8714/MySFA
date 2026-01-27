@@ -6,6 +6,8 @@ from django.urls import include, path
 from django.views.decorators.http import require_http_methods
 from django.views.generic.base import TemplateView
 
+from mysfa import api_views as mysfa_api_views
+
 from .views import HomeView
 
 
@@ -18,6 +20,7 @@ def health_check(request):
 
 urlpatterns = [
     path("health/", health_check, name="health"),
+    path("api/health/", mysfa_api_views.health, name="api_health"),
     path("", HomeView.as_view(), name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
