@@ -35,6 +35,7 @@ from .models import (
     ChangeRequest,
     ChangeRequestRow,
     Group,
+    GroupMembership,
     JoinRequest,
     Post,
     PostComment,
@@ -78,23 +79,12 @@ def _parse_csv_int(value: str):
 
 
 def _validate_product_csv(group, file_obj):
-    """
-    Returns:
-      {
-        ok_count: int,
-        error_count: int,
-        total_count: int,
-        errors: [{row: int, message: str}],
-        rows: [payload dict ...]  # only valid rows
-      }
-    """
     import io
     import unicodedata
 
     raw = file_obj.read()
 
     def _decode_bytes(b: bytes) -> str:
-        # まずUTF-8（BOM含む）を試し、それがダメならExcelで多いCP932を試す
         for enc in ("utf-8-sig", "cp932"):
             try:
                 return b.decode(enc)
@@ -145,8 +135,7 @@ def _validate_product_csv(group, file_obj):
     seen_codes = set()
     total = 0
 
-    for i, row in enumerate(reader, start=2):  # 2行目からデータ
-        # 空行スキップ（全列が空）
+    for i, row in enumerate(reader, start=2):
         if not row or all((v or "").strip() == "" for v in row.values()):
             continue
         total += 1
@@ -234,22 +223,107 @@ def _validate_product_csv(group, file_obj):
         "ok_count": len(valid_payloads),
         "error_count": len(errors),
         "total_count": total,
-        "errors": errors[:30],  # 画面には最大30件
+        "errors": errors[:30],
         "rows": valid_payloads,
     }
 
 
 def _transfer_creator_or_archive(group):
-    members = group.users.order_by("custom_user_id")
-    if members.exists():
-        group.creator = members.first()
+    qs = GroupMembership.objects.select_for_update().filter(
+        group=group,
+        is_active=True,
+        user__is_active=True,
+    )
+
+    candidate = qs.filter(role=GroupMembership.Role.ADMIN).order_by("joined_at", "id").first()
+    if not candidate:
+        candidate = qs.filter(role=GroupMembership.Role.MEMBER).order_by("joined_at", "id").first()
+
+    if candidate:
+        qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(role=GroupMembership.Role.ADMIN)
+        candidate.role = GroupMembership.Role.OWNER
+        candidate.save(update_fields=["role"])
+
+        group.creator_id = candidate.user_id
         group.is_active = True
         group.save(update_fields=["creator", "is_active"])
         return
 
     group.creator = None
+    if getattr(group, "custom_id", None) == "72014332":
+        group.is_active = True
+        group.save(update_fields=["creator", "is_active"])
+        return
+
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
+
+
+def ensure_membership(user, group):
+    if not user or not getattr(user, "pk", None):
+        return None
+    if not group or not getattr(group, "pk", None):
+        return None
+
+    is_member = Group.objects.filter(pk=group.pk, users=user, is_active=True).exists()
+    if not is_member:
+        return None
+
+    desired_role = (
+        GroupMembership.Role.OWNER if group.creator_id == user.pk else GroupMembership.Role.MEMBER
+    )
+
+    m = GroupMembership.objects.filter(group=group, user=user).first()
+    if not m:
+        m = GroupMembership.objects.create(
+            group=group,
+            user=user,
+            role=desired_role,
+            is_active=True,
+        )
+        return m
+
+    changed = False
+    if not m.is_active:
+        m.is_active = True
+        changed = True
+    if group.creator_id == user.pk and m.role != GroupMembership.Role.OWNER:
+        m.role = GroupMembership.Role.OWNER
+        changed = True
+    if changed:
+        m.save(update_fields=["role", "is_active"])
+    return m
+
+
+def get_membership(user, group):
+    ensure_membership(user, group)
+
+    return GroupMembership.objects.filter(
+        group=group,
+        user=user,
+        is_active=True,
+        user__is_active=True,
+    ).first()
+
+
+def is_group_admin(user, group):
+    m = get_membership(user, group)
+    return bool(m and m.role in (GroupMembership.Role.OWNER, GroupMembership.Role.ADMIN))
+
+
+def is_group_owner(user, group):
+    m = get_membership(user, group)
+    return bool(m and m.role == GroupMembership.Role.OWNER)
+
+
+def require_group_admin(user, group):
+    if not is_group_admin(user, group):
+        raise PermissionDenied
+
+
+def require_group_owner(user, group):
+    if not is_group_owner(user, group):
+        raise PermissionDenied
 
 
 class TrialPingView(View):
@@ -295,8 +369,26 @@ class TrialStartView(View):
                     if not demo_group.is_active:
                         demo_group.is_active = True
                         demo_group.save(update_fields=["is_active"])
+
+                    if demo_group.creator_id is None:
+                        demo_group.creator_id = user.pk
+                        demo_group.save(update_fields=["creator"])
+
                     user.groups.add(demo_group)
                     demo_group.users.add(user)
+
+                    GroupMembership.objects.get_or_create(
+                        group=demo_group,
+                        user=user,
+                        defaults={
+                            "role": (
+                                GroupMembership.Role.OWNER
+                                if demo_group.creator_id == user.pk
+                                else GroupMembership.Role.MEMBER
+                            ),
+                            "is_active": True,
+                        },
+                    )
 
                 break
             except IntegrityError:
@@ -572,8 +664,27 @@ class GroupPost(LoginRequiredMixin, ListView):
 
         context["group"] = group
         context["is_member"] = group.users.filter(pk=user.pk).exists()
+        context["membership"] = get_membership(user, group)
+        context["can_group_admin"] = is_group_admin(user, group)
+        context["can_group_owner"] = is_group_owner(user, group)
         context["creator"] = creator
-        context["members"] = members
+        memberships = {
+            m.user_id: m
+            for m in GroupMembership.objects.filter(group=group, is_active=True).select_related("user")
+        }
+        member_rows = []
+        for u in members:
+            m = memberships.get(u.pk)
+            if not m:
+                role = (
+                    GroupMembership.Role.OWNER
+                    if group.creator_id == u.pk
+                    else GroupMembership.Role.MEMBER
+                )
+                m = GroupMembership(group=group, user=u, role=role, is_active=True)
+            member_rows.append({"user": u, "membership": m})
+
+        context["member_rows"] = member_rows
         context["member_count"] = members.count()
         context["user_has_requested"] = JoinRequest.objects.filter(user=user, group=group).exists()
         context["join_requests"] = JoinRequest.objects.filter(group=group)
@@ -604,6 +715,108 @@ class GroupPost(LoginRequiredMixin, ListView):
         return self.get(request, *args, **kwargs)
 
 
+class GroupAdminView(LoginRequiredMixin, View):
+    template_name = "group/group_admin.html"
+
+    def get(self, request, custom_id):
+        from django.conf import settings
+
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_admin(request.user, group)
+
+        # 旧データ救済：Group.users にいるのに membership が無いユーザーを作る
+        members = group.users.all().select_related()
+        existing = {
+            (m.user_id): m
+            for m in GroupMembership.objects.filter(group=group).select_related("user")
+        }
+        for u in members:
+            if u.pk not in existing:
+                role = (
+                    GroupMembership.Role.OWNER
+                    if group.creator_id == u.pk
+                    else GroupMembership.Role.MEMBER
+                )
+                existing[u.pk] = GroupMembership.objects.create(
+                    group=group, user=u, role=role, is_active=True
+                )
+
+        member_rows = []
+        for u in members:
+            m = existing.get(u.pk)
+            if not m:
+                continue
+            member_rows.append(
+                {
+                    "user": u,
+                    "membership": m,
+                    "is_creator": group.creator_id == u.pk,
+                }
+            )
+
+        context = {
+            "group": group,
+            "MEDIA_URL": settings.MEDIA_URL,
+            "member_rows": member_rows,
+            "membership": get_membership(request.user, group),
+            "can_group_admin": is_group_admin(request.user, group),
+            "can_group_owner": is_group_owner(request.user, group),
+        }
+        return render(request, self.template_name, context)
+
+
+class GroupMembershipUpdateView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, custom_user_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_owner(request.user, group)
+
+        target_user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
+        target = get_object_or_404(GroupMembership, group=group, user=target_user, is_active=True)
+
+        role = request.POST.get("role")
+        if role not in (GroupMembership.Role.ADMIN, GroupMembership.Role.MEMBER, GroupMembership.Role.OWNER):
+            messages.error(request, "不正なロールです。")
+            return redirect("mysfa:group_admin", custom_id=custom_id)
+
+        # OWNERは委譲専用（ここでOWNERに変えない）
+        if role == GroupMembership.Role.OWNER and target_user.pk != group.creator_id:
+            messages.error(request, "オーナー変更は「オーナーにする」から行ってください。")
+            return redirect("mysfa:group_admin", custom_id=custom_id)
+
+        if target.role == GroupMembership.Role.OWNER:
+            messages.error(request, "オーナーのロールはこの操作では変更できません。")
+            return redirect("mysfa:group_admin", custom_id=custom_id)
+
+        target.role = role
+        target.save(update_fields=["role"])
+        messages.success(request, "ロールを更新しました。")
+        return redirect("mysfa:group_admin", custom_id=custom_id)
+
+
+class GroupTransferOwnerView(LoginRequiredMixin, View):
+    def post(self, request, custom_id, custom_user_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_owner(request.user, group)
+
+        target_user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
+        target = get_object_or_404(GroupMembership, group=group, user=target_user, is_active=True)
+
+        if target.role == GroupMembership.Role.OWNER:
+            return redirect("mysfa:group_admin", custom_id=custom_id)
+
+        with transaction.atomic():
+            qs = GroupMembership.objects.select_for_update().filter(group=group, is_active=True)
+            qs.filter(role=GroupMembership.Role.OWNER).update(role=GroupMembership.Role.ADMIN)
+            target.role = GroupMembership.Role.OWNER
+            target.save(update_fields=["role"])
+
+            group.creator_id = target_user.pk
+            group.save(update_fields=["creator"])
+
+        messages.success(request, f"{target_user.username} をオーナーにしました。")
+        return redirect("mysfa:group_admin", custom_id=custom_id)
+
+
 @method_decorator(login_required, name="dispatch")
 class UploadGroupIconView(View):
     def post(self, request, *args, **kwargs):
@@ -625,17 +838,39 @@ class UploadGroupIconView(View):
 class ToggleGroupLockView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        if request.user in group.users.all():
-            group.is_locked = not group.is_locked
-            group.save()
+        require_group_admin(request.user, group)
+
+        group.is_locked = not group.is_locked
+        group.save(update_fields=["is_locked"])
         return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
 
 class JoinGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
+
+        if group.custom_id == "72014332" and group.creator_id is None:
+            with transaction.atomic():
+                g = (
+                    Group.objects.select_for_update()
+                    .filter(custom_id=group.custom_id, is_active=True)
+                    .first()
+                )
+                if g and g.creator_id is None:
+                    g.creator_id = request.user.pk
+                    g.save(update_fields=["creator"])
+                    group = g
+
         request.user.groups.add(group)
         group.users.add(request.user)
+
+        GroupMembership.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
+        )
+
+        ensure_membership(request.user, group)
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
 
@@ -646,6 +881,23 @@ class JoinGroupRequestView(View):
         if request.user in group.users.all():
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
+        if group.custom_id == "72014332" and group.creator_id is None:
+            with transaction.atomic():
+                g = (
+                    Group.objects.select_for_update()
+                    .filter(custom_id=group.custom_id, is_active=True)
+                    .first()
+                )
+                if g and g.creator_id is None:
+                    g.creator_id = request.user.pk
+                    g.save(update_fields=["creator"])
+                    group = g
+
+            request.user.groups.add(group)
+            group.users.add(request.user)
+            ensure_membership(request.user, group)
+            return redirect("mysfa:group_posts", custom_id=group.custom_id)
+
         if group.is_locked:
             if not JoinRequest.objects.filter(user=request.user, group=group).exists():
                 JoinRequest.objects.create(user=request.user, group=group)
@@ -653,14 +905,31 @@ class JoinGroupRequestView(View):
 
         request.user.groups.add(group)
         group.users.add(request.user)
+
+        GroupMembership.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
+        )
+        ensure_membership(request.user, group)
         return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
 
 class ApproveJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_admin(request.user, group)
+        
         join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         group.users.add(join_request.user)
+        join_request.user.groups.add(group)
+
+        GroupMembership.objects.get_or_create(
+            group=group,
+            user=join_request.user,
+            defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
+        )
+
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
 
@@ -668,10 +937,11 @@ class ApproveJoinRequestView(View):
 class RejectJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
+        require_group_admin(request.user, group)
+
         join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
-
 
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
@@ -681,7 +951,14 @@ class LeaveGroupView(View):
         group.users.remove(request.user)
 
         if was_creator or group.users.count() == 0:
-            _transfer_creator_or_archive(group)
+            with transaction.atomic():
+                _transfer_creator_or_archive(group)
+
+        GroupMembership.objects.filter(
+            group=group,
+            user=request.user,
+            is_active=True,
+        ).update(is_active=False)
 
         return redirect("home")
 
@@ -689,23 +966,31 @@ class LeaveGroupView(View):
 class DeleteGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        if request.user != group.creator:
-            return HttpResponseForbidden("グループの作成者のみ削除を行うことができます。")
+        require_group_owner(request.user, group)
+
         group.is_active = False
         group.save(update_fields=["is_active"])
         return redirect("home")
-
+                                  
 
 class RemoveMemberView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
-        user_to_remove = get_object_or_404(CustomUser, custom_user_id=kwargs["custom_user_id"])
+        require_group_admin(request.user, group)
 
-        if request.user == group.creator and user_to_remove in group.users.all():
+        user_to_remove = get_object_or_404(CustomUser, custom_user_id=kwargs["custom_user_id"])
+        target_m = get_membership(user_to_remove, group)
+        if target_m and target_m.role == GroupMembership.Role.OWNER:
+            messages.error(request, "オーナーは退会させられません。委譲後に行ってください。")
+            return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
+
+        if user_to_remove in group.users.all():
+            user_to_remove.groups.remove(group)
             group.users.remove(user_to_remove)
+            GroupMembership.objects.filter(group=group, user=user_to_remove, is_active=True).update(is_active=False)
             messages.success(request, f"{user_to_remove.username}をグループから退会させました。")
         else:
-            messages.error(request, "この操作を行う権限がありません。")
+            messages.error(request, "このユーザーはグループに所属していません。")
 
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
@@ -1298,6 +1583,12 @@ class CreateGroupView(View):
             group.save()
             group.users.add(request.user)
             request.user.groups.add(group)
+
+            GroupMembership.objects.get_or_create(
+                group=group,
+                user=request.user,
+                defaults={"role": GroupMembership.Role.OWNER, "is_active": True},
+            )
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
         return render(request, "group/create_group.html", {"form": form})
 
@@ -1305,7 +1596,11 @@ class CreateGroupView(View):
 class SearchGroupView(LoginRequiredMixin, View):
     def get(self, request):
         query = request.GET.get("q", "")
-        groups = Group.objects.filter(name__icontains=query, is_active=True)
+        groups = (
+            Group.objects.filter(name__icontains=query, is_active=True)
+            .filter(Q(users__isnull=False) | Q(custom_id="72014332"))
+            .distinct()
+        )
         for group in groups:
             group.is_member = group.users.filter(custom_user_id=request.user.custom_user_id).exists()
         return render(request, "group/search_group.html", {"groups": groups, "query": query})

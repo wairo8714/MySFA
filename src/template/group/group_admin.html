@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ group.name }} 管理 | MySFA{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+<div class="group-info-container master-page">
+  <div class="group-info-header">
+    <div class="group-info-icon-container">
+      {% if group.icon %}
+        <img class="group-info-profile-image" src="{{ group.icon.url }}" alt="{{ group.name }}のアイコン">
+      {% else %}
+        <img class="group-info-profile-image" src="{{ MEDIA_URL }}default_images/702.png" alt="{{ group.name }}のアイコン">
+      {% endif %}
+    </div>
+    <div class="group-info-header-text">
+      <h1>グループ管理（{{ group.name }}）</h1>
+    </div>
+    <div class="group-actions">
+      <a class="group-function-button" href="{% url 'mysfa:group_posts' group.custom_id %}">
+        グループへ戻る
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="group-members-section group-members-section--admin">
+  <h2>所属メンバー（管理）</h2>
+
+  <ul class="group-members-list group-members-list--admin">
+    {% for row in member_rows %}
+      <li>
+        <div class="group-admin-row">
+          <a class="group-admin-user" href="{% url 'mysfa:mypost' row.user.custom_user_id %}">
+            {% if row.user.profile_image %}
+              <img class="member-profile-image" src="{{ row.user.profile_image.url }}" alt="{{ row.user.username }}のアイコン">
+            {% else %}
+              <img class="member-profile-image" src="{{ MEDIA_URL }}default_images/ic013.png" alt="{{ row.user.username }}のアイコン">
+            {% endif %}
+
+            <span class="member-username">
+              <span class="group-admin-name">{{ row.user.username }}</span>
+              <span class="role-badge role-badge--{{ row.membership.role|lower }}">
+                {{ row.membership.get_role_display }}
+              </span>
+            </span>
+
+            <span class="member-id">#{{ row.user.custom_user_id }}</span>
+          </a>
+
+          <div class="member-admin-actions">
+            {% if row.membership.role == 'OWNER' %}
+              <span class="group-admin-hint">※オーナーです</span>
+            {% else %}
+              <form method="post" action="{% url 'mysfa:group_membership_update' group.custom_id row.user.custom_user_id %}">
+                {% csrf_token %}
+                {% if row.membership.role == 'ADMIN' %}
+                  <input type="hidden" name="role" value="MEMBER">
+                  <button type="submit" class="member-admin-btn" {% if not can_group_owner %}disabled{% endif %}>管理者を解除</button>
+                {% else %}
+                  <input type="hidden" name="role" value="ADMIN">
+                  <button type="submit" class="member-admin-btn member-admin-btn--primary" {% if not can_group_owner %}disabled{% endif %}>管理者にする</button>
+                {% endif %}
+              </form>
+
+              <form method="post" action="{% url 'mysfa:group_transfer_owner' group.custom_id row.user.custom_user_id %}" onsubmit="return confirm('管理者権限を委譲します。あなたはオーナーから管理者に変更され、以後この操作はできなくなります。よろしいですか？');">
+                {% csrf_token %}
+                <button type="submit" class="member-admin-btn member-admin-btn--transfer" {% if not can_group_owner %}disabled{% endif %}>管理者権限を委譲</button>
+              </form>
+
+              <form method="post" action="{% url 'mysfa:remove_member' group.custom_id row.user.custom_user_id %}" onsubmit="return confirm('本当にこのメンバーを強制退会させますか？');">
+                {% csrf_token %}
+                <button type="submit" class="member-admin-btn member-admin-btn--danger">退会させる</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}
+

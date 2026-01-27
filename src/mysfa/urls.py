@@ -4,7 +4,10 @@ from .views import (
     ApproveJoinRequestView,
     CreateGroupView,
     DeleteGroupView,
+    GroupAdminView,
     GroupPost,
+    GroupMembershipUpdateView,
+    GroupTransferOwnerView,
     JoinGroupRequestView,
     JoinGroupView,
     LeaveGroupView,
@@ -64,6 +67,17 @@ urlpatterns = [
         name="search_group_post",
     ),
     path("group/<str:custom_id>/", GroupPost.as_view(), name="group_posts"),
+    path("group/<str:custom_id>/admin/", GroupAdminView.as_view(), name="group_admin"),
+    path(
+        "group/<str:custom_id>/admin/members/<str:custom_user_id>/role/",
+        GroupMembershipUpdateView.as_view(),
+        name="group_membership_update",
+    ),
+    path(
+        "group/<str:custom_id>/admin/members/<str:custom_user_id>/transfer-owner/",
+        GroupTransferOwnerView.as_view(),
+        name="group_transfer_owner",
+    ),
     path("group/join/<str:custom_id>/", JoinGroupView.as_view(), name="join_group"),
     path(
         "group/request_join/<str:custom_id>/",
