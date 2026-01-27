@@ -141,7 +141,7 @@ docker compose exec web python src/manage.py migrate
 
 ## システム構成図
 
-![システム構成図](/docs/img/header/mysfa-architecture.png)
+（システム構成図は削除しました）
 
 ### 構築 / デプロイ
 
