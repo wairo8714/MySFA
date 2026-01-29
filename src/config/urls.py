@@ -19,6 +19,8 @@ def health_check(request):
 urlpatterns = [
     path("health/", health_check, name="health"),
     path("api/health/", mysfa_api_views.health, name="api_health"),
+    path("api/login/", mysfa_api_views.login_api, name="api_login"),
+    path("api/logout/", mysfa_api_views.logout_api, name="api_logout"),
     path("api/me/", mysfa_api_views.me, name="api_me"),
     path("api/csrf/", mysfa_api_views.csrf, name="api_csrf"),
     path("api/posts/", mysfa_api_views.posts, name="api_posts"),
