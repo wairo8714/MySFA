@@ -1,6 +1,7 @@
 import json
 
 from django.core.paginator import Paginator
+from django.contrib.auth import authenticate, get_user_model, login as auth_login, logout as auth_logout
 from django.db import models, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -317,3 +318,46 @@ def comments(request, post_id: int):
         )
 
     return JsonResponse({"items": items})
+
+
+@require_http_methods(["POST"])
+def login_api(request):
+    data = _json_body(request)
+    if data is None:
+        return JsonResponse({"detail": "Invalid JSON."}, status=400)
+
+    identifier = (data.get("custom_user_id") or data.get("username") or "").strip()
+    password = data.get("password") or ""
+
+    if not identifier or not password:
+        return JsonResponse({"detail": "custom_user_id (or username) and password are required."}, status=400)
+
+    User = get_user_model()
+    user = authenticate(request, **{User.USERNAME_FIELD: identifier, "password": password})
+    if user is None:
+        return JsonResponse({"detail": "Invalid credentials."}, status=400)
+
+    auth_login(request, user)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "user": {
+                "id": user.pk,
+                "custom_user_id": getattr(user, "custom_user_id", None),
+                "username": user.get_username(),
+                "email": getattr(user, "email", None),
+            },
+        }
+    )
+
+
+@require_http_methods(["POST"])
+def logout_api(request):
+    unauth = _require_auth(request)
+    if unauth:
+        return unauth
+
+    auth_logout(request)
+    return JsonResponse({"ok": True})
+
