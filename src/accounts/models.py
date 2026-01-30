@@ -12,6 +12,7 @@ from django.db import models
 class CustomUser(AbstractUser):
     username = models.CharField(max_length=20, blank=False, null=False, unique=False)
 
+    # usernameは重複可能にするため、cuttom_user_idをログインIDとして扱う
     USERNAME_FIELD = "custom_user_id"
     REQUIRED_FIELDS = ["username"]
     
@@ -34,8 +35,8 @@ class CustomUser(AbstractUser):
     answer = models.CharField(max_length=128, blank=False, verbose_name="答え")
 
     def user_profile_image_path(self, filename):
-        ext = filename.split(".")[-1]
-        unique_filename = f"{self.custom_user_id}_{uuid.uuid4()}.{ext}"
+        suffix = filename.sufix.lower()
+        unique_filename = f"{self.custom_user_id}_{uuid.uuid4()}{suffix"
         return os.path.join("profile_images", unique_filename)
 
     profile_image = models.ImageField(
