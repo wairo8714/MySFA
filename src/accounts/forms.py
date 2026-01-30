@@ -22,6 +22,7 @@ class CustomUserCreationForm(UserCreationForm):
         },
     )
 
+    #パスワード再設定時に使用 質問に対する正しい回答(answer)で再設定
     question = forms.CharField(
         label="質問",
         max_length=20,
@@ -89,7 +90,7 @@ class CustomUserCreationForm(UserCreationForm):
         )
 
     def clean_username(self):
-        # usernameのユニーク前提チェックを通さない
+        # UserCreationFormがusernameのユニークチェックを行わない様に、素通しする
         return self.cleaned_data["username"]
 
     def save(self, commit=True):
