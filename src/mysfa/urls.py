@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from .views import (
     ApproveJoinRequestView,
@@ -17,6 +18,7 @@ from .views import (
     ProductChangeRequestInboxView,
     ProductDeleteRequestBulkCreateView,
     PostCommentCreateView,
+    PostCommentDeleteView,
     ProductMasterCsvSubmitView,
     ProductMasterCsvTemplateView,
     ProductMasterCsvValidateView,
@@ -46,6 +48,7 @@ from .views import (
 app_name = "mysfa"
 
 urlpatterns = [
+    path("", RedirectView.as_view(url="timeline/", permanent=False), name="mysfa_root"),
     path("timeline/", Timeline.as_view(), name="timeline"),
     path("mypost/<str:custom_user_id>/", MyPost.as_view(), name="mypost"),
     path(
@@ -176,6 +179,11 @@ urlpatterns = [
     path("search_users/", SearchUsersView.as_view(), name="search_users"),
     path("like-post/<int:post_id>/", LikePostView.as_view(), name="like_post"),
     path("post/<int:post_id>/comments/", PostCommentCreateView.as_view(), name="post_comment_create"),
+    path(
+        "post/<int:post_id>/comments/<int:comment_id>/delete/",
+        PostCommentDeleteView.as_view(),
+        name="post_comment_delete",
+    ),
     path("trial/start/", TrialStartView.as_view(), name="trial_start"),
     path("trial/ping/", TrialPingView.as_view(), name="trial_ping"),
     path("sales-report/", SalesReportView.as_view(), name="sales_report"),

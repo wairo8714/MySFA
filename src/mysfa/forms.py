@@ -81,9 +81,24 @@ class PostForm(forms.ModelForm):
 
         return image
 
+    def clean(self):
+        cleaned = super().clean()
+
+        group = cleaned.get("group")
+        # 画面上はグループ選択後に商品/業態を必須にしたい
+        if group:
+            if not cleaned.get("product"):
+                self.add_error("product", "商品を選択してください。")
+            if not cleaned.get("industry"):
+                self.add_error("industry", "業態を選択してください。")
+
+        return cleaned
+
     def __init__(self, *args, **kwargs):
         user = kwargs.pop("user", None)
         super(PostForm, self).__init__(*args, **kwargs)
+        # デフォルトの "---------" をわかりやすい文言にする
+        self.fields["group"].empty_label = "グループを選択してください"
         if user:
             self.fields["group"].queryset = Group.objects.filter(users=user, is_active=True)
 

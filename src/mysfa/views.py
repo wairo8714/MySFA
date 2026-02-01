@@ -473,6 +473,7 @@ class Timeline(LoginRequiredMixin, ListView):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+            messages.success(request, "投稿を削除しました。")
 
             base = reverse("mysfa:timeline")
             if custom_id:
@@ -557,8 +558,10 @@ class MyPost(LoginRequiredMixin, ListView):
     def get_queryset(self):
         custom_user_id = self.kwargs["custom_user_id"]
         user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
-        queryset = Post.objects.filter(user=user).select_related(
-            "user", "group", "product", "industry"
+        queryset = (
+            Post.objects.filter(user=user)
+            .select_related("user", "group", "product", "industry")
+            .prefetch_related("liked_users", "comments__author")
         )
 
         custom_id = self.request.GET.get("custom_id")
@@ -605,6 +608,7 @@ class MyPost(LoginRequiredMixin, ListView):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+            messages.success(request, "投稿を削除しました。")
             return redirect("mysfa:mypost", custom_user_id=request.user.custom_user_id)
 
         form = UserProfileForm(request.POST, request.FILES, instance=request.user)
@@ -710,6 +714,7 @@ class GroupPost(LoginRequiredMixin, ListView):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+            messages.success(request, "投稿を削除しました。")
             return redirect("mysfa:group_posts", custom_id=self.kwargs["custom_id"])
 
         return self.get(request, *args, **kwargs)
@@ -1624,12 +1629,14 @@ class SearchProductsView(LoginRequiredMixin, View):
                 posts = (
                     Post.objects.filter(group__id=selected_group_id, group__in=user_groups)
                     .select_related("user", "group", "product", "industry")
+                    .prefetch_related("liked_users", "comments__author")
                     .filter(Q(product__product_code__icontains=query) | Q(product__name__icontains=query))
                 )
             else:
                 posts = (
                     Post.objects.filter(group__in=user_groups)
                     .select_related("user", "group", "product", "industry")
+                    .prefetch_related("liked_users", "comments__author")
                     .filter(Q(product__product_code__icontains=query) | Q(product__name__icontains=query))
                 )
         else:
@@ -1658,6 +1665,7 @@ class SearchProductsView(LoginRequiredMixin, View):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+            messages.success(request, "投稿を削除しました。")
             return redirect("mysfa:search_products")
 
 
@@ -1674,11 +1682,11 @@ class SearchCustomersView(LoginRequiredMixin, View):
                     industry__name__icontains=query,
                     group__id=selected_group_id,
                     group__in=user_groups,
-                ).select_related("user", "group", "product", "industry")
+                ).select_related("user", "group", "product", "industry").prefetch_related("liked_users", "comments__author")
             else:
                 customers = Post.objects.filter(
                     industry__name__icontains=query, group__in=user_groups
-                ).select_related("user", "group", "product", "industry")
+                ).select_related("user", "group", "product", "industry").prefetch_related("liked_users", "comments__author")
         else:
             customers = []
 
@@ -1705,6 +1713,7 @@ class SearchCustomersView(LoginRequiredMixin, View):
             if post.image:
                 post.image.delete(save=False)
             post.delete()
+            messages.success(request, "投稿を削除しました。")
             return redirect("mysfa:search_customers")
 
 
@@ -1780,6 +1789,34 @@ class PostCommentCreateView(View):
             body=form.cleaned_data["body"],
         )
         messages.success(request, "コメントしました。")
+
+        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+        return redirect(next_url)
+
+
+@method_decorator(login_required, name="dispatch")
+class PostCommentDeleteView(View):
+    def post(self, request, post_id: int, comment_id: int):
+        comment = get_object_or_404(
+            PostComment.objects.select_related("post", "author"),
+            id=comment_id,
+            post_id=post_id,
+        )
+        post = comment.post
+
+        is_member = Group.objects.filter(
+            id=post.group_id,
+            is_active=True,
+            users=request.user,
+        ).exists()
+        if not is_member:
+            raise PermissionDenied
+
+        if request.user != post.user and request.user != comment.author:
+            raise PermissionDenied
+
+        comment.delete()
+        messages.success(request, "コメントを削除しました。")
 
         next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
         return redirect(next_url)
