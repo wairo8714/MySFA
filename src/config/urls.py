@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from django.views.decorators.http import require_http_methods
 from django.views.generic.base import TemplateView
+from django.views.generic import RedirectView
 
 from mysfa import api_views as mysfa_api_views
 
@@ -35,6 +36,7 @@ urlpatterns = [
         TemplateView.as_view(template_name="privacy-policy.html"),
         name="privacy-policy",
     ),
+    path("mysfa", RedirectView.as_view(url="/mysfa/", permanent=False)),
     path("mysfa/", include("mysfa.urls")),
 ]
 

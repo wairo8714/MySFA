@@ -140,6 +140,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (kind === "industry") industryOpen.textContent = "変更";
   }
 
+  function _selectedOptionText(selectEl) {
+    const opt =
+      (selectEl.selectedOptions && selectEl.selectedOptions[0]) ||
+      selectEl.options[selectEl.selectedIndex];
+    return (opt?.textContent || "").trim();
+  }
+
+  function restoreChipFromSelect(kind) {
+    const selectEl = kind === "product" ? productSelect : industrySelect;
+    const chipEl = kind === "product" ? productSelected : industrySelected;
+    const openBtn = kind === "product" ? productOpen : industryOpen;
+
+    const v = String(selectEl.value || "").trim();
+    if (!v) {
+      chipEl.style.display = "none";
+      openBtn.textContent = kind === "product" ? "商品を選択" : "業態を選択";
+      return;
+    }
+
+    const label = _selectedOptionText(selectEl);
+    if (kind === "product") {
+      // select の表示が「商品コード 商品名」でも、チップは商品名寄せ
+      const productName = label ? label.replace(/^\S+\s+/, "") : "";
+      setChip("product", productName || label || "選択済み");
+      return;
+    }
+    setChip("industry", label || "選択済み");
+  }
+
   function applySelection(kind, id, label) {
     if (kind === "product") {
       // submit用 select の表示ラベルは自由。検索結果はコード+名前でも良いが、
@@ -200,11 +229,23 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const it of items) {
       const li = document.createElement("li");
       li.className = "post-master-result";
-      li.innerHTML = `<button type="button" class="post-master-result-btn" data-id="${escapeHtml(
-        it.id
-      )}" data-label="${escapeHtml(it.label)}" data-name="${escapeHtml(
-        it.name ?? ""
-      )}">${escapeHtml(it.label)}</button>`;
+      if (mode === "product") {
+        const code = it.product_code ?? "";
+        const name = it.name ?? "";
+        const label = it.label ?? `${code} ${name}`.trim();
+        li.innerHTML = `<button type="button" class="post-master-result-btn post-master-result-btn--product" data-id="${escapeHtml(
+          it.id
+        )}" data-label="${escapeHtml(label)}" data-name="${escapeHtml(name)}">
+          <span class="post-master-result__code">${escapeHtml(code)}</span>
+          <span class="post-master-result__name">${escapeHtml(name || label)}</span>
+        </button>`;
+      } else {
+        li.innerHTML = `<button type="button" class="post-master-result-btn" data-id="${escapeHtml(
+          it.id
+        )}" data-label="${escapeHtml(it.label)}" data-name="${escapeHtml(
+          it.name ?? ""
+        )}">${escapeHtml(it.label)}</button>`;
+      }
       modalResults.appendChild(li);
     }
   }
@@ -223,6 +264,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 初期化
   updateMasterLinks();
   setEnabledForMasters(Boolean(getSelectedGroupCustomId()));
+  // サーバ再描画後でも、hidden select の値からチップを復元する
+  restoreChipFromSelect("product");
+  restoreChipFromSelect("industry");
 
   groupSelect.addEventListener("change", () => {
     updateMasterLinks();

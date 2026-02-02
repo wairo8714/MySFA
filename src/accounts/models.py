@@ -34,8 +34,9 @@ class CustomUser(AbstractUser):
     answer = models.CharField(max_length=128, blank=False, verbose_name="答え")
 
     def user_profile_image_path(self, filename):
-        ext = filename.split(".")[-1]
-        unique_filename = f"{self.custom_user_id}_{uuid.uuid4()}.{ext}"
+        _, ext = os.path.splitext(filename)
+        suffix = (ext or "").lower()
+        unique_filename = f"{self.custom_user_id}_{uuid.uuid4()}{suffix}"
         return os.path.join("profile_images", unique_filename)
 
     profile_image = models.ImageField(

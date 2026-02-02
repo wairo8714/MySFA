@@ -209,7 +209,10 @@
                                 <span class="timeline-user-id">@{{ post.user.custom_user_id }}</span>
                             </a>
                         </div>
-                        <span class="timeline-team-name">{{ post.group.name }}</span>
+                        <div class="timeline-team-area">
+                            <span class="timeline-team-name">{{ post.group.name }}</span>
+                            <p class="timeline-status" data-status="{{ post.status }}">{{ post.get_status_display }}</p>
+                        </div>
                     </div>
                     <div class="timeline-item-content">
                         <p class="timeline-product-name">商品: <strong>{{ post.product_name }}</strong></p>
@@ -220,48 +223,79 @@
                                 <img src="{{ post.image.url }}" alt="投稿画像" class="post-image">
                             </div>
                         {% endif %}
-                        <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
-                        <div class="like-section">
-                            <button class="like-button {% if request.user in post.liked_users.all %}liked{% endif %}" data-post-id="{{ post.id }}">
-                                <img src="{% static 'images/good.png' %}" alt="いいね" class="like-icon">
-                                <span class="like-count">{{ post.likes_count }}</span>
-                            </button>
+                        <div class="post-meta-row">
+                            <div class="post-meta-actions">
+                                <div class="like-section">
+                                    <button class="like-button {% if request.user in post.liked_users.all %}liked{% endif %}" data-post-id="{{ post.id }}">
+                                        <img src="{% static 'images/good.png' %}" alt="いいね" class="like-icon">
+                                        <span class="like-count">{{ post.likes_count }}</span>
+                                    </button>
+                                </div>
+                                {% if request.user == post.user %}
+                                    <form method="post" action="{% url 'mysfa:group_posts' group.custom_id %}" onsubmit="return confirm('投稿を削除しますか？');">
+                                        {% csrf_token %}
+                                    <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                    <button type="submit" class="delete-button">
+                                        <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <p class="post-time">{{ post.created_at|date:"Y-m-d H:i" }}</p>
                         </div>
-                        {% if request.user == post.user %}
-                            <form method="post" action="{% url 'mysfa:group_posts' group.custom_id %}" onsubmit="return confirm('投稿を削除しますか？');">
-                                {% csrf_token %}
-                            <input type="hidden" name="delete_post_id" value="{{ post.id }}">
-                            <button type="submit" class="delete-button">
-                                <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
-                            </button>
-                        </form>
-                    {% endif %}
 
                         <div class="post-comments">
                             <div class="post-comments__header">
-                                <span class="post-comments__title">コメント</span>
-                                <span class="post-comments__count">({{ post.comments.count }})</span>
+                                <button type="button" class="post-comments__toggle" aria-expanded="false" aria-controls="post-comments-body-{{ post.id }}">
+                                    <span class="post-comments__title">コメント</span>
+                                    <span class="post-comments__count">({{ post.comments.count }})</span>
+                                </button>
                             </div>
 
-                            <ul class="post-comments__list">
-                                {% for c in post.comments.all %}
-                                    <li class="post-comment">
-                                        <span class="post-comment__author">{{ c.author.username }}</span>
-                                        <span class="post-comment__meta">@{{ c.author.custom_user_id }} · {{ c.created_at|date:"Y-m-d H:i" }}</span>
-                                        <div class="post-comment__body">{{ c.body|linebreaksbr }}</div>
-                                    </li>
-                                {% empty %}
-                                    <li class="post-comments__empty">まだコメントはありません。</li>
-                                {% endfor %}
-                            </ul>
+                            <div id="post-comments-body-{{ post.id }}" class="post-comments__body">
+                                <ul class="post-comments__list">
+                                    {% for c in post.comments.all %}
+                                        <li class="post-comment">
+                                            <a href="{% url 'mysfa:mypost' c.author.custom_user_id %}" class="post-comment__avatar-link">
+                                                <img
+                                                    class="post-comment__avatar"
+                                                    src="{% if c.author.profile_image and c.author.profile_image.name != 'default_images/ic013.png' %}
+                                                            {{ c.author.profile_image.url }}
+                                                        {% else %}
+                                                            {% static 'images/default_image/ic013.png' %}
+                                                        {% endif %}"
+                                                    alt=""
+                                                >
+                                            </a>
+                                            <div class="post-comment__content">
+                                                <div class="post-comment__header">
+                                                    <div class="post-comment__header-left">
+                                                        <span class="post-comment__author">{{ c.author.username }}</span>
+                                                        <span class="post-comment__meta">@{{ c.author.custom_user_id }} · {{ c.created_at|date:"Y-m-d H:i" }}</span>
+                                                    </div>
+                                                    {% if request.user == post.user or request.user == c.author %}
+                                                        <form method="post" action="{% url 'mysfa:post_comment_delete' post.id c.id %}?next={{ request.get_full_path|urlencode }}" class="post-comment__delete-form" onsubmit="return confirm('コメントを削除しますか？');">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="post-comment__delete-btn">削除</button>
+                                                        </form>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="post-comment__body">{{ c.body|linebreaksbr }}</div>
+                                            </div>
+                                        </li>
+                                    {% empty %}
+                                        <li class="post-comments__empty">まだコメントはありません。</li>
+                                    {% endfor %}
+                                </ul>
 
-                            <form method="post" action="{% url 'mysfa:post_comment_create' post.id %}?next={{ request.get_full_path|urlencode }}" class="post-comment-form">
-                                {% csrf_token %}
-                                <textarea name="body" rows="3" class="post-comment-form__textarea" placeholder="コメントを書く"></textarea>
-                                <div class="post-comment-form__actions">
-                                    <button type="submit" class="btn btn-secondary">送信</button>
-                                </div>
-                            </form>
+                                <form method="post" action="{% url 'mysfa:post_comment_create' post.id %}?next={{ request.get_full_path|urlencode }}" class="post-comment-form">
+                                    {% csrf_token %}
+                                    <textarea name="body" rows="3" class="post-comment-form__textarea" placeholder="コメントを書く"></textarea>
+                                    <div class="post-comment-form__actions">
+                                        <button type="submit" class="btn btn-secondary">送信</button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
