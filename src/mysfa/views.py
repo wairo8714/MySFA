@@ -2,6 +2,7 @@ import csv
 import secrets
 import uuid
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import login
@@ -16,6 +17,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.utils.html import format_html
 from django.views import View
@@ -546,6 +548,13 @@ class IndustryMasterSearchApiView(LoginRequiredMixin, View):
             qs = qs.filter(name__icontains=q)
 
         results = [{"id": m.id, "name": m.name, "label": m.name} for m in qs[:limit]]
+        return JsonResponse({"results": results})
+
+
+class MyGroupsApiView(LoginRequiredMixin, View):
+    def get(self, request):
+        qs = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
+        results = [{"custom_id": g.custom_id, "name": g.name} for g in qs]
         return JsonResponse({"results": results})
 
 
@@ -1600,15 +1609,60 @@ class CreateGroupView(View):
 
 class SearchGroupView(LoginRequiredMixin, View):
     def get(self, request):
-        query = request.GET.get("q", "")
-        groups = (
-            Group.objects.filter(name__icontains=query, is_active=True)
-            .filter(Q(users__isnull=False) | Q(custom_id="72014332"))
-            .distinct()
+        query = (request.GET.get("q") or "").strip()
+        match_mode = request.GET.get("match") or "partial"
+        membership = request.GET.get("membership") or "all"
+        lock_filter = request.GET.get("lock") or "all"
+
+        groups = Group.objects.filter(is_active=True).filter(
+            Q(users__isnull=False) | Q(custom_id="72014332")
         )
+
+        if query:
+            if match_mode == "exact":
+                groups = groups.filter(Q(name__iexact=query) | Q(custom_id__iexact=query))
+            else:
+                match_mode = "partial"
+                groups = groups.filter(Q(name__icontains=query) | Q(custom_id__icontains=query))
+
+        if membership == "joined":
+            groups = groups.filter(users=request.user)
+        elif membership == "not_joined":
+            groups = groups.exclude(users=request.user)
+        else:
+            membership = "all"
+
+        if lock_filter == "locked":
+            groups = groups.filter(is_locked=True)
+        elif lock_filter == "open":
+            groups = groups.filter(is_locked=False)
+        else:
+            lock_filter = "all"
+
+        groups = groups.distinct().order_by("name", "custom_id")
+
+        group_ids = list(groups.values_list("id", flat=True))
+        requested_ids = set(
+            JoinRequest.objects.filter(user=request.user, group_id__in=group_ids).values_list(
+                "group_id", flat=True
+            )
+        )
+
         for group in groups:
-            group.is_member = group.users.filter(custom_user_id=request.user.custom_user_id).exists()
-        return render(request, "group/search_group.html", {"groups": groups, "query": query})
+            group.is_member = group.users.filter(pk=request.user.pk).exists()
+            group.user_has_requested = group.id in requested_ids
+
+        return render(
+            request,
+            "group/search_group.html",
+            {
+                "groups": groups,
+                "query": query,
+                "match_mode": match_mode,
+                "membership": membership,
+                "lock_filter": lock_filter,
+            },
+        )
 
     def post(self, request, custom_id):
         group = Group.objects.get(custom_id=custom_id, is_active=True)
@@ -1619,28 +1673,60 @@ class SearchGroupView(LoginRequiredMixin, View):
 
 class SearchProductsView(LoginRequiredMixin, View):
     def get(self, request):
-        query = request.GET.get("q", "")
-        selected_group_id = request.GET.get("custom_id")
-        user_groups = request.user.groups.all()
+        query = (request.GET.get("q") or "").strip()
+        match_mode = request.GET.get("match") or "partial"
+        start_date_raw = (request.GET.get("start_date") or "").strip()
+        end_date_raw = (request.GET.get("end_date") or "").strip()
+
+        selected_group_custom_id = (request.GET.get("group") or "").strip()
+        legacy_group_pk = (request.GET.get("custom_id") or "").strip()
+
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
         page = request.GET.get("page", 1)
 
-        if query:
-            if selected_group_id:
-                posts = (
-                    Post.objects.filter(group__id=selected_group_id, group__in=user_groups)
-                    .select_related("user", "group", "product", "industry")
-                    .prefetch_related("liked_users", "comments__author")
-                    .filter(Q(product__product_code__icontains=query) | Q(product__name__icontains=query))
-                )
-            else:
-                posts = (
-                    Post.objects.filter(group__in=user_groups)
-                    .select_related("user", "group", "product", "industry")
-                    .prefetch_related("liked_users", "comments__author")
-                    .filter(Q(product__product_code__icontains=query) | Q(product__name__icontains=query))
-                )
-        else:
-            posts = []
+        date_error = None
+        start_date = None
+        end_date = None
+        if start_date_raw:
+            try:
+                start_date = datetime.strptime(start_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                date_error = "開始日の形式が正しくありません。"
+        if end_date_raw:
+            try:
+                end_date = datetime.strptime(end_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                date_error = "終了日の形式が正しくありません。"
+
+        if not selected_group_custom_id and legacy_group_pk:
+            g = user_groups.filter(pk=legacy_group_pk).first()
+            if g:
+                selected_group_custom_id = g.custom_id
+
+        do_search = bool(query or start_date or end_date)
+        posts = Post.objects.none()
+        if do_search:
+            posts = (
+                Post.objects.filter(group__in=user_groups)
+                .select_related("user", "group", "product", "industry")
+                .prefetch_related("liked_users", "comments__author")
+            )
+
+            if selected_group_custom_id:
+                posts = posts.filter(group__group__custom_id=selected_group_custom_id)
+
+            if start_date:
+                posts = posts.filter(created_at__date__gte=start_date)
+            if end_date:
+                posts = posts.filter(created_at__date__lte=end_date)
+
+            if query:
+                if match_mode == "exact":
+                    qf = Q(product__product_code__iexact=query) | Q(product__name__iexact=query)
+                else:
+                    match_mode = "partial"
+                    qf = Q(product__product_code__icontains=query) | Q(product__name__icontains=query)
+                posts = posts.filter(qf)
 
         paginator = Paginator(posts, 5)
         try:
@@ -1650,11 +1736,29 @@ class SearchProductsView(LoginRequiredMixin, View):
         except EmptyPage:
             object_list = paginator.page(paginator.num_pages)
 
+        params = {}
+        if query:
+            params["q"] = query
+        if selected_group_custom_id:
+            params["group"] = selected_group_custom_id
+        if match_mode and match_mode != "partial":
+            params["match"] = match_mode
+        if start_date_raw:
+            params["start_date"] = start_date_raw
+        if end_date_raw:
+            params["end_date"] = end_date_raw
+
         context = {
             "query": query,
             "object_list": object_list,
             "user_groups": user_groups,
-            "selected_group_id": selected_group_id,
+            "selected_group_custom_id": selected_group_custom_id,
+            "match_mode": match_mode,
+            "start_date": start_date_raw,
+            "end_date": end_date_raw,
+            "date_error": date_error,
+            "query_params": urlencode(params),
+            "did_search": do_search,
         }
         return render(request, "post/search_products.html", context)
 
@@ -1666,29 +1770,67 @@ class SearchProductsView(LoginRequiredMixin, View):
                 post.image.delete(save=False)
             post.delete()
             messages.success(request, "投稿を削除しました。")
+            next_url = (request.POST.get("next") or "").strip()
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
             return redirect("mysfa:search_products")
 
 
 class SearchCustomersView(LoginRequiredMixin, View):
     def get(self, request):
-        query = request.GET.get("q", "")
-        selected_group_id = request.GET.get("custom_id")
-        user_groups = request.user.groups.all()
+        query = (request.GET.get("q") or "").strip()
+        match_mode = request.GET.get("match") or "partial"
+        start_date_raw = (request.GET.get("start_date") or "").strip()
+        end_date_raw = (request.GET.get("end_date") or "").strip()
+
+        selected_group_custom_id = (request.GET.get("group") or "").strip()
+        legacy_group_pk = (request.GET.get("custom_id") or "").strip()
+
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
         page = request.GET.get("page", 1)
 
-        if query:
-            if selected_group_id:
-                customers = Post.objects.filter(
-                    industry__name__icontains=query,
-                    group__id=selected_group_id,
-                    group__in=user_groups,
-                ).select_related("user", "group", "product", "industry").prefetch_related("liked_users", "comments__author")
-            else:
-                customers = Post.objects.filter(
-                    industry__name__icontains=query, group__in=user_groups
-                ).select_related("user", "group", "product", "industry").prefetch_related("liked_users", "comments__author")
-        else:
-            customers = []
+        date_error = None
+        start_date = None
+        end_date = None
+        if start_date_raw:
+            try:
+                start_date = datetime.strptime(start_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                date_error = "開始日の形式が正しくありません。"
+        if end_date_raw:
+            try:
+                end_date = datetime.strptime(end_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                date_error = "終了日の形式が正しくありません。"
+
+        if not selected_group_custom_id and legacy_group_pk:
+            g = user_groups.filter(pk=legacy_group_pk).first()
+            if g:
+                selected_group_custom_id = g.custom_id
+
+        do_search = bool(query or start_date or end_date)
+        customers = Post.objects.none()
+        if do_search:
+            customers = (
+                Post.objects.filter(group__in=user_groups)
+                .select_related("user", "group", "product", "industry")
+                .prefetch_related("liked_users", "comments__author")
+            )
+
+            if selected_group_custom_id:
+                customers = customers.filter(group__group__custom_id=selected_group_custom_id)
+
+            if start_date:
+                customers = customers.filter(created_at__date__gte=start_date)
+            if end_date:
+                customers = customers.filter(created_at__date__lte=end_date)
+
+            if query:
+                if match_mode == "exact":
+                    customers = customers.filter(industry__name__iexact=query)
+                else:
+                    match_mode = "partial"
+                    customers = customers.filter(industry__name__icontains=query)
 
         paginator = Paginator(customers, 5)
         try:
@@ -1698,11 +1840,29 @@ class SearchCustomersView(LoginRequiredMixin, View):
         except EmptyPage:
             object_list = paginator.page(paginator.num_pages)
 
+        params = {}
+        if query:
+            params["q"] = query
+        if selected_group_custom_id:
+            params["group"] = selected_group_custom_id
+        if match_mode and match_mode != "partial":
+            params["match"] = match_mode
+        if start_date_raw:
+            params["start_date"] = start_date_raw
+        if end_date_raw:
+            params["end_date"] = end_date_raw
+
         context = {
             "query": query,
             "object_list": object_list,
             "user_groups": user_groups,
-            "selected_group_id": selected_group_id,
+            "selected_group_custom_id": selected_group_custom_id,
+            "match_mode": match_mode,
+            "start_date": start_date_raw,
+            "end_date": end_date_raw,
+            "date_error": date_error,
+            "query_params": urlencode(params),
+            "did_search": do_search,
         }
         return render(request, "post/search_customers.html", context)
 
@@ -1714,18 +1874,39 @@ class SearchCustomersView(LoginRequiredMixin, View):
                 post.image.delete(save=False)
             post.delete()
             messages.success(request, "投稿を削除しました。")
+            next_url = (request.POST.get("next") or "").strip()
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
             return redirect("mysfa:search_customers")
 
 
 class SearchUsersView(LoginRequiredMixin, View):
     def get(self, request):
-        query = request.GET.get("q", "")
+        query = (request.GET.get("q") or "").strip()
+        match_mode = request.GET.get("match") or "partial"
+        selected_group_custom_id = (request.GET.get("group") or "").strip()
         page = request.GET.get("page", 1)
 
-        if query:
-            users = CustomUser.objects.filter(Q(username__icontains=query) | Q(custom_user_id__icontains=query))
-        else:
-            users = CustomUser.objects.none()
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
+        if selected_group_custom_id and not user_groups.filter(custom_id=selected_group_custom_id).exists():
+            selected_group_custom_id = ""
+
+        do_search = bool(query or selected_group_custom_id)
+        users = CustomUser.objects.none()
+        if do_search:
+            users = CustomUser.objects.all()
+
+            if selected_group_custom_id:
+                users = users.filter(user_groups__custom_id=selected_group_custom_id, user_groups__is_active=True)
+
+            if query:
+                if match_mode == "exact":
+                    users = users.filter(Q(username__iexact=query) | Q(custom_user_id__iexact=query))
+                else:
+                    match_mode = "partial"
+                    users = users.filter(Q(username__icontains=query) | Q(custom_user_id__icontains=query))
+
+            users = users.distinct().order_by("username", "custom_user_id")
 
         paginator = Paginator(users, 10)
         try:
@@ -1735,9 +1916,22 @@ class SearchUsersView(LoginRequiredMixin, View):
         except EmptyPage:
             object_list = paginator.page(paginator.num_pages)
 
+        params = {}
+        if query:
+            params["q"] = query
+        if selected_group_custom_id:
+            params["group"] = selected_group_custom_id
+        if match_mode and match_mode != "partial":
+            params["match"] = match_mode
+
         context = {
             "query": query,
             "object_list": object_list,
+            "user_groups": user_groups,
+            "selected_group_custom_id": selected_group_custom_id,
+            "match_mode": match_mode,
+            "query_params": urlencode(params),
+            "did_search": do_search,
         }
         return render(request, "post/search_users.html", context)
 
@@ -1886,7 +2080,7 @@ class SalesReportView(View):
         posts = posts.filter(status__in=[Post.Status.ADOPTED])
         product_data = list(
             posts.filter(product__isnull=False)
-            .values("product__name")
+            .values("product__product_code", "product__name")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
@@ -1897,14 +2091,24 @@ class SalesReportView(View):
             .order_by("-count")
         )
 
-        product_data = [{"product_name": x["product__name"], "count": x["count"]} for x in product_data]
+        product_data = [
+            {
+                "product_name": x["product__name"],
+                "product_code": x["product__product_code"],
+                "label": x["product__name"],
+                "count": x["count"],
+            }
+            for x in product_data
+        ]
         customer_data = [{"customer_category": x["industry__name"], "count": x["count"]} for x in customer_data]
 
         if len(product_data) > 5:
             top_products = product_data[:5]
             other_count = sum(item["count"] for item in product_data[5:])
             if other_count > 0:
-                top_products.append({"product_name": "その他", "count": other_count})
+                top_products.append(
+                    {"product_name": "その他", "product_code": "", "label": "その他", "count": other_count}
+                )
             product_data = top_products
 
         if len(customer_data) > 5:

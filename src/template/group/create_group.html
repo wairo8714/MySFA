@@ -4,19 +4,42 @@
 {% block title %}グループ作成 | MySFA{% endblock %}
 {% block content %}
 <div class="create-group-area">
-    <h1 style="text-align: center; color: #333; font-size: 24px; margin-bottom: 20px;">グループを作成</h1>
-    <form method="post" action="{% url 'mysfa:create_group' %}" style="display: flex; flex-direction: column; gap: 15px;">
+    <div class="create-group-card">
+        <div class="create-group-card__header">
+            <h1 class="create-group-card__title">グループを作成</h1>
+        </div>
+
+        <form method="post" action="{% url 'mysfa:create_group' %}" class="create-group-form">
         {% csrf_token %}
-        <div style="padding: 10px; border: 1px solid #ccc; border-radius: 4px; cursor: text;" onclick="this.querySelector('input').focus();">
-            {{ form.as_p }}
-        </div>
-        <div style="padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
-            <label for="id_is_locked">ロック機能を有効にする</label>
-            <input type="checkbox" id="id_is_locked" name="is_locked">
-            <p class="lock-info">ロック機能を有効にすると、メンバー以外のユーザーはグループの投稿やグループメンバーの閲覧ができなくなります。</p>
-            <p class="lock-info">新しくユーザーが参加する際は、メンバーの承認が必要になります。</p>
-        </div>
-        <button type="submit" style="display: block; padding: 10px 20px; min-width: 200px; max-width: 300px; margin: 0 auto; background-color: #39AEC8; color: white; border: none; border-radius: 4px; white-space: nowrap; cursor: pointer; text-align: center; font-size: 16px;">作成する</button>
-    </form>
+            {% if form.non_field_errors %}
+                <div class="create-group-form__errors" role="alert">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="create-group-form__field">
+                <label for="{{ form.name.id_for_label }}">グループ名</label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                    <p class="create-group-form__error">{{ form.name.errors|striptags }}</p>
+                {% endif %}
+            </div>
+
+            <div class="create-group-form__panel">
+                <label class="create-group-switch" for="id_is_locked">
+                    <input type="checkbox" id="id_is_locked" name="is_locked" {% if request.POST.is_locked %}checked{% endif %}>
+                    <span class="create-group-switch__ui" aria-hidden="true"></span>
+                    <span class="create-group-switch__label">ロック機能を有効にする</span>
+                </label>
+                <p class="lock-info">ロック機能を有効にすると、メンバー以外のユーザーはグループの投稿やグループメンバーの閲覧ができなくなります。</p>
+                <p class="lock-info">新しくユーザーが参加する際は、オーナーの承認が必要になります。</p>
+            </div>
+
+            <div class="create-group-form__actions">
+                <button type="submit" class="create-group-btn create-group-btn--primary">作成する</button>
+                <a href="{% url 'mysfa:search_group' %}" class="create-group-btn create-group-btn--ghost">キャンセル</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

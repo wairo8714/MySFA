@@ -7,6 +7,7 @@ from .views import (
     DeleteGroupView,
     GroupAdminView,
     GroupPost,
+    MyGroupsApiView,
     GroupMembershipUpdateView,
     GroupTransferOwnerView,
     JoinGroupRequestView,
@@ -50,6 +51,7 @@ app_name = "mysfa"
 urlpatterns = [
     path("", RedirectView.as_view(url="timeline/", permanent=False), name="mysfa_root"),
     path("timeline/", Timeline.as_view(), name="timeline"),
+    path("api/my-groups/", MyGroupsApiView.as_view(), name="my_groups_api"),
     path("mypost/<str:custom_user_id>/", MyPost.as_view(), name="mypost"),
     path(
         "mypost/<str:custom_user_id>/update_username/",

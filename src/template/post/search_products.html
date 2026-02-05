@@ -5,24 +5,56 @@
 {% block content %}
 <div class="search-products-container">
     <h1>商品を検索</h1>
-    <form method="get" action="{% url 'mysfa:search_products' %}" class="search-products-form">
-        <input type="text" name="q" id="search-input" value="{{ query }}" placeholder="商品コード / 商品名で検索" class="search-products-input">
-        <button type="submit" class="search-products-button">検索</button>
+    <form method="get" action="{% url 'mysfa:search_products' %}" class="search-products-form search-form-advanced">
+        <div class="search-form-advanced__row">
+            <input type="text" name="q" id="search-input" value="{{ query }}" placeholder="商品コード / 商品名で検索" class="search-products-input">
+            <button type="submit" class="search-products-button">検索</button>
+            <a class="search-form-advanced__clear" href="{% url 'mysfa:search_products' %}">クリア</a>
+        </div>
+
+        <div class="filter-form search-form-advanced__filters" id="filter-form-products">
+            <div class="search-form-advanced__grid">
+                <div class="search-form-advanced__field">
+                    <label for="group">対象グループ:</label>
+                    <select name="group" id="group">
+                        <option value="">全て（所属グループ）</option>
+                        {% for group in user_groups %}
+                            <option value="{{ group.custom_id }}" {% if group.custom_id == selected_group_custom_id %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="search-form-advanced__field">
+                    <span class="search-form-advanced__label">一致:</span>
+                    <div class="match-radio" role="radiogroup" aria-label="一致方法">
+                        <label class="match-radio__item">
+                            <input type="radio" name="match" value="partial" {% if match_mode == "partial" %}checked{% endif %}>
+                            <span>部分一致</span>
+                        </label>
+                        <label class="match-radio__item">
+                            <input type="radio" name="match" value="exact" {% if match_mode == "exact" %}checked{% endif %}>
+                            <span>完全一致</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="search-form-advanced__field">
+                    <label for="start_date">期間:</label>
+                    <div class="search-form-advanced__dates">
+                        <input type="date" name="start_date" id="start_date" value="{{ start_date }}">
+                        <span class="search-form-advanced__date-sep">〜</span>
+                        <input type="date" name="end_date" id="end_date" value="{{ end_date }}">
+                    </div>
+                </div>
+            </div>
+        </div>
     </form>
 
-    {% if query %}
-        <div class="filter-form" id="filter-form-products">
-            <form method="get" action="{% url 'mysfa:search_products' %}">
-                <input type="hidden" name="q" value="{{ query }}">
-                <label for="group">グループで絞り込む:</label>
-                <select name="custom_id" id="group" onchange="this.form.submit()">
-                    <option value="">全てのグループ</option>
-                    {% for group in user_groups %}
-                        <option value="{{ group.id }}" {% if group.id|stringformat:"s" == selected_group_id %}selected{% endif %}>{{ group.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-        </div>
+    {% if date_error %}
+        <p class="search-form-advanced__error">{{ date_error }}</p>
+    {% endif %}
+
+    {% if did_search %}
         <div class="timeline-container" style="margin-top: 20px;">
             {% if object_list %}
                 {% for post in object_list %}
@@ -69,6 +101,7 @@
                                         <form method="post" action="{% url 'mysfa:search_products' %}" onsubmit="return confirm('本当に削除しますか？');">
                                             {% csrf_token %}
                                             <input type="hidden" name="delete_post_id" value="{{ post.id }}">
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                             <button type="submit" class="delete-button">
                                                 <img src="{% static 'images/trash-solid.svg' %}" alt="削除" class="delete-icon">
                                             </button>
@@ -143,25 +176,25 @@
             <div class="pagination">
                 <span class="step-links">
                     {% if object_list.has_previous %}
-                        <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
-                        <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+                        <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page=1">&laquo; 最初</a>
+                        <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.previous_page_number }}">前</a>
                     {% endif %}
 
                     {% for page_num in object_list.paginator.page_range %}
                         {% if page_num == object_list.number %}
                             <span class="page-number current">{{ page_num }}</span>
                         {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
-                            <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                            <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ page_num }}" class="page-number">{{ page_num }}</a>
                         {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
-                            <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                            <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ page_num }}" class="page-number">{{ page_num }}</a>
                         {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
                             <span class="page-number">...</span>
                         {% endif %}
                     {% endfor %}
 
                     {% if object_list.has_next %}
-                        <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
-                        <a href="{% url 'mysfa:search_products' %}?q={{ query }}&page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+                        <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.next_page_number }}">次</a>
+                        <a href="{% url 'mysfa:search_products' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.paginator.num_pages }}">最後 &raquo;</a>
                     {% endif %}
                 </span>
             </div>
