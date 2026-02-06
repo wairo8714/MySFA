@@ -9,6 +9,16 @@ class GroupForm(forms.ModelForm):
     class Meta:
         model = Group
         fields = ["name"]
+        labels = {"name": "グループ名"}
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": "create-group-input",
+                    "placeholder": "例）営業1課 共有グループ",
+                    "autocomplete": "organization",
+                }
+            )
+        }
 
 class ProductMasterForm(forms.ModelForm):
     class Meta:

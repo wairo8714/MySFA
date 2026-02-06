@@ -5,9 +5,48 @@
 {% block content %}
     <div class="search-group-container">
         <h1>グループを検索</h1>
-        <form method="get" action="{% url 'mysfa:search_group' %}" class="search-group-form">
-            <input type="text" name="q" value="{{ query }}" placeholder="グループ名で検索" class="search-group-input">
-            <button type="submit" class="search-group-button">検索</button>
+        <form method="get" action="{% url 'mysfa:search_group' %}" class="search-group-form search-form-advanced">
+            <div class="search-form-advanced__row">
+                <input type="text" name="q" value="{{ query }}" placeholder="グループ名 / グループIDで検索" class="search-group-input">
+                <button type="submit" class="search-group-button">検索</button>
+                <a class="search-form-advanced__clear" href="{% url 'mysfa:search_group' %}">クリア</a>
+            </div>
+
+            <div class="filter-form search-form-advanced__filters" id="filter-form-group">
+                <div class="search-form-advanced__grid search-group-filters">
+                    <div class="search-form-advanced__field">
+                        <label for="membership">参加状況:</label>
+                        <select name="membership" id="membership">
+                            <option value="all" {% if membership == "all" %}selected{% endif %}>すべて</option>
+                            <option value="joined" {% if membership == "joined" %}selected{% endif %}>参加済み</option>
+                            <option value="not_joined" {% if membership == "not_joined" %}selected{% endif %}>未参加</option>
+                        </select>
+                    </div>
+
+                    <div class="search-form-advanced__field">
+                        <label for="lock">公開設定:</label>
+                        <select name="lock" id="lock">
+                            <option value="all" {% if lock_filter == "all" %}selected{% endif %}>すべて</option>
+                            <option value="open" {% if lock_filter == "open" %}selected{% endif %}>公開</option>
+                            <option value="locked" {% if lock_filter == "locked" %}selected{% endif %}>ロック</option>
+                        </select>
+                    </div>
+
+                    <div class="search-form-advanced__field">
+                        <span class="search-form-advanced__label">一致:</span>
+                        <div class="match-radio" role="radiogroup" aria-label="一致方法">
+                            <label class="match-radio__item">
+                                <input type="radio" name="match" value="partial" {% if match_mode == "partial" %}checked{% endif %}>
+                                <span>部分一致</span>
+                            </label>
+                            <label class="match-radio__item">
+                                <input type="radio" name="match" value="exact" {% if match_mode == "exact" %}checked{% endif %}>
+                                <span>完全一致</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </form>
 
         {% if query %}
@@ -29,6 +68,9 @@
                             {% if group.is_locked %}
                                 <img src="{% static 'images/team/locked.png' %}" alt="ロックされたグループ" class="locked-group-icon">
                             {% endif %}
+                            <div class="group-meta">
+                                <span class="group-meta__id">ID: {{ group.custom_id }}</span>
+                            </div>
                         </div>
                         {% if group.is_member %}
                             <span class="joined-label">参加済み</span>

@@ -39,11 +39,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const dropdownToggles = document.querySelectorAll(".dropdown-toggle");
   dropdownToggles.forEach((toggle) => {
-    toggle.addEventListener("click", function () {
+    toggle.addEventListener("click", function (e) {
+      if (e && typeof e.preventDefault === "function") e.preventDefault();
       const dropdownMenu = this.nextElementSibling;
       const dropdownArrow = this.querySelector(".dropdown-arrow");
       if (dropdownMenu) dropdownMenu.classList.toggle("show");
       if (dropdownArrow) dropdownArrow.classList.toggle("rotate");
+      const expanded = dropdownMenu && dropdownMenu.classList.contains("show");
+      this.setAttribute("aria-expanded", expanded ? "true" : "false");
     });
   });
 

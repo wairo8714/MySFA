@@ -115,6 +115,7 @@
 
 <div class="sales-report-section">
     <h2>グループ営業成果レポート</h2>
+    <div class="sales-report-assets" data-sales-report-empty-image="{% static 'images/error.png' %}" hidden></div>
     <div class="date-range-selector">
         <label for="start-date">開始日:</label>
         <input type="date" id="start-date" name="start-date">
@@ -341,5 +342,5 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{% static 'js/like.js' %}"></script>
-<script src="{% static 'js/sales-report.js' %}"></script>
+<script src="{% static 'js/sales-report.js' %}?v=20260205_3"></script>
 {% endblock %}

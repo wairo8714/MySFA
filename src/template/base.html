@@ -151,10 +151,82 @@
                                 </a></li>
                         {% endif %}
                         <p id="search-for-category">カテゴリ別で探す</p>
-                        <li id="search-for-products"><a href="{% url 'mysfa:search_products' %}">商品</a></li>
-                        <li id="search-for-customer-category"><a href="{% url 'mysfa:search_customers' %}">業態</a></li>
-                        <li id="team"><a href="{% url 'mysfa:search_group' %}">グループ</a></li>
-                        <li id="search-for-users"><a href="{% url 'mysfa:search_users' %}">ユーザー</a></li>
+                        <li id="search-for-products" class="sidebar-dropdown">
+                            <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false">
+                                商品
+                                <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-label="商品メニュー">
+                                {% if request.user.is_authenticated %}
+                                    <li>
+                                        <a href="#"
+                                           class="js-open-group-master"
+                                           data-master-kind="product"
+                                        >商品マスタ</a>
+                                    </li>
+                                {% else %}
+                                    <li><a href="{% url 'login' %}">商品マスタ（ログインが必要）</a></li>
+                                {% endif %}
+                                <li><a href="{% url 'mysfa:search_products' %}">投稿から商品を探す</a></li>
+                            </ul>
+                        </li>
+                        <li id="search-for-customer-category" class="sidebar-dropdown">
+                            <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false">
+                                業態
+                                <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-label="業態メニュー">
+                                {% if request.user.is_authenticated %}
+                                    <li>
+                                        <a href="#"
+                                           class="js-open-group-master"
+                                           data-master-kind="industry"
+                                        >業態マスタ</a>
+                                    </li>
+                                {% else %}
+                                    <li><a href="{% url 'login' %}">業態マスタ（ログインが必要）</a></li>
+                                {% endif %}
+                                <li><a href="{% url 'mysfa:search_customers' %}">投稿から業態を探す</a></li>
+                            </ul>
+                        </li>
+                        <li id="team" class="sidebar-dropdown">
+                            <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false">
+                                グループ
+                                <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-label="グループメニュー">
+                                {% if request.user.is_authenticated %}
+                                    <li>
+                                        <a href="#"
+                                           class="js-open-group-master"
+                                           data-master-kind="group"
+                                        >グループページ</a>
+                                    </li>
+                                {% else %}
+                                    <li><a href="{% url 'login' %}">グループページ（ログインが必要）</a></li>
+                                {% endif %}
+                                <li><a href="{% url 'mysfa:search_group' %}">グループ検索</a></li>
+                                {% if request.user.is_authenticated %}
+                                    <li><a href="{% url 'mysfa:create_group' %}">グループ作成</a></li>
+                                {% else %}
+                                    <li><a href="{% url 'login' %}">グループ作成（ログインが必要）</a></li>
+                                {% endif %}
+                            </ul>
+                        </li>
+                        <li id="search-for-users" class="sidebar-dropdown">
+                            <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false">
+                                ユーザー
+                                <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-label="ユーザーメニュー">
+                                {% if request.user.is_authenticated %}
+                                    <li><a href="{% url 'mysfa:mypost' request.user.custom_user_id %}">マイページ</a></li>
+                                {% else %}
+                                    <li><a href="{% url 'login' %}">マイページ（ログインが必要）</a></li>
+                                {% endif %}
+                                <li><a href="{% url 'mysfa:search_users' %}">ユーザー検索</a></li>
+                            </ul>
+                        </li>
                         <p id="other-contents">その他</p>
                         <li id="privacy-policy-in-sidebar"><a href="{% url 'privacy-policy' %}">プライバシーポリシー</a></li>
                         <li id="terms-of-service-in-sidebar"><a href="{% url 'terms-of-service' %}">利用規約</a></li>
@@ -200,7 +272,24 @@
         </div>
     </footer>
 
+    <div id="group-master-modal-overlay" class="modal-overlay" aria-hidden="true"></div>
+    <div id="group-master-modal" class="modal" aria-hidden="true">
+        <div class="modal__content">
+            <div class="modal__header">
+                <h3 class="modal__title">グループを選択してください。</h3>
+                <button type="button" id="group-master-modal-close" class="modal__close" aria-label="閉じる">×</button>
+            </div>
+            <div class="modal__body">
+                <ul id="group-master-modal-results" class="group-master-results"></ul>
+                <p id="group-master-modal-empty" class="group-master-empty" style="display:none;">
+                    参加中のグループがありません。
+                </p>
+            </div>
+        </div>
+    </div>
+
     <script src="{% static 'js/base-ui.js' %}"></script>
+    <script src="{% static 'js/group-master-selector.js' %}"></script>
     <script src="{% static 'js/post-comments-toggle.js' %}"></script>
     <script>
         // data-confirm を付けたリンク/ボタンに「よろしいですか？」を挟む

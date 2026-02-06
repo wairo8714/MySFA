@@ -1,26 +1,52 @@
 let productChart = null;
 let customerChart = null;
 
+function getSalesReportEmptyImageUrl() {
+  const el = document.querySelector(".sales-report-assets[data-sales-report-empty-image]");
+  const url = el?.getAttribute?.("data-sales-report-empty-image");
+  return url || "/static/images/error.png";
+}
+
 function setSalesReportEmptyMessage(show) {
   const container = document.querySelector(".sales-report-section");
   if (!container) return;
+
+  const chartsContainer = container.querySelector(".charts-container");
 
   const id = "sales-report-empty-message";
   let el = document.getElementById(id);
 
   if (!show) {
     if (el) el.remove();
+    container.classList.remove("is-empty");
+    if (chartsContainer) {
+      chartsContainer.style.display = "";
+    }
     return;
   }
 
+  container.classList.add("is-empty");
+  if (chartsContainer) {
+    chartsContainer.style.display = "none";
+    chartsContainer.style.minHeight = "";
+  }
+
   if (!el) {
-    el = document.createElement("p");
+    el = document.createElement("div");
     el.id = id;
-    el.textContent = "投稿がありません";
-    el.style.textAlign = "center";
-    el.style.color = "#666";
-    el.style.marginTop = "10px";
-    el.style.marginBottom = "0";
+    el.className = "sales-report-empty";
+
+    const img = document.createElement("img");
+    img.className = "sales-report-empty__img";
+    img.alt = "";
+    img.src = getSalesReportEmptyImageUrl();
+
+    const p = document.createElement("p");
+    p.className = "sales-report-empty__text";
+    p.textContent = "該当するデータが見つかりませんでした。";
+
+    el.appendChild(img);
+    el.appendChild(p);
     container.appendChild(el);
   }
 }
@@ -87,9 +113,12 @@ function loadSalesReport() {
   const endDate = document.getElementById("end-date")?.value;
   if (!startDate || !endDate) return;
 
-  const url = getSalesReportUrl(startDate, endDate);
+  const rawUrl = getSalesReportUrl(startDate, endDate);
+  const urlObj = new URL(rawUrl, window.location.origin);
+  urlObj.searchParams.set("_", String(Date.now()));
+  const url = urlObj.toString();
 
-  fetch(url)
+  fetch(url, { cache: "no-store" })
     .then((response) => {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
@@ -100,8 +129,19 @@ function loadSalesReport() {
       const productData = Array.isArray(data.product_data) ? data.product_data : [];
       const customerData = Array.isArray(data.customer_data) ? data.customer_data : [];
 
+      const normalizeProductName = (s) => {
+        const raw = String(s || "").trim();
+        if (!raw) return "";
+        // "CODE 商品名" みたいな形で来ても商品名寄せにする
+        const m = raw.match(/^([A-Za-z0-9_-]{1,20})\s+(.+)$/);
+        if (m && m[2]) return String(m[2]).trim();
+        return raw;
+      };
+
       const normalized = {
-        labels: productData.map((x) => x.product_name),
+        labels: productData.map((x) =>
+          normalizeProductName(x?.label || x?.product_name || x?.product_code || "")
+        ),
         values: productData.map((x) => x.count),
         customer_labels: customerData.map((x) => x.customer_category),
         customer_values: customerData.map((x) => x.count),
@@ -133,11 +173,12 @@ function updateCharts(data) {
   if (productChart) productChart.destroy();
   if (customerChart) customerChart.destroy();
 
-  const colors = [
-    "#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
-    "#edc949", "#af7aa1", "#ff9da7", "#9c755f", "#bab0ab",
-  ];
-  const makeColors = (n) => Array.from({ length: n }, (_, i) => colors[i % colors.length]);
+  const colors = ["#2FBFD6", "#18ABCC", "#1399CF", "#1081C7", "#084F8C"];
+  const makeColors = (n) => {
+    const base = colors.slice(0, Math.max(0, n));
+    if (base.length >= n) return base;
+    return base.concat(Array.from({ length: n - base.length }, () => colors[colors.length - 1]));
+  };
 
   // 商品別
   productChart = new Chart(productCtx, {
@@ -182,7 +223,9 @@ function updateCharts(data) {
   });
 
   const chartsContainer = document.querySelector(".charts-container");
-  if (chartsContainer) chartsContainer.style.minHeight = "400px";
+  if (chartsContainer) chartsContainer.style.display = "";
+  const section = document.querySelector(".sales-report-section");
+  if (section) section.classList.remove("is-empty");
 }
 
 document.addEventListener("DOMContentLoaded", function () {
