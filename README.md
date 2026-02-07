@@ -32,12 +32,31 @@ https://mysfa.net
 git clone https://github.com/wairo8714/MySFA.git
 cd MySFA
 cp .env.example .env
-docker compose up --build
+docker compose up --build -d
 ```
 
 ### 初回セットアップ
 ```bash
-docker compose exec web python src/manage.py migrate
+docker compose exec web poetry run python manage.py migrate
+```
+
+### 起動確認
+- `http://localhost:8000/` にアクセス
+
+### （任意）管理ユーザー作成
+管理画面を使う場合のみ。
+
+```bash
+docker compose exec web poetry run python manage.py createsuperuser
+```
+
+### 停止 / 後片付け
+```bash
+# 停止
+docker compose down
+
+# DBも含めて初期化（全データ削除）
+docker compose down -v
 ```
 <br />
 
