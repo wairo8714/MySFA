@@ -1605,7 +1605,7 @@ class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
         return redirect("mysfa:industry_master", custom_id=custom_id)
             
         
-class CreateGroupView(View):
+class CreateGroupView(LoginRequiredMixin, View):
     def get(self, request):
         form = GroupForm()
         return render(request, "group/create_group.html", {"form": form})
