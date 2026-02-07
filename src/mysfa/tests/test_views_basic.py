@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from ..models import Group
-from ..testing_utils import create_user
+from .utils import create_user
 
 
 class BasicViewAuthTests(TestCase):

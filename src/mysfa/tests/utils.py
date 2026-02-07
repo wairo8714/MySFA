@@ -5,7 +5,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 
-from .models import Group, GroupMembership, IndustryMaster, Post, ProductMaster
+from ..models import Group, GroupMembership, IndustryMaster, Post, ProductMaster
 
 
 def create_user(

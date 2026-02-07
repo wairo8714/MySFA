@@ -4,7 +4,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from ..models import GroupMembership
-from ..testing_utils import create_group, create_industry, create_product, create_user
+from .utils import create_group, create_industry, create_product, create_user
 
 
 class GroupModelTests(TestCase):

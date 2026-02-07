@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.test import TestCase
 from django.urls import reverse
 
-from ..testing_utils import add_member, create_group, create_user
+from .utils import add_member, create_group, create_user
 
 
 class SearchGroupViewTests(TestCase):

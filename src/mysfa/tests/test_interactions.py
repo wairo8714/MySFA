@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from ..models import PostComment
-from ..testing_utils import add_member, create_group, create_post, create_product, create_user
+from .utils import add_member, create_group, create_post, create_product, create_user
 
 
 class LikeAndCommentTests(TestCase):

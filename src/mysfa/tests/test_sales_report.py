@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from ..models import Post
-from ..testing_utils import create_group, create_post, create_product, create_user
+from .utils import create_group, create_post, create_product, create_user
 
 
 class SalesReportViewTests(TestCase):

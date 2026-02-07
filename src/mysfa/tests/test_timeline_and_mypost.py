@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.test import TestCase
 from django.urls import reverse
 
-from ..testing_utils import create_group, create_post, create_product, create_user
+from .utils import create_group, create_post, create_product, create_user
 
 
 class TimelineAndMyPostTests(TestCase):
