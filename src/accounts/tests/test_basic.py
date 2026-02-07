@@ -4,7 +4,6 @@ from django.urls import reverse
 
 
 class AccountsBasicTest(TestCase):
-
     def setUp(self):
         self.client = Client()
         User = get_user_model()
@@ -29,3 +28,4 @@ class AccountsBasicTest(TestCase):
         login_data = {"username": "TEST001", "password": "testpass123"}
         response = self.client.post(reverse("login"), login_data)
         self.assertEqual(response.status_code, 302)
+

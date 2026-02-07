@@ -563,22 +563,26 @@ class ProductCategoryOptionsApiView(LoginRequiredMixin, View):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
         qs = ProductMaster.objects.filter(group=group, is_active=True)
 
-        mains = (
+        mains = list(
             qs.exclude(category_main__isnull=True)
             .exclude(category_main="")
+            .order_by()
             .values_list("category_main", flat=True)
             .distinct()
-            .order_by("category_main")
         )
-        subs = (
+        subs = list(
             qs.exclude(category_sub__isnull=True)
             .exclude(category_sub="")
+            .order_by()
             .values_list("category_sub", flat=True)
             .distinct()
-            .order_by("category_sub")
         )
 
-        return JsonResponse({"category_main": list(mains), "category_sub": list(subs)})
+        # DBのcollation差で順序がブレないよう、Python側で安定ソートする
+        mains = sorted(mains)
+        subs = sorted(subs)
+
+        return JsonResponse({"category_main": mains, "category_sub": subs})
 
 
 class MyPost(LoginRequiredMixin, ListView):
@@ -1605,7 +1609,7 @@ class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
         return redirect("mysfa:industry_master", custom_id=custom_id)
             
         
-class CreateGroupView(View):
+class CreateGroupView(LoginRequiredMixin, View):
     def get(self, request):
         form = GroupForm()
         return render(request, "group/create_group.html", {"form": form})

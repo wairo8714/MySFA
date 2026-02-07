@@ -60,6 +60,16 @@ jobs:
         # pyproject.toml と poetry.lock の整合性だけ確認（書き換えない）
         run: poetry lock --check
 
+      - name: Grant MySQL privileges for tests
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec ${{ job.services.mysql.id }} mysqladmin ping -uroot -proot --silent; then
+              break
+            fi
+            sleep 2
+          done
+          docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+
       # - name: Lint / Format checks
       #   run: |
       #     poetry run flake8 src/
@@ -68,7 +78,7 @@ jobs:
           
       # アプリ内の tests.py はここで実行
       - name: Test
-        run: poetry run python src/manage.py test
+        run: poetry run python src/manage.py test mysfa accounts config
 
       # steps のどこかで failureとなった場合に実行
       - name: Debug
