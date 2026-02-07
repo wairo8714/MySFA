@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 
 
 class CustomUser(AbstractUser):
@@ -45,6 +46,12 @@ class CustomUser(AbstractUser):
         blank=True,
         null=True,
     )
+
+    # trial / demo login support
+    is_trial = models.BooleanField(default=False, db_index=True)
+    trial_started_at = models.DateTimeField(null=True, blank=True)
+    trial_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    trial_session_id = models.UUIDField(null=True, blank=True, db_index=True)
 
     def save(self, *args, **kwargs):
         if self.pk:

@@ -360,6 +360,10 @@ class TrialStartView(View):
                         username=username,
                         question=trial_question,
                         answer=trial_answer,
+                        is_trial=True,
+                        trial_started_at=timezone.now(),
+                        trial_expires_at=expires_at,
+                        trial_session_id=trial_session_id,
                     )
                     user.set_password(raw_password)
                     user.save()

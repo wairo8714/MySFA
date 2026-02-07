@@ -11,24 +11,29 @@ class TrialExpiryMiddleware(MiddlewareMixin):
             return None
 
         custom_user_id = getattr(request.user, "custom_user_id", "")
-        if not custom_user_id or not custom_user_id.startswith("trial"):
+        is_trial = bool(getattr(request.user, "is_trial", False)) or custom_user_id.startswith("trial")
+        if not custom_user_id or not is_trial:
             return None
 
-        expires_at_str = request.session.get("trial_expires_at")
-        if not expires_at_str:
+        now = timezone.now()
+        expires_at = getattr(request.user, "trial_expires_at", None)
+        if expires_at and now >= expires_at:
             self._cleanup_trial(request)
             return redirect("home")
 
-        try:
-            expires_at_ts = float(expires_at_str)
-        except (ValueError, TypeError, OSError):
-            self._cleanup_trial(request)
-            return redirect("home")
-
-        now_ts = timezone.now().timestamp()
-        if now_ts >= expires_at_ts:
-            self._cleanup_trial(request)
-            return redirect("home")
+        if not expires_at:
+            expires_at_str = request.session.get("trial_expires_at")
+            if not expires_at_str:
+                self._cleanup_trial(request)
+                return redirect("home")
+            try:
+                expires_at_ts = float(expires_at_str)
+            except (ValueError, TypeError, OSError):
+                self._cleanup_trial(request)
+                return redirect("home")
+            if now.timestamp() >= expires_at_ts:
+                self._cleanup_trial(request)
+                return redirect("home")
 
         return None
 
@@ -45,7 +50,6 @@ class TrialExpiryMiddleware(MiddlewareMixin):
         request.session.flush()
         logout(request)
 
-        # trialユーザーはログアウト時にDBからも削除（投稿などもFKで連動削除される）
         if trial_user_pk:
             User = get_user_model()
             User.objects.filter(pk=trial_user_pk).delete()

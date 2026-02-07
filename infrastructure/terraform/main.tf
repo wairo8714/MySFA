@@ -349,3 +349,101 @@ module "ecs" {
   log_group_name        = "/ecs/${var.project_name}-${var.environment}"
   log_retention_in_days = 30
 }
+
+# EventBridge
+data "aws_iam_policy_document" "eventbridge_assume_role" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "eventbridge_ecs_run_task" {
+  name               = "${var.project_name}-${var.environment}-eventbridge-ecs-run-task"
+  assume_role_policy = data.aws_iam_policy_document.eventbridge_assume_role.json
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-eventbridge-ecs-run-task"
+    Environment = var.environment
+  }
+}
+
+data "aws_iam_policy_document" "eventbridge_ecs_run_task" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecs:RunTask",
+    ]
+    resources = [
+      module.ecs.task_definition_arn
+    ]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = [module.ecs.cluster_id]
+    }
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "iam:PassRole",
+    ]
+    resources = [
+      module.iam.task_execution_role_arn,
+      module.iam.task_role_arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "eventbridge_ecs_run_task" {
+  name   = "${var.project_name}-${var.environment}-eventbridge-ecs-run-task"
+  role   = aws_iam_role.eventbridge_ecs_run_task.id
+  policy = data.aws_iam_policy_document.eventbridge_ecs_run_task.json
+}
+
+resource "aws_cloudwatch_event_rule" "cleanup_trial_users" {
+  name                = "${var.project_name}-${var.environment}-cleanup-trial-users"
+  description         = "Run cleanup_trial_users periodically"
+  schedule_expression = "rate(5 minutes)"
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-cleanup-trial-users"
+    Environment = var.environment
+  }
+}
+
+resource "aws_cloudwatch_event_target" "cleanup_trial_users" {
+  rule      = aws_cloudwatch_event_rule.cleanup_trial_users.name
+  target_id = "ecs-run-task"
+
+  # ECS Cluster ARN/ID
+  arn      = module.ecs.cluster_id
+  role_arn = aws_iam_role.eventbridge_ecs_run_task.arn
+
+  ecs_target {
+    task_definition_arn = module.ecs.task_definition_arn
+    launch_type         = "FARGATE"
+
+    network_configuration {
+      subnets          = module.vpc.public_subnet_ids
+      security_groups  = [aws_security_group.ecs_tasks.id]
+      assign_public_ip = true
+    }
+  }
+
+  # Override container command to run management command
+  input = jsonencode({
+    containerOverrides = [
+      {
+        name    = "web"
+        command = ["poetry", "run", "python", "manage.py", "cleanup_trial_users"]
+      }
+    ]
+  })
+}
