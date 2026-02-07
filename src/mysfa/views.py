@@ -558,6 +558,29 @@ class MyGroupsApiView(LoginRequiredMixin, View):
         return JsonResponse({"results": results})
 
 
+class ProductCategoryOptionsApiView(LoginRequiredMixin, View):
+    def get(self, request, custom_id):
+        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        qs = ProductMaster.objects.filter(group=group, is_active=True)
+
+        mains = (
+            qs.exclude(category_main__isnull=True)
+            .exclude(category_main="")
+            .values_list("category_main", flat=True)
+            .distinct()
+            .order_by("category_main")
+        )
+        subs = (
+            qs.exclude(category_sub__isnull=True)
+            .exclude(category_sub="")
+            .values_list("category_sub", flat=True)
+            .distinct()
+            .order_by("category_sub")
+        )
+
+        return JsonResponse({"category_main": list(mains), "category_sub": list(subs)})
+
+
 class MyPost(LoginRequiredMixin, ListView):
     model = Post
     template_name = "post/mypost.html"
@@ -1680,9 +1703,32 @@ class SearchProductsView(LoginRequiredMixin, View):
 
         selected_group_custom_id = (request.GET.get("group") or "").strip()
         legacy_group_pk = (request.GET.get("custom_id") or "").strip()
+        category_main = (request.GET.get("category_main") or "").strip()
+        category_sub = (request.GET.get("category_sub") or "").strip()
 
         user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
         page = request.GET.get("page", 1)
+
+        category_main_options = []
+        category_sub_options = []
+        if selected_group_custom_id:
+            g = user_groups.filter(custom_id=selected_group_custom_id).first()
+            if g:
+                pm = ProductMaster.objects.filter(group=g, is_active=True)
+                category_main_options = list(
+                    pm.exclude(category_main__isnull=True)
+                    .exclude(category_main="")
+                    .values_list("category_main", flat=True)
+                    .distinct()
+                    .order_by("category_main")
+                )
+                category_sub_options = list(
+                    pm.exclude(category_sub__isnull=True)
+                    .exclude(category_sub="")
+                    .values_list("category_sub", flat=True)
+                    .distinct()
+                    .order_by("category_sub")
+                )
 
         date_error = None
         start_date = None
@@ -1703,7 +1749,14 @@ class SearchProductsView(LoginRequiredMixin, View):
             if g:
                 selected_group_custom_id = g.custom_id
 
-        do_search = bool(query or start_date or end_date)
+        do_search = bool(
+            query
+            or start_date
+            or end_date
+            or selected_group_custom_id
+            or category_main
+            or category_sub
+        )
         posts = Post.objects.none()
         if do_search:
             posts = (
@@ -1719,6 +1772,18 @@ class SearchProductsView(LoginRequiredMixin, View):
                 posts = posts.filter(created_at__date__gte=start_date)
             if end_date:
                 posts = posts.filter(created_at__date__lte=end_date)
+
+            if category_main:
+                if match_mode == "exact":
+                    posts = posts.filter(product__category_main__iexact=category_main)
+                else:
+                    posts = posts.filter(product__category_main__icontains=category_main)
+
+            if category_sub:
+                if match_mode == "exact":
+                    posts = posts.filter(product__category_sub__iexact=category_sub)
+                else:
+                    posts = posts.filter(product__category_sub__icontains=category_sub)
 
             if query:
                 if match_mode == "exact":
@@ -1747,6 +1812,10 @@ class SearchProductsView(LoginRequiredMixin, View):
             params["start_date"] = start_date_raw
         if end_date_raw:
             params["end_date"] = end_date_raw
+        if category_main:
+            params["category_main"] = category_main
+        if category_sub:
+            params["category_sub"] = category_sub
 
         context = {
             "query": query,
@@ -1756,6 +1825,10 @@ class SearchProductsView(LoginRequiredMixin, View):
             "match_mode": match_mode,
             "start_date": start_date_raw,
             "end_date": end_date_raw,
+            "category_main": category_main,
+            "category_sub": category_sub,
+            "category_main_options": category_main_options,
+            "category_sub_options": category_sub_options,
             "date_error": date_error,
             "query_params": urlencode(params),
             "did_search": do_search,

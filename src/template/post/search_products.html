@@ -13,8 +13,8 @@
         </div>
 
         <div class="filter-form search-form-advanced__filters" id="filter-form-products">
-            <div class="search-form-advanced__grid">
-                <div class="search-form-advanced__field">
+            <div class="search-form-advanced__grid search-products-filters">
+                <div class="search-form-advanced__field spf-group">
                     <label for="group">対象グループ:</label>
                     <select name="group" id="group">
                         <option value="">全て（所属グループ）</option>
@@ -24,7 +24,7 @@
                     </select>
                 </div>
 
-                <div class="search-form-advanced__field">
+                <div class="search-form-advanced__field spf-match">
                     <span class="search-form-advanced__label">一致:</span>
                     <div class="match-radio" role="radiogroup" aria-label="一致方法">
                         <label class="match-radio__item">
@@ -38,13 +38,43 @@
                     </div>
                 </div>
 
-                <div class="search-form-advanced__field">
+                <div class="search-form-advanced__field spf-date">
                     <label for="start_date">期間:</label>
                     <div class="search-form-advanced__dates">
                         <input type="date" name="start_date" id="start_date" value="{{ start_date }}">
                         <span class="search-form-advanced__date-sep">〜</span>
                         <input type="date" name="end_date" id="end_date" value="{{ end_date }}">
                     </div>
+                </div>
+
+                <div class="search-form-advanced__field spf-main">
+                    <label for="category_main">大分類:</label>
+                    <select
+                        name="category_main"
+                        id="category_main"
+                        data-selected="{{ category_main }}"
+                        {% if not selected_group_custom_id %}disabled{% endif %}
+                    >
+                        <option value="">全て</option>
+                        {% for v in category_main_options %}
+                            <option value="{{ v }}" {% if v == category_main %}selected{% endif %}>{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="search-form-advanced__field spf-sub">
+                    <label for="category_sub">小分類:</label>
+                    <select
+                        name="category_sub"
+                        id="category_sub"
+                        data-selected="{{ category_sub }}"
+                        {% if not selected_group_custom_id %}disabled{% endif %}
+                    >
+                        <option value="">全て</option>
+                        {% for v in category_sub_options %}
+                            <option value="{{ v }}" {% if v == category_sub %}selected{% endif %}>{{ v }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
         </div>
@@ -223,4 +253,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block extra_js %}
 <script src="{% static 'js/like.js' %}"></script>
+<script src="{% static 'js/product-category-options.js' %}"></script>
 {% endblock %}
