@@ -77,14 +77,12 @@
 
     refreshBulkUi();
 
-    // checkbox change -> refresh UI (delegate)
     document.addEventListener("change", function (e) {
       var t = e.target;
       if (!t || !t.classList || !t.classList.contains("master-select-checkbox")) return;
       refreshBulkUi();
     });
 
-    // select all toggle
     if (selectAllBtn) {
       selectAllBtn.addEventListener("click", function () {
         var cbs = getCheckboxes();
@@ -110,7 +108,6 @@
       });
     }
 
-    // submit: guard + confirm with count
     if (bulkForm) {
       bulkForm.addEventListener("submit", function (e) {
         var cbs = getCheckboxes();
@@ -125,7 +122,6 @@
       });
     }
 
-    // CSV modal open/close
     function openCsvModal() {
       if (!csvModal || !csvOverlay) return;
       csvOverlay.classList.add("is-open");
@@ -133,7 +129,6 @@
       csvOverlay.setAttribute("aria-hidden", "false");
       csvModal.setAttribute("aria-hidden", "false");
 
-      // reset UI state on open
       lastValidatedOk = false;
       if (csvFileInput) csvFileInput.value = "";
       if (csvValidateBtn) csvValidateBtn.disabled = true;
@@ -184,11 +179,9 @@
       csvSubmitBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
     }
 
-    // endpoints (埋め込みが無い場合はURLを組み立て)
     function buildCsvEndpoint(type) {
       if (!bulkForm) return null;
       var action = bulkForm.getAttribute("action") || "";
-      // /product-master/delete-request/ -> /product-master/csv-validate/ or /csv-submit/
       return action.replace(/\/product-master\/delete-request\/?$/, "/product-master/" + type + "/");
     }
 
@@ -233,7 +226,6 @@
           body: fd
         })
           .then(function (res) {
-            // 403などでHTMLが返るケースもあるのでガード
             return res.text().then(function (t) {
               var j = null;
               try { j = JSON.parse(t); } catch (_) {}
@@ -309,8 +301,6 @@
           body: fd
         })
           .then(function (res) {
-            // セッション/messagesを確実に反映させるため、通常ナビゲーションでリロード
-            // （fetch後のreloadで反映されない環境があるため）
             window.location.href = window.location.href;
           })
           .catch(function () {

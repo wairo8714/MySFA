@@ -12,7 +12,6 @@ from mysfa import api_views as mysfa_api_views
 from .views import HomeView
 
 
-# ヘルスチェック用のビュー（ALLOWED_HOSTSのチェックをバイパス）
 @require_http_methods(["GET", "HEAD"])
 def health_check(request):
     # ヘルスチェックは常に成功を返す（ALLOWED_HOSTSのチェックをバイパス）

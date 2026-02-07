@@ -52,14 +52,6 @@ class TrialExpiryMiddleware(MiddlewareMixin):
 
 
 class HealthCheckMiddleware(MiddlewareMixin):
-    """
-    ヘルスチェックエンドポイントでSSLリダイレクトを無効化するミドルウェア
-    ALBのヘルスチェックはHTTPで行われるため、301リダイレクトを防ぐ
-    """
-
-    def process_request(self, request):
-        # ヘルスチェックエンドポイントの場合は、SSLリダイレクトを無効化
-        if request.path == "/health/":
             # SECURE_SSL_REDIRECTを一時的に無効化
             # これはprocess_responseで処理する
             return None

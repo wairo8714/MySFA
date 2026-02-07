@@ -19,15 +19,11 @@ class MySFATestCase(TestCase):
         self.client.login(username="testuser", password="testpass123")
 
     def test_home_page_loads(self):
-        """ホームページが正常に読み込まれることをテスト"""
-        response = self.client.get(reverse("home"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "MySFA")
 
     def test_user_registration(self):
-        """ユーザー登録が正常に動作することをテスト"""
         response = self.client.post(
-            reverse("accounts:signup"),
             {
                 "username": "newuser",
                 "custom_user_id": "newuser",
@@ -41,10 +37,8 @@ class MySFATestCase(TestCase):
         self.assertTrue(User.objects.filter(custom_user_id="newuser").exists())
 
     def test_post_creation(self):
-        """投稿作成が正常に動作することをテスト"""
         # グループを作成してから投稿を作成
         group = Group.objects.create(
-            name="Test Group",
             creator=self.user,
             custom_id="test123",
         )
@@ -68,10 +62,8 @@ class MySFATestCase(TestCase):
         self.assertTrue(Post.objects.filter(product=product, industry=industry).exists())
 
     def test_group_creation(self):
-        """グループ作成が正常に動作することをテスト"""
         response = self.client.post(
             reverse("mysfa:create_group"),
             {"name": "Test Group"},
-        )
         self.assertEqual(response.status_code, 302)  # リダイレクト
         self.assertTrue(Group.objects.filter(name="Test Group").exists())

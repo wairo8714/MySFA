@@ -1,6 +1,4 @@
-#############################################
 # modules/ecs_app/outputs.tf
-#############################################
 
 output "cluster_id" {
   description = "ECS cluster ID"

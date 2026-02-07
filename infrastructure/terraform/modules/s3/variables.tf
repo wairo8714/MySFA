@@ -1,6 +1,3 @@
-#############################################
-# modules/s3_app/variables.tf
-#############################################
 
 variable "project_name" {
   description = "Project name"

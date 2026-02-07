@@ -1,4 +1,3 @@
-# VPC 情報
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
@@ -14,7 +13,6 @@ output "private_subnet_ids" {
   value       = module.vpc.private_subnet_ids
 }
 
-# ALB / Route53
 output "alb_dns_name" {
   description = "DNS name of the Application Load Balancer"
   value       = aws_lb.main.dns_name
@@ -25,7 +23,6 @@ output "application_url_https" {
   value       = "https://${var.domain_name}"
 }
 
-# S3（static / media）
 output "s3_bucket_name" {
   description = "S3 bucket name for static and media files"
   value       = module.s3.bucket_name
@@ -36,13 +33,11 @@ output "s3_bucket_arn" {
   value       = module.s3.bucket_arn
 }
 
-# ECR
 output "ecr_repository_url" {
   description = "ECR repository URL for the app"
   value       = module.ecr.repository_url
 }
 
-# IAM
 output "ecs_task_execution_role_arn" {
   description = "ARN of ECS task execution role"
   value       = module.iam.task_execution_role_arn
@@ -53,7 +48,6 @@ output "ecs_task_role_arn" {
   value       = module.iam.task_role_arn
 }
 
-# ECS
 output "ecs_cluster_id" {
   value = module.ecs.cluster_id
 }

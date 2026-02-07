@@ -1,12 +1,9 @@
 locals {
-  # Django 用 bool → 文字列変換
   debug_string  = var.debug ? "True" : "False"
   use_s3_string = var.use_s3 ? "True" : "False"
 
-  # ロググループ名（指定が空ならデフォルト）
   log_group_name = var.log_group_name != "" ? var.log_group_name : "/ecs/${var.project_name}-${var.environment}"
 
-  # web コンテナに渡す環境変数（Django 用）
   container_environment = [
     {
       name  = "SECRET_KEY"
@@ -140,7 +137,7 @@ resource "aws_ecs_service" "app" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
-    assign_public_ip = true # 今はパブリックサブネット運用
+    assign_public_ip = true
   }
 
   load_balancer {

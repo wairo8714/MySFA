@@ -1,6 +1,3 @@
-#############################################
-# modules/rds_mysql/outputs.tf
-#############################################
 
 output "db_endpoint" {
   description = "RDS endpoint (hostname)"

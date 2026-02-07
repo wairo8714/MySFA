@@ -1,6 +1,4 @@
-#############################################
 # modules/ecs_app/variables.tf
-#############################################
 
 variable "project_name" {
   description = "Project name (e.g., mysfa)"
@@ -42,7 +40,6 @@ variable "execution_role_arn" {
   type        = string
 }
 
-# ===== コンテナイメージ =====
 
 variable "container_image" {
   description = "Docker image for the app (e.g., ECR URL + tag)"
@@ -55,7 +52,6 @@ variable "container_port" {
   default     = 80
 }
 
-# ===== Fargate リソース設定 =====
 
 variable "task_cpu" {
   description = "Fargate task CPU (valid Fargate value, e.g., 256, 512, 1024...)"
@@ -80,7 +76,6 @@ variable "aws_region" {
   type        = string
 }
 
-# ===== Django / MySQL 用の環境変数 =====
 
 variable "secret_key" {
   description = "Django SECRET_KEY"
@@ -137,7 +132,6 @@ variable "use_s3" {
   default     = true
 }
 
-# ===== CloudWatch Logs =====
 
 variable "log_group_name" {
   description = "CloudWatch Logs group name for ECS tasks (empty = default)"

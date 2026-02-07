@@ -18,7 +18,6 @@ resource "aws_ecr_repository" "app" {
   }
 }
 
-# 古いイメージを自動で掃除するライフサイクルポリシー（任意だがあると便利）
 resource "aws_ecr_lifecycle_policy" "app" {
   count      = var.lifecycle_policy_enabled ? 1 : 0
   repository = aws_ecr_repository.app.name

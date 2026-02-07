@@ -132,7 +132,6 @@ function loadSalesReport() {
       const normalizeProductName = (s) => {
         const raw = String(s || "").trim();
         if (!raw) return "";
-        // "CODE 商品名" みたいな形で来ても商品名寄せにする
         const m = raw.match(/^([A-Za-z0-9_-]{1,20})\s+(.+)$/);
         if (m && m[2]) return String(m[2]).trim();
         return raw;

@@ -1759,7 +1759,6 @@
         font-size: 0.72rem;
     }
 
-    /* status segmented control (timeline post form) */
     .post-form .form-group.form-group--status {
         margin-bottom: 12px;
     }
@@ -1810,7 +1809,6 @@
         transition: background-color 0.15s ease, color 0.15s ease, transform 0.05s ease;
     }
 
-    /* override generic form label spacing */
     .post-form .form-group label.status-toggle__btn {
         margin-bottom: 0;
     }
@@ -4512,7 +4510,6 @@
         }
     }
 
-    /* 投稿画像のスタイル */
     .post-image-container {
         margin: 10px 0;
         text-align: center;
@@ -4531,7 +4528,6 @@
         transition: transform 0.2s ease;
     }
 
-    /* 画像アップロードフォームのスタイル */
     .form-group input[type="file"] {
         padding: 8px;
         border: 1px solid #ddd;
@@ -4545,7 +4541,6 @@
         box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
     }
 
-    /* エラーメッセージのスタイル */
     .error-message {
         margin-top: 5px;
     }
@@ -4680,7 +4675,6 @@
         outline: none;
     }
 
-    /* calendar icon cursor (Chrome/Safari) */
     .date-range-selector input[type="date"]::-webkit-calendar-picker-indicator {
         cursor: pointer;
     }
@@ -5773,7 +5767,6 @@
     }
 }
 
-/* ---- 投稿フォーム：マスタ検索モーダル ---- */
 .master-picker-modal {
     position: fixed;
     inset: 0;
@@ -5865,7 +5858,6 @@ a.is-disabled {
     cursor: not-allowed;
 }
 
-/* ---- 投稿フォーム：マスタ検索（インライン） ---- */
 .post-master-field__hidden {
     display: none;
 }

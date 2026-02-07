@@ -79,7 +79,6 @@ resource "aws_lb" "main" {
   }
 }
 
-# HTTP → HTTPS リダイレクト用リスナー
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
@@ -96,7 +95,6 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# HTTPS リスナー
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
   port              = 443
@@ -110,7 +108,6 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-# ALB用 Route53 Aレコード（ルート）
 resource "aws_route53_record" "root" {
   zone_id = var.route53_zone_id
   name    = var.domain_name
@@ -123,7 +120,6 @@ resource "aws_route53_record" "root" {
   }
 }
 
-# ALB用 Route53 Aレコード（wwwサブドメイン）
 resource "aws_route53_record" "www" {
   zone_id = var.route53_zone_id
   name    = "www.${var.domain_name}"

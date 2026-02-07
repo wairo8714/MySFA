@@ -16,7 +16,6 @@ variable "environment" {
   default     = "prod"
 }
 
-# ドメイン
 variable "domain_name" {
   description = "Primary domain name for the application"
   type        = string
@@ -27,7 +26,6 @@ variable "allowed_hosts" {
   type        = string
 }
 
-# VPC 設定
 variable "vpc_cidr" {
   description = "CIDR block for VPC"
   type        = string
@@ -46,15 +44,12 @@ variable "private_subnet_cidrs" {
   default     = ["10.0.11.0/24", "10.0.12.0/24"]
 }
 
-# S3（static / media 用）
 variable "s3_bucket_name" {
   description = "S3 bucket name for static and media files"
   type        = string
 }
 
-# ====== 以下は ECS / アプリ側で使う想定の変数（既存設定を踏襲） ======
 
-# Django
 variable "secret_key" {
   description = "Django secret key"
   type        = string
@@ -67,7 +62,6 @@ variable "debug" {
   default     = false
 }
 
-# MySQL / RDS
 
 variable "mysql_database" {
   description = "MySQL database name"

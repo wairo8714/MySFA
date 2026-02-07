@@ -34,7 +34,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   zone.addEventListener("click", (e) => {
-    // button/label等どこ押しても開く
     e.preventDefault();
     input.click();
   });
@@ -79,7 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const file = files[0];
     if (file && file.type && !file.type.startsWith("image/")) return;
 
-    // input.files は直接代入できないので DataTransfer を使う
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;

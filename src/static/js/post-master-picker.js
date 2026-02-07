@@ -58,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const groupMap = window.__GROUP_ID_TO_CUSTOM_ID__ || {};
-  let mode = null; // "product" | "industry"
+  let mode = null;
 
   function getSelectedGroupCustomId() {
     const pk = groupSelect.value;
@@ -66,8 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setEnabledForMasters(enabled) {
-    productSelect.disabled = !enabled; // hidden select (submit用)
-    industrySelect.disabled = !enabled; // hidden select (submit用)
+    productSelect.disabled = !enabled;
+    industrySelect.disabled = !enabled;
     productOpen.disabled = !enabled;
     industryOpen.disabled = !enabled;
 
@@ -83,12 +83,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateMasterLinks() {
     const customId = getSelectedGroupCustomId();
-    // 投稿フォーム内にはマスタリンクを置かない方針（モーダル内にのみ表示）
-    // ここは互換で残しているだけ
   }
 
   function clearSelect(selectEl) {
-    // required想定なので未選択には戻さない（グループ変更時のみクリア）
     while (selectEl.options.length) selectEl.remove(0);
     const opt = document.createElement("option");
     opt.value = "";
@@ -135,7 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
     span.textContent = label;
     el.appendChild(span);
     el.style.display = "inline-flex";
-    // 操作ボタンは1つにする（openボタン側を「変更」に）
     if (kind === "product") productOpen.textContent = "変更";
     if (kind === "industry") industryOpen.textContent = "変更";
   }
@@ -161,7 +157,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const label = _selectedOptionText(selectEl);
     if (kind === "product") {
-      // select の表示が「商品コード 商品名」でも、チップは商品名寄せ
       const productName = label ? label.replace(/^\S+\s+/, "") : "";
       setChip("product", productName || label || "選択済み");
       return;
@@ -171,8 +166,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applySelection(kind, id, label) {
     if (kind === "product") {
-      // submit用 select の表示ラベルは自由。検索結果はコード+名前でも良いが、
-      // UIチップは「商品名のみ」に寄せる。
       ensureOption(productSelect, id, label);
       setChip("product", label);
     } else {
@@ -261,10 +254,8 @@ document.addEventListener("DOMContentLoaded", () => {
     industryOpen.textContent = "業態を選択";
   }
 
-  // 初期化
   updateMasterLinks();
   setEnabledForMasters(Boolean(getSelectedGroupCustomId()));
-  // サーバ再描画後でも、hidden select の値からチップを復元する
   restoreChipFromSelect("product");
   restoreChipFromSelect("industry");
 
@@ -297,7 +288,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const name = btn.getAttribute("data-name") || "";
     if (!id) return;
 
-    // チップ表示は「商品名のみ」(業態は元々 name=label)
     if (mode === "product") {
       const productName =
         name ||

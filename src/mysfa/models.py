@@ -68,24 +68,10 @@ class Post(models.Model):
 
     @property
     def product_name(self) -> str:
-        """
-        互換用（旧: product_name CharField）。
-        テンプレ側で `post.product_name` を参照していても壊れないようにする。
-        """
-        return self.product.name if self.product_id else ""
-
-    @property
-    def customer_category(self) -> str:
-        """
-        互換用（旧: customer_category CharField / 画面上の業態）。
-        """
         return self.industry.name if self.industry_id else ""
 
     def __str__(self):
         return self.product_name
-
-    class Meta:
-        ordering = ["-created_at"]
 
 
 class PostComment(models.Model):

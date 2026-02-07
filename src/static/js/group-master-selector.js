@@ -17,8 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!openLinks.length || !overlay || !modal || !closeBtn || !results || !empty) return;
 
-  let mode = null; // "product" | "industry" | "group"
-  let cachedGroups = null; // [{custom_id,name}]
+  let mode = null;
+  let cachedGroups = null;
 
   function openModal(nextMode) {
     mode = nextMode;

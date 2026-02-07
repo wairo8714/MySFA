@@ -1,6 +1,3 @@
-#############################################
-# modules/rds_mysql/variables.tf
-#############################################
 
 variable "project_name" {
   description = "Project name (e.g., mysfa)"

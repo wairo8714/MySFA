@@ -1,6 +1,3 @@
-#############################################
-# modules/s3_app/outputs.tf
-#############################################
 
 output "bucket_name" {
   description = "S3 bucket name"

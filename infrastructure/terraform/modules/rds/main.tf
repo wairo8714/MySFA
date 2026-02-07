@@ -1,6 +1,3 @@
-#############################################
-# modules/rds_mysql/main.tf
-#############################################
 
 resource "aws_db_subnet_group" "this" {
   name       = "${var.project_name}-${var.environment}-db-subnet-group-private"
@@ -17,8 +14,6 @@ resource "aws_db_subnet_group" "this" {
   }
 }
 
-# RDS 用セキュリティグループ
-# 3306 を ECS タスク用 SG からのみ許可
 resource "aws_security_group" "this" {
   name        = "${var.project_name}-${var.environment}-rds-sg"
   description = "Security group for RDS MySQL"

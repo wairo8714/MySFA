@@ -1,6 +1,3 @@
-#############################################
-# modules/s3_app/main.tf
-#############################################
 
 resource "aws_s3_bucket" "app" {
   bucket = var.bucket_name
@@ -13,7 +10,6 @@ resource "aws_s3_bucket" "app" {
   }
 }
 
-# バージョニング有効化（誤削除・上書き対策）
 resource "aws_s3_bucket_versioning" "app" {
   bucket = aws_s3_bucket.app.id
 
@@ -22,7 +18,6 @@ resource "aws_s3_bucket_versioning" "app" {
   }
 }
 
-# サーバーサイド暗号化（SSE-S3）
 resource "aws_s3_bucket_server_side_encryption_configuration" "app" {
   bucket = aws_s3_bucket.app.id
 
@@ -33,21 +28,16 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "app" {
   }
 }
 
-# パブリックアクセスブロック設定
-# → バケットポリシーで許可した範囲だけ公開する前提
 resource "aws_s3_bucket_public_access_block" "app" {
   bucket = aws_s3_bucket.app.id
 
   block_public_acls  = true
   ignore_public_acls = true
 
-  # バケットポリシーは使うので、ここは false にしておく
   block_public_policy     = false
   restrict_public_buckets = false
 }
 
-# static / media 用の公開読み取りポリシー
-# - /static/* と /media/* のみ GetObject を公開
 resource "aws_s3_bucket_policy" "app" {
   bucket = aws_s3_bucket.app.id
 
@@ -70,7 +60,6 @@ resource "aws_s3_bucket_policy" "app" {
   })
 }
 
-# CORS 設定（必要に応じて調整）
 resource "aws_s3_bucket_cors_configuration" "app" {
   bucket = aws_s3_bucket.app.id
 

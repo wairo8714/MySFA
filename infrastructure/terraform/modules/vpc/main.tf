@@ -2,7 +2,6 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -13,7 +12,6 @@ resource "aws_vpc" "main" {
   }
 }
 
-# Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -22,7 +20,6 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# Public Subnets
 resource "aws_subnet" "public" {
   count = length(var.public_subnet_cidrs)
 
@@ -37,7 +34,6 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private Subnets
 resource "aws_subnet" "private" {
   count = length(var.private_subnet_cidrs)
 
@@ -52,7 +48,6 @@ resource "aws_subnet" "private" {
   }
 }
 
-# Public Route Table
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -66,7 +61,6 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Route Table Association (Public Subnets)
 resource "aws_route_table_association" "public" {
   count = length(aws_subnet.public)
 
@@ -74,7 +68,6 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private Route Table
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
@@ -83,7 +76,6 @@ resource "aws_route_table" "private" {
   }
 }
 
-# Route Table Association (Private Subnets)
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
