@@ -62,12 +62,6 @@ docker compose exec web python src/manage.py migrate
 
 <br />
 
-## アプリケーションのイメージ
-
-![アプリケーションのイメージ](/docs/img/app-view/mysfa-overview.gif)
-
-<br />
-
 ## 機能一覧
 
 | 投稿フォーム画面 | タイムライン画面 |
