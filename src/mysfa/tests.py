@@ -19,6 +19,7 @@ class MySFATestCase(TestCase):
         self.client.login(username="testuser", password="testpass123")
 
     def test_home_page_loads(self):
+        response = self.client.get(reverse("mysfa:timeline"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "MySFA")
 
@@ -65,5 +66,6 @@ class MySFATestCase(TestCase):
         response = self.client.post(
             reverse("mysfa:create_group"),
             {"name": "Test Group"},
+        )
         self.assertEqual(response.status_code, 302)  # リダイレクト
         self.assertTrue(Group.objects.filter(name="Test Group").exists())

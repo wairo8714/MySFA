@@ -52,13 +52,10 @@ class TrialExpiryMiddleware(MiddlewareMixin):
 
 
 class HealthCheckMiddleware(MiddlewareMixin):
-            # SECURE_SSL_REDIRECTを一時的に無効化
-            # これはprocess_responseで処理する
-            return None
+    def process_request(self, request):
         return None
 
     def process_response(self, request, response):
-        # ヘルスチェックエンドポイントで301リダイレクトが発生した場合、200を返す
         if request.path == "/health/" and response.status_code == 301:
             return JsonResponse({"status": "healthy"}, status=200)
         return response
