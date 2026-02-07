@@ -8,6 +8,7 @@ from .views import (
     GroupAdminView,
     GroupPost,
     MyGroupsApiView,
+    ProductCategoryOptionsApiView,
     GroupMembershipUpdateView,
     GroupTransferOwnerView,
     JoinGroupRequestView,
@@ -155,6 +156,11 @@ urlpatterns = [
         "group/<str:custom_id>/api/product-masters/",
         ProductMasterSearchApiView.as_view(),
         name="product_master_api",
+    ),
+    path(
+        "group/<str:custom_id>/api/product-categories/",
+        ProductCategoryOptionsApiView.as_view(),
+        name="product_category_options_api",
     ),
     path(
         "group/<str:custom_id>/api/industry-masters/",

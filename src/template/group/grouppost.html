@@ -91,22 +91,22 @@
                 </form>
             {% endif %}
 
-            {% if user in group.users.all %}
+            {% if user in group.users.all or can_group_admin %}
               <div class="group-master-actions">
-                <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:product_master' group.custom_id %}">
-                  商品マスタ
-                </a>
-                <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:industry_master' group.custom_id %}">
-                  業態マスタ
-                </a>
-              </div>
-            {% endif %}
+                {% if user in group.users.all %}
+                  <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:product_master' group.custom_id %}">
+                    商品マスタ
+                  </a>
+                  <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:industry_master' group.custom_id %}">
+                    業態マスタ
+                  </a>
+                {% endif %}
 
-            {% if can_group_admin %}
-              <div class="group-master-actions">
-                <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:group_admin' group.custom_id %}">
-                  グループ管理
-                </a>
+                {% if can_group_admin %}
+                  <a class="group-function-button group-function-link master-nav" href="{% url 'mysfa:group_admin' group.custom_id %}">
+                    グループ管理
+                  </a>
+                {% endif %}
               </div>
             {% endif %}
         </div>

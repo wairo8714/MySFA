@@ -32,12 +32,31 @@ https://mysfa.net
 git clone https://github.com/wairo8714/MySFA.git
 cd MySFA
 cp .env.example .env
-docker compose up --build
+docker compose up --build -d
 ```
 
 ### 初回セットアップ
 ```bash
-docker compose exec web python src/manage.py migrate
+docker compose exec web poetry run python manage.py migrate
+```
+
+### 起動確認
+- `http://localhost:8000/` にアクセス
+
+### （任意）管理ユーザー作成
+管理画面を使う場合のみ。
+
+```bash
+docker compose exec web poetry run python manage.py createsuperuser
+```
+
+### 停止 / 後片付け
+```bash
+# 停止
+docker compose down
+
+# DBも含めて初期化（全データ削除）
+docker compose down -v
 ```
 <br />
 
@@ -62,41 +81,33 @@ docker compose exec web python src/manage.py migrate
 
 <br />
 
-## アプリケーションのイメージ
-
-![アプリケーションのイメージ](/docs/img/app-view/mysfa-overview.gif)
-
-<br />
-
 ## 機能一覧
-
-| トップ画面 | ログイン / 新規登録画面 |
-| --- | --- |
-| ![トップ画面](/docs/img/app-view/top.png) | ![ログイン画面](/docs/img/app-view/login.png) |
-| サービスの概要紹介と「新規登録」「ログイン」への導線を配置。営業職向けの世界観を、ヒーロービジュアルとコピーで表現しています。 | ユーザーIDとパスワードで認証を実施します。新規登録/パスワード再発行ページへのリンクも掲載しています。 |
-
-<br />
 
 | 投稿フォーム画面 | タイムライン画面 |
 | --- | --- |
-| ![投稿フォーム画面](/docs/img/app-view/post-form.png) | ![タイムライン画面](/docs/img/app-view/timeline.png) |
-| 商品名 / 業態 / 営業内容 / グループ / 画像（任意）を入力して投稿できます。入力必須項目のバリデーションと、文字数カウンターを実装しています。 | グループメンバーの営業活動がタイムライン形式で表示されます。商品名・業態・グループごとに投稿を読み返し、成功パターンを素早く把握できます。 |
+| ![投稿フォーム画面](/docs/img/app-view/post-form2.png) | ![タイムライン画面](/docs/img/app-view/timeline2.png) |
+| 商品名 / 業態 / 営業内容 / グループ / 行動進捗 / 画像（任意）を入力して投稿できます。選択したグループのマスタから商品、業態を選択することができます。 |グループのメンバーの営業活動を閲覧したり、いいねボタンやコメント機能で、自分やメンバーとのコミュニケーションも可能です。 |
 
 <br />
 
-| 商品・業態検索画面 | グループ詳細画面 |
+| 商品/業態マスタ画面 | グループ詳細画面 |
 | --- | --- |
-| ![商品・業態検索](/docs/img/app-view/search-products-customers.png) | ![グループ詳細画面](/docs/img/app-view/group-detail.png) |
-| 商品名・業態名で投稿を横断検索できます。「この商品はどの業態で売れている？」「この業態にはどの商品が効いている？」といった問いに素早く答えられます。 | グループ名・説明・ロック状態（外部公開 / 非公開）などの情報を確認できます。作成者は、ロック機能やメンバーの強制退会などの権限を持ちます |
+| ![商品・業態マスタ](/docs/img/app-view/master.png) | ![権限管理画面](/docs/img/app-view/admin.png) |
+| グループマスタに、商品と業態を登録することで、投稿時に利用することができるようになります。一括削除機能や、csv一括登録機能を搭載し、スムーズなマスタ管理を可能にします。 | グループの権限を管理できます。付与・剥奪を直感的に操作でき、管理者のみが操作可能な機能を開放させることができます。 |
 
 <br />
 
-| マイページ（プロフィール） | マイページ（個人成果レポート） |
+| 営業成果レポート | 投稿検索ページ |
 | --- | --- |
-| ![マイページプロフィール](/docs/img/app-view/mypage-profile.png) | ![個人成果レポート](/docs/img/app-view/mypage-report.png) |
-| プロフィール画像・ユーザー名などを編集できます。他ユーザーから閲覧される際は編集 UI を非表示にし、見栄えを重視しています。 | 自分の投稿をもとに、商品別・業態別の成果をグラフ化して表示します。期間フィルタにより、週 / 月単位での振り返りが可能です。 |
+| ![営業成果レポート](/docs/img/app-view/report.png) | ![投稿検索](/docs/img/app-view/search.png) |
+| 採用された商品は、マイページとグループページにある「営業成果レポート」で振り返ることができます。期間指定が可能で、過去の成果もチェックできます。 | 対象グループや、検索一致条件、分類検索など、細やかな検索オプションを指定可能。目的の投稿へすぐにアクセスできます。 |
 
 <br />
+
+| お試しログイン機能 | グループロック機能 |
+| --- | --- |
+| ![お試しログイン](/docs/img/app-view/trial.png) | ![ロック機能](/docs/img/app-view/lock.png) |
+| 登録情報を入力しなくても、ほぼ全ての機能をご利用いただける「お試しログイン」機能を搭載しています。MySFAの機能をお試しいただく際は、こちらをご利用ください。 | 秘匿性の高い情報も、MySFAなら守れます。ロック機能を使えば、管理者の許可がない限り、グループの閲覧や参加ができません。|
 
 ## 使用技術
 
@@ -141,7 +152,7 @@ docker compose exec web python src/manage.py migrate
 
 ## システム構成図
 
-（システム構成図は削除しました）
+![システム構成図](/docs/img/header/mysfa-architecture.png)
 
 ### 構築 / デプロイ
 
