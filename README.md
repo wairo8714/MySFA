@@ -72,7 +72,7 @@ docker compose exec web python src/manage.py migrate
 
 | 投稿フォーム画面 | タイムライン画面 |
 | --- | --- |
-| ![投稿フォーム画面](/docs/img/app-view/post-form.png) | ![タイムライン画面](/docs/img/app-view/timeline.png) |
+| ![投稿フォーム画面](/docs/img/app-view/post-form2.png) | ![タイムライン画面](/docs/img/app-view/timeline2.png) |
 | 商品名 / 業態 / 営業内容 / グループ / 行動進捗 / 画像（任意）を入力して投稿できます。選択したグループのマスタから商品、業態を選択することができます。 |グループのメンバーの営業活動を閲覧したり、いいねボタンやコメント機能で、自分やメンバーとのコミュニケーションも可能です。 |
 
 <br />
