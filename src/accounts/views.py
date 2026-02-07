@@ -67,10 +67,9 @@ class ForgotPasswordView(View):
 
 class VerifyAnswerView(View):
     def post(self, request):
-        custom_user_id = (
-            request.session.get(PW_RESET_USER_ID_KEY)
-            or request.session.get("custom_user_id")
-        )
+        custom_user_id = request.session.get(
+            PW_RESET_USER_ID_KEY
+        ) or request.session.get("custom_user_id")
         secret_answer = request.POST.get("secret_answer")
 
         if not custom_user_id:
@@ -110,10 +109,9 @@ class VerifyAnswerView(View):
 
 class PasswordResetView(View):
     def post(self, request):
-        custom_user_id = (
-            request.session.get(PW_RESET_USER_ID_KEY)
-            or request.session.get("custom_user_id")
-        )
+        custom_user_id = request.session.get(
+            PW_RESET_USER_ID_KEY
+        ) or request.session.get("custom_user_id")
         verified = request.session.get(PW_RESET_VERIFIED_KEY) is True
 
         if not custom_user_id or not verified:
@@ -186,7 +184,11 @@ class CustomLogoutView(View):
         try:
             user = getattr(request, "user", None)
             custom_user_id = getattr(user, "custom_user_id", "") if user else ""
-            if user and getattr(user, "is_authenticated", False) and custom_user_id.startswith("trial"):
+            if (
+                user
+                and getattr(user, "is_authenticated", False)
+                and custom_user_id.startswith("trial")
+            ):
                 trial_user_pk = user.pk
         except Exception:
             trial_user_pk = None
@@ -249,7 +251,7 @@ class DeleteAccountView(View):
             if members.exists():
                 group.creator = members.first()
                 group.is_active = True
-                group.save(update_fields=["creator", "is_active" ])
+                group.save(update_fields=["creator", "is_active"])
             else:
                 group.creator = None
                 group.is_active = False

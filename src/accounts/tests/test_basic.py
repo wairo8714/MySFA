@@ -28,4 +28,3 @@ class AccountsBasicTest(TestCase):
         login_data = {"username": "TEST001", "password": "testpass123"}
         response = self.client.post(reverse("login"), login_data)
         self.assertEqual(response.status_code, 302)
-

@@ -37,4 +37,3 @@ class TimelineAndMyPostTests(TestCase):
         url = reverse("mysfa:mypost", kwargs={"custom_user_id": self.u.custom_user_id})
         res = self.client.get(url)
         self.assertEqual(res.status_code, 200)
-

@@ -17,9 +17,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
-from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
 from django.utils.html import format_html
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import ListView
 
@@ -27,10 +26,10 @@ from accounts.models import CustomUser
 
 from .forms import (
     GroupForm,
-    ProductMasterForm,
     IndustryMasterForm,
-    PostForm, 
     PostCommentForm,
+    PostForm,
+    ProductMasterForm,
     UserProfileForm,
 )
 from .models import (
@@ -38,13 +37,12 @@ from .models import (
     ChangeRequestRow,
     Group,
     GroupMembership,
+    IndustryMaster,
     JoinRequest,
     Post,
     PostComment,
     ProductMaster,
-    IndustryMaster,
 )
-
 
 PRODUCT_CSV_HEADERS = [
     "商品コード",
@@ -105,7 +103,12 @@ def _validate_product_csv(group, file_obj):
             "ok_count": 0,
             "error_count": 1,
             "total_count": 0,
-            "errors": [{"row": 1, "message": "CSVが空です。テンプレートCSVを再ダウンロードして使用してください。"}],
+            "errors": [
+                {
+                    "row": 1,
+                    "message": "CSVが空です。テンプレートCSVを再ダウンロードして使用してください。",
+                }
+            ],
             "rows": [],
         }
 
@@ -115,7 +118,9 @@ def _validate_product_csv(group, file_obj):
     header_norm = [_norm(h) for h in header_row]
     expected_norm = [_norm(h) for h in PRODUCT_CSV_HEADERS]
 
-    if header_norm[: len(expected_norm)] != expected_norm or any(h != "" for h in header_norm[len(expected_norm) :]):
+    if header_norm[: len(expected_norm)] != expected_norm or any(
+        h != "" for h in header_norm[len(expected_norm) :]
+    ):
         return {
             "ok_count": 0,
             "error_count": 1,
@@ -130,7 +135,10 @@ def _validate_product_csv(group, file_obj):
         }
 
     headers = PRODUCT_CSV_HEADERS
-    reader = (dict(zip(headers, (row + [""] * len(headers))[: len(headers)])) for row in csv_reader)
+    reader = (
+        dict(zip(headers, (row + [""] * len(headers))[: len(headers)]))
+        for row in csv_reader
+    )
 
     errors = []
     valid_payloads = []
@@ -156,7 +164,9 @@ def _validate_product_csv(group, file_obj):
             continue
 
         if code in seen_codes:
-            errors.append({"row": i, "message": f"商品コードがCSV内で重複しています: {code}"})
+            errors.append(
+                {"row": i, "message": f"商品コードがCSV内で重複しています: {code}"}
+            )
             continue
         seen_codes.add(code)
 
@@ -174,20 +184,28 @@ def _validate_product_csv(group, file_obj):
         try:
             payload["custom_int_1"] = _parse_csv_int(row.get("自由項目（数値1）"))
         except (ValueError, TypeError):
-            errors.append({"row": i, "message": "自由項目（数値1）は整数で入力してください。"})
+            errors.append(
+                {"row": i, "message": "自由項目（数値1）は整数で入力してください。"}
+            )
             continue
         try:
             payload["custom_int_2"] = _parse_csv_int(row.get("自由項目（数値2）"))
         except (ValueError, TypeError):
-            errors.append({"row": i, "message": "自由項目（数値2）は整数で入力してください。"})
+            errors.append(
+                {"row": i, "message": "自由項目（数値2）は整数で入力してください。"}
+            )
             continue
 
-        
         try:
             d = _parse_csv_date(row.get("自由項目（日付1）"))
             payload["custom_date_1"] = d or None
         except ValueError:
-            errors.append({"row": i, "message": "自由項目（日付1）は YYYY-MM-DD もしくは YYYY/MM/DD で入力してください。"})
+            errors.append(
+                {
+                    "row": i,
+                    "message": "自由項目（日付1）は YYYY-MM-DD もしくは YYYY/MM/DD で入力してください。",
+                }
+            )
             continue
 
         valid_payloads.append(payload)
@@ -195,16 +213,26 @@ def _validate_product_csv(group, file_obj):
     codes = [p["product_code"] for p in valid_payloads]
     if codes:
         active_exists = set(
-            ProductMaster.objects.filter(group=group, is_active=True, product_code__in=codes).values_list(
-                "product_code", flat=True
-            )
+            ProductMaster.objects.filter(
+                group=group, is_active=True, product_code__in=codes
+            ).values_list("product_code", flat=True)
         )
         if active_exists:
             # codesに紐付く各行にエラー付け
             for idx, p in enumerate(valid_payloads):
                 if p["product_code"] in active_exists:
-                    errors.append({"row": 0, "message": f"既に登録済みの商品コードが含まれています（追加のみ）: {p['product_code']}"})
-            valid_payloads = [p for p in valid_payloads if p["product_code"] not in active_exists]
+                    errors.append(
+                        {
+                            "row": 0,
+                            "message": (
+                                "既に登録済みの商品コードが含まれています（追加のみ）: "
+                                f"{p['product_code']}"
+                            ),
+                        }
+                    )
+            valid_payloads = [
+                p for p in valid_payloads if p["product_code"] not in active_exists
+            ]
 
         # 承認待ちが被ってたらNG
         pending_codes = set(
@@ -218,8 +246,18 @@ def _validate_product_csv(group, file_obj):
         if pending_codes:
             for p in valid_payloads:
                 if p["product_code"] in pending_codes:
-                    errors.append({"row": 0, "message": f"承認待ちの申請が既に存在する商品コードが含まれています: {p['product_code']}"})
-            valid_payloads = [p for p in valid_payloads if p["product_code"] not in pending_codes]
+                    errors.append(
+                        {
+                            "row": 0,
+                            "message": (
+                                "承認待ちの申請が既に存在する商品コードが含まれています: "
+                                f"{p['product_code']}"
+                            ),
+                        }
+                    )
+            valid_payloads = [
+                p for p in valid_payloads if p["product_code"] not in pending_codes
+            ]
 
     return {
         "ok_count": len(valid_payloads),
@@ -237,12 +275,20 @@ def _transfer_creator_or_archive(group):
         user__is_active=True,
     )
 
-    candidate = qs.filter(role=GroupMembership.Role.ADMIN).order_by("joined_at", "id").first()
+    candidate = (
+        qs.filter(role=GroupMembership.Role.ADMIN).order_by("joined_at", "id").first()
+    )
     if not candidate:
-        candidate = qs.filter(role=GroupMembership.Role.MEMBER).order_by("joined_at", "id").first()
+        candidate = (
+            qs.filter(role=GroupMembership.Role.MEMBER)
+            .order_by("joined_at", "id")
+            .first()
+        )
 
     if candidate:
-        qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(role=GroupMembership.Role.ADMIN)
+        qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(
+            role=GroupMembership.Role.ADMIN
+        )
         candidate.role = GroupMembership.Role.OWNER
         candidate.save(update_fields=["role"])
 
@@ -272,7 +318,9 @@ def ensure_membership(user, group):
         return None
 
     desired_role = (
-        GroupMembership.Role.OWNER if group.creator_id == user.pk else GroupMembership.Role.MEMBER
+        GroupMembership.Role.OWNER
+        if group.creator_id == user.pk
+        else GroupMembership.Role.MEMBER
     )
 
     m = GroupMembership.objects.filter(group=group, user=user).first()
@@ -310,7 +358,9 @@ def get_membership(user, group):
 
 def is_group_admin(user, group):
     m = get_membership(user, group)
-    return bool(m and m.role in (GroupMembership.Role.OWNER, GroupMembership.Role.ADMIN))
+    return bool(
+        m and m.role in (GroupMembership.Role.OWNER, GroupMembership.Role.ADMIN)
+    )
 
 
 def is_group_owner(user, group):
@@ -402,7 +452,10 @@ class TrialStartView(View):
                 continue
 
         if user is None:
-            messages.error(request, "お試しユーザーの作成に失敗しました。少し時間をおいて再度お試しください。")
+            messages.error(
+                request,
+                "お試しユーザーの作成に失敗しました。少し時間をおいて再度お試しください。",
+            )
             return redirect("home")
 
         request.session["trial_session_id"] = str(trial_session_id)
@@ -433,24 +486,36 @@ class Timeline(LoginRequiredMixin, ListView):
         user_groups = Group.objects.filter(users=user, is_active=True)
 
         if custom_id:
-            group = get_object_or_404(Group, custom_id=custom_id, users=user, is_active=True)
-            queryset = Post.objects.filter(group=group).select_related(
-                "user", "group", "product", "industry"
-            ).prefetch_related("comments__author").distinct()
+            group = get_object_or_404(
+                Group, custom_id=custom_id, users=user, is_active=True
+            )
+            queryset = (
+                Post.objects.filter(group=group)
+                .select_related("user", "group", "product", "industry")
+                .prefetch_related("comments__author")
+                .distinct()
+            )
         else:
-            queryset = Post.objects.filter(group__in=user_groups).select_related(
-                "user", "group", "product", "industry"
-            ).prefetch_related("comments__author").distinct()
+            queryset = (
+                Post.objects.filter(group__in=user_groups)
+                .select_related("user", "group", "product", "industry")
+                .prefetch_related("comments__author")
+                .distinct()
+            )
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         custom_id = self.request.GET.get("custom_id")
-        context["user_groups"] = Group.objects.filter(users=self.request.user, is_active=True)
+        context["user_groups"] = Group.objects.filter(
+            users=self.request.user, is_active=True
+        )
         context["selected_group_id"] = custom_id
         initial = {}
         if custom_id:
-            g = Group.objects.filter(custom_id=custom_id, users=self.request.user, is_active=True).first()
+            g = Group.objects.filter(
+                custom_id=custom_id, users=self.request.user, is_active=True
+            ).first()
             if g:
                 initial["group"] = g.pk
                 context["selected_group_pk"] = g.pk
@@ -511,7 +576,9 @@ class Timeline(LoginRequiredMixin, ListView):
 
 class ProductMasterSearchApiView(LoginRequiredMixin, View):
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         q = (request.GET.get("q") or "").strip()
         try:
@@ -520,7 +587,9 @@ class ProductMasterSearchApiView(LoginRequiredMixin, View):
             limit = 50
         limit = max(1, min(limit, 200))
 
-        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
+        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by(
+            "product_code"
+        )
         if q:
             qs = qs.filter(Q(product_code__icontains=q) | Q(name__icontains=q))
 
@@ -538,7 +607,9 @@ class ProductMasterSearchApiView(LoginRequiredMixin, View):
 
 class IndustryMasterSearchApiView(LoginRequiredMixin, View):
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         q = (request.GET.get("q") or "").strip()
         try:
@@ -547,7 +618,9 @@ class IndustryMasterSearchApiView(LoginRequiredMixin, View):
             limit = 50
         limit = max(1, min(limit, 200))
 
-        qs = IndustryMaster.objects.filter(group=group, is_active=True).order_by("name", "id")
+        qs = IndustryMaster.objects.filter(group=group, is_active=True).order_by(
+            "name", "id"
+        )
         if q:
             qs = qs.filter(name__icontains=q)
 
@@ -557,14 +630,18 @@ class IndustryMasterSearchApiView(LoginRequiredMixin, View):
 
 class MyGroupsApiView(LoginRequiredMixin, View):
     def get(self, request):
-        qs = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
+        qs = Group.objects.filter(users=request.user, is_active=True).order_by(
+            "name", "custom_id"
+        )
         results = [{"custom_id": g.custom_id, "name": g.name} for g in qs]
         return JsonResponse({"results": results})
 
 
 class ProductCategoryOptionsApiView(LoginRequiredMixin, View):
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         qs = ProductMaster.objects.filter(group=group, is_active=True)
 
         mains = list(
@@ -616,7 +693,9 @@ class MyPost(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         custom_user_id = self.kwargs["custom_user_id"]
-        context["displayed_user"] = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
+        context["displayed_user"] = get_object_or_404(
+            CustomUser, custom_user_id=custom_user_id
+        )
         context["current_user"] = self.request.user
         context["form"] = UserProfileForm(instance=self.request.user)
 
@@ -624,7 +703,9 @@ class MyPost(LoginRequiredMixin, ListView):
 
         context["MEDIA_URL"] = settings.MEDIA_URL
 
-        user_groups = Group.objects.filter(users=context["displayed_user"], is_active=True)
+        user_groups = Group.objects.filter(
+            users=context["displayed_user"], is_active=True
+        )
         context["user_groups"] = user_groups
 
         queryset = self.get_queryset()
@@ -694,14 +775,21 @@ class GroupPost(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
-        return Post.objects.filter(group=group).select_related(
-            "user", "group", "product", "industry"
-        ).prefetch_related("comments__author").distinct()
+        group = get_object_or_404(
+            Group, custom_id=self.kwargs["custom_id"], is_active=True
+        )
+        return (
+            Post.objects.filter(group=group)
+            .select_related("user", "group", "product", "industry")
+            .prefetch_related("comments__author")
+            .distinct()
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        group = get_object_or_404(Group, custom_id=self.kwargs["custom_id"], is_active=True)
+        group = get_object_or_404(
+            Group, custom_id=self.kwargs["custom_id"], is_active=True
+        )
         user = self.request.user
         creator = group.creator
         members = group.users.all()
@@ -714,7 +802,9 @@ class GroupPost(LoginRequiredMixin, ListView):
         context["creator"] = creator
         memberships = {
             m.user_id: m
-            for m in GroupMembership.objects.filter(group=group, is_active=True).select_related("user")
+            for m in GroupMembership.objects.filter(
+                group=group, is_active=True
+            ).select_related("user")
         }
         member_rows = []
         for u in members:
@@ -730,7 +820,9 @@ class GroupPost(LoginRequiredMixin, ListView):
 
         context["member_rows"] = member_rows
         context["member_count"] = members.count()
-        context["user_has_requested"] = JoinRequest.objects.filter(user=user, group=group).exists()
+        context["user_has_requested"] = JoinRequest.objects.filter(
+            user=user, group=group
+        ).exists()
         context["join_requests"] = JoinRequest.objects.filter(group=group)
 
         queryset = self.get_queryset()
@@ -816,16 +908,24 @@ class GroupMembershipUpdateView(LoginRequiredMixin, View):
         require_group_owner(request.user, group)
 
         target_user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
-        target = get_object_or_404(GroupMembership, group=group, user=target_user, is_active=True)
+        target = get_object_or_404(
+            GroupMembership, group=group, user=target_user, is_active=True
+        )
 
         role = request.POST.get("role")
-        if role not in (GroupMembership.Role.ADMIN, GroupMembership.Role.MEMBER, GroupMembership.Role.OWNER):
+        if role not in (
+            GroupMembership.Role.ADMIN,
+            GroupMembership.Role.MEMBER,
+            GroupMembership.Role.OWNER,
+        ):
             messages.error(request, "不正なロールです。")
             return redirect("mysfa:group_admin", custom_id=custom_id)
 
         # OWNERは委譲専用（ここでOWNERに変えない）
         if role == GroupMembership.Role.OWNER and target_user.pk != group.creator_id:
-            messages.error(request, "オーナー変更は「オーナーにする」から行ってください。")
+            messages.error(
+                request, "オーナー変更は「オーナーにする」から行ってください。"
+            )
             return redirect("mysfa:group_admin", custom_id=custom_id)
 
         if target.role == GroupMembership.Role.OWNER:
@@ -844,14 +944,20 @@ class GroupTransferOwnerView(LoginRequiredMixin, View):
         require_group_owner(request.user, group)
 
         target_user = get_object_or_404(CustomUser, custom_user_id=custom_user_id)
-        target = get_object_or_404(GroupMembership, group=group, user=target_user, is_active=True)
+        target = get_object_or_404(
+            GroupMembership, group=group, user=target_user, is_active=True
+        )
 
         if target.role == GroupMembership.Role.OWNER:
             return redirect("mysfa:group_admin", custom_id=custom_id)
 
         with transaction.atomic():
-            qs = GroupMembership.objects.select_for_update().filter(group=group, is_active=True)
-            qs.filter(role=GroupMembership.Role.OWNER).update(role=GroupMembership.Role.ADMIN)
+            qs = GroupMembership.objects.select_for_update().filter(
+                group=group, is_active=True
+            )
+            qs.filter(role=GroupMembership.Role.OWNER).update(
+                role=GroupMembership.Role.ADMIN
+            )
             target.role = GroupMembership.Role.OWNER
             target.save(update_fields=["role"])
 
@@ -964,8 +1070,10 @@ class ApproveJoinRequestView(View):
     def post(self, request, custom_id, request_id):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         require_group_admin(request.user, group)
-        
-        join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
+
+        join_request = get_object_or_404(
+            JoinRequest, user__custom_user_id=request_id, group=group
+        )
         group.users.add(join_request.user)
         join_request.user.groups.add(group)
 
@@ -984,9 +1092,12 @@ class RejectJoinRequestView(View):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         require_group_admin(request.user, group)
 
-        join_request = get_object_or_404(JoinRequest, user__custom_user_id=request_id, group=group)
+        join_request = get_object_or_404(
+            JoinRequest, user__custom_user_id=request_id, group=group
+        )
         join_request.delete()
         return redirect("mysfa:group_posts", custom_id=custom_id)
+
 
 class LeaveGroupView(View):
     def post(self, request, *args, **kwargs):
@@ -1016,24 +1127,32 @@ class DeleteGroupView(View):
         group.is_active = False
         group.save(update_fields=["is_active"])
         return redirect("home")
-                                  
+
 
 class RemoveMemberView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         require_group_admin(request.user, group)
 
-        user_to_remove = get_object_or_404(CustomUser, custom_user_id=kwargs["custom_user_id"])
+        user_to_remove = get_object_or_404(
+            CustomUser, custom_user_id=kwargs["custom_user_id"]
+        )
         target_m = get_membership(user_to_remove, group)
         if target_m and target_m.role == GroupMembership.Role.OWNER:
-            messages.error(request, "オーナーは退会させられません。委譲後に行ってください。")
+            messages.error(
+                request, "オーナーは退会させられません。委譲後に行ってください。"
+            )
             return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
         if user_to_remove in group.users.all():
             user_to_remove.groups.remove(group)
             group.users.remove(user_to_remove)
-            GroupMembership.objects.filter(group=group, user=user_to_remove, is_active=True).update(is_active=False)
-            messages.success(request, f"{user_to_remove.username}をグループから退会させました。")
+            GroupMembership.objects.filter(
+                group=group, user=user_to_remove, is_active=True
+            ).update(is_active=False)
+            messages.success(
+                request, f"{user_to_remove.username}をグループから退会させました。"
+            )
         else:
             messages.error(request, "このユーザーはグループに所属していません。")
 
@@ -1044,7 +1163,9 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
     template_name = "master/product-master.html"
 
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         search = request.GET.get("search", "").strip()
 
@@ -1057,9 +1178,13 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
         if per_page not in allowed_per_page:
             per_page = 50
 
-        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
+        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by(
+            "product_code"
+        )
         if search:
-            qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
+            qs = qs.filter(
+                Q(product_code__icontains=search) | Q(name__icontains=search)
+            )
 
         total_count = qs.count()
 
@@ -1089,14 +1214,20 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         form = ProductMasterForm(request.POST)
         if form.is_valid():
             product_code = form.cleaned_data["product_code"]
-            existing = ProductMaster.objects.filter(group=group, product_code=product_code).first()
+            existing = ProductMaster.objects.filter(
+                group=group, product_code=product_code
+            ).first()
 
-            payload = {field: form.cleaned_data.get(field) for field in form.Meta.fields}
+            payload = {
+                field: form.cleaned_data.get(field) for field in form.Meta.fields
+            }
             payload["product_code"] = product_code
 
             with transaction.atomic():
@@ -1107,7 +1238,7 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
                     status=ChangeRequest.Status.PENDING,
                     requester=request.user,
                     submitted_at=timezone.now(),
-                    title=f"{title_prefix}: {product_code} {payload.get('name','')}",
+                    title=f"{title_prefix}: {product_code} {payload.get('name', '')}",
                 )
                 ChangeRequestRow.objects.create(
                     change_request=cr,
@@ -1119,7 +1250,9 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
                     is_valid=True,
                 )
 
-            messages.success(request, "変更申請を送信しました（承認後に反映されます）。")
+            messages.success(
+                request, "変更申請を送信しました（承認後に反映されます）。"
+            )
             return redirect("mysfa:product_master", custom_id=custom_id)
 
         search = request.GET.get("search", "").strip()
@@ -1133,9 +1266,13 @@ class ProductMasterIndexView(LoginRequiredMixin, View):
         if per_page not in allowed_per_page:
             per_page = 50
 
-        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by("product_code")
+        qs = ProductMaster.objects.filter(group=group, is_active=True).order_by(
+            "product_code"
+        )
         if search:
-            qs = qs.filter(Q(product_code__icontains=search) | Q(name__icontains=search))
+            qs = qs.filter(
+                Q(product_code__icontains=search) | Q(name__icontains=search)
+            )
 
         total_count = qs.count()
 
@@ -1169,7 +1306,9 @@ class ProductMasterEditView(LoginRequiredMixin, View):
     template_name = "master/product-master-edit.html"
 
     def get(self, request, custom_id, pk):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(instance=master)
@@ -1186,7 +1325,9 @@ class ProductMasterEditView(LoginRequiredMixin, View):
         )
 
     def post(self, request, custom_id, pk):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         master = get_object_or_404(ProductMaster, pk=pk, group=group)
 
         form = ProductMasterForm(request.POST, instance=master)
@@ -1194,7 +1335,9 @@ class ProductMasterEditView(LoginRequiredMixin, View):
             form.fields["product_code"].disabled = True
         if form.is_valid():
             product_code = master.product_code
-            payload = {field: form.cleaned_data.get(field) for field in form.Meta.fields}
+            payload = {
+                field: form.cleaned_data.get(field) for field in form.Meta.fields
+            }
             payload["product_code"] = product_code
             payload["_target_pk"] = master.pk
 
@@ -1205,7 +1348,7 @@ class ProductMasterEditView(LoginRequiredMixin, View):
                     status=ChangeRequest.Status.PENDING,
                     requester=request.user,
                     submitted_at=timezone.now(),
-                    title=f"商品更新申請: {product_code} {payload.get('name','')}",
+                    title=f"商品更新申請: {product_code} {payload.get('name', '')}",
                 )
                 ChangeRequestRow.objects.create(
                     change_request=cr,
@@ -1217,7 +1360,9 @@ class ProductMasterEditView(LoginRequiredMixin, View):
                     is_valid=True,
                 )
 
-            messages.success(request, "変更申請を送信しました（承認後に反映されます）。")
+            messages.success(
+                request, "変更申請を送信しました（承認後に反映されます）。"
+            )
             return redirect("mysfa:product_master", custom_id=custom_id)
 
         return render(
@@ -1233,7 +1378,9 @@ class ProductMasterEditView(LoginRequiredMixin, View):
 
 class ProductMasterCsvTemplateView(LoginRequiredMixin, View):
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         # Excel由来の文字コード事故を減らすため、UTF-8 BOM付きで返す
         response = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -1249,10 +1396,14 @@ class ProductMasterCsvTemplateView(LoginRequiredMixin, View):
 
 class ProductMasterCsvValidateView(LoginRequiredMixin, View):
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         f = request.FILES.get("file")
         if not f:
-            return JsonResponse({"ok": False, "message": "CSVファイルを選択してください。"}, status=400)
+            return JsonResponse(
+                {"ok": False, "message": "CSVファイルを選択してください。"}, status=400
+            )
 
         result = _validate_product_csv(group, f.file)
         return JsonResponse(
@@ -1268,7 +1419,9 @@ class ProductMasterCsvValidateView(LoginRequiredMixin, View):
 
 class ProductMasterCsvSubmitView(LoginRequiredMixin, View):
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         f = request.FILES.get("file")
         if not f:
             messages.error(request, "CSVファイルを選択してください。")
@@ -1312,11 +1465,14 @@ class ProductMasterCsvSubmitView(LoginRequiredMixin, View):
         messages.success(request, f"CSV登録の依頼を送信しました（{len(payloads)}件）。")
         return redirect("mysfa:product_master", custom_id=custom_id)
 
+
 class ProductChangeRequestInboxView(LoginRequiredMixin, View):
     template_name = "master/product-change-requests.html"
 
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         if request.user != group.creator:
             return HttpResponseForbidden("グループ管理者以外は閲覧できません。")
 
@@ -1330,12 +1486,16 @@ class ProductChangeRequestInboxView(LoginRequiredMixin, View):
             .order_by("-submitted_at", "-id")
         )
 
-        return render(request, self.template_name, {"group": group, "requests": requests_qs})
+        return render(
+            request, self.template_name, {"group": group, "requests": requests_qs}
+        )
 
 
 class ProductChangeRequestDecideView(LoginRequiredMixin, View):
     def post(self, request, custom_id, cr_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         if request.user != group.creator:
             return HttpResponseForbidden("グループ管理者以外は操作できません。")
 
@@ -1353,19 +1513,29 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
             if action == "approve":
                 for row in cr.rows.all():
                     if row.op == ChangeRequestRow.Op.DELETE:
-                        ProductMaster.objects.filter(group=group, product_code=row.code).update(is_active=False)
+                        ProductMaster.objects.filter(
+                            group=group, product_code=row.code
+                        ).update(is_active=False)
                         continue
 
                     if row.op == ChangeRequestRow.Op.UPSERT:
                         data = row.diff_json or {}
                         code = str(row.code)
-                        obj = ProductMaster.objects.filter(group=group, product_code=code).first()
+                        obj = ProductMaster.objects.filter(
+                            group=group, product_code=code
+                        ).first()
                         if not obj:
                             obj = ProductMaster(group=group, product_code=code)
 
                         # apply payload (ignore unknown keys)
                         for key, value in data.items():
-                            if key in ("_target_pk", "group", "is_active", "created_at", "updated_at"):
+                            if key in (
+                                "_target_pk",
+                                "group",
+                                "is_active",
+                                "created_at",
+                                "updated_at",
+                            ):
                                 continue
                             if hasattr(obj, key):
                                 setattr(obj, key, value)
@@ -1394,21 +1564,25 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
 class ProductDeleteRequestBulkCreateView(LoginRequiredMixin, View):
 
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
 
         selected_ids = request.POST.getlist("selected_ids")
         if not selected_ids:
             messages.error(request, "削除する商品を選択してください。")
             return redirect("mysfa:product_master", custom_id=custom_id)
 
-        masters_qs = (
-            ProductMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
-            .order_by("product_code")
-        )
+        masters_qs = ProductMaster.objects.filter(
+            group=group, is_active=True, id__in=selected_ids
+        ).order_by("product_code")
         masters = list(masters_qs)
 
         if len(masters) != len(set(selected_ids)):
-            messages.error(request, "選択された商品の中に、存在しない商品または無効な商品があります。")
+            messages.error(
+                request,
+                "選択された商品の中に、存在しない商品または無効な商品があります。",
+            )
             return redirect("mysfa:product_master", custom_id=custom_id)
 
         codes = [str(m.product_code) for m in masters]
@@ -1461,7 +1635,9 @@ class IndustryMasterIndexView(LoginRequiredMixin, View):
     template_name = "master/industry-master.html"
 
     def get(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         search = request.GET.get("search", "").strip()
 
         allowed_per_page = (25, 50, 100, 500)
@@ -1507,7 +1683,9 @@ class IndustryMasterIndexView(LoginRequiredMixin, View):
         )
 
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         form = IndustryMasterForm(request.POST)
 
         search = request.GET.get("search", "").strip()
@@ -1555,7 +1733,9 @@ class IndustryMasterIndexView(LoginRequiredMixin, View):
             )
 
         name = form.cleaned_data["name"].strip()
-        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exists():
+        if IndustryMaster.objects.filter(
+            group=group, name=name, is_active=True
+        ).exists():
             messages.error(request, "既に登録されています。")
             return redirect("mysfa:industry_master", custom_id=custom_id)
 
@@ -1568,21 +1748,37 @@ class IndustryMasterEditView(LoginRequiredMixin, View):
     template_name = "master/industry-master-edit.html"
 
     def get(self, request, custom_id, pk):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
         form = IndustryMasterForm(instance=master)
-        return render(request, self.template_name, {"group": group, "master": master, "form": form})
+        return render(
+            request,
+            self.template_name,
+            {"group": group, "master": master, "form": form},
+        )
 
     def post(self, request, custom_id, pk):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         master = get_object_or_404(IndustryMaster, pk=pk, group=group, is_active=True)
 
         form = IndustryMasterForm(request.POST, instance=master)
         if not form.is_valid():
-            return render(request, self.template_name, {"group": group, "master": master, "form": form})
+            return render(
+                request,
+                self.template_name,
+                {"group": group, "master": master, "form": form},
+            )
 
         name = form.cleaned_data["name"].strip()
-        if IndustryMaster.objects.filter(group=group, name=name, is_active=True).exclude(pk=master.pk).exists():
+        if (
+            IndustryMaster.objects.filter(group=group, name=name, is_active=True)
+            .exclude(pk=master.pk)
+            .exists()
+        ):
             messages.error(request, "既に登録されています。")
             return redirect("mysfa:industry_master_edit", custom_id=custom_id, pk=pk)
 
@@ -1594,16 +1790,22 @@ class IndustryMasterEditView(LoginRequiredMixin, View):
 
 class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
     def post(self, request, custom_id):
-        group = get_object_or_404(Group, custom_id=custom_id, is_active=True, users=request.user)
+        group = get_object_or_404(
+            Group, custom_id=custom_id, is_active=True, users=request.user
+        )
         selected_ids = request.POST.getlist("selected_ids")
 
         if not selected_ids:
             messages.error(request, "削除する業態を選択してください。")
             return redirect("mysfa:industry_master", custom_id=custom_id)
 
-        qs = IndustryMaster.objects.filter(group=group, is_active=True, id__in=selected_ids)
+        qs = IndustryMaster.objects.filter(
+            group=group, is_active=True, id__in=selected_ids
+        )
         if qs.count() != len(set(selected_ids)):
-            messages.error(request, "選択された業態の中に、存在しないものが含まれています。")
+            messages.error(
+                request, "選択された業態の中に、存在しないものが含まれています。"
+            )
             return redirect("mysfa:industry_master", custom_id=custom_id)
 
         count = qs.count()
@@ -1611,8 +1813,8 @@ class IndustryMasterBulkDeleteView(LoginRequiredMixin, View):
 
         messages.success(request, f"業態を削除しました（{count}件）。")
         return redirect("mysfa:industry_master", custom_id=custom_id)
-            
-        
+
+
 class CreateGroupView(LoginRequiredMixin, View):
     def get(self, request):
         form = GroupForm()
@@ -1651,10 +1853,14 @@ class SearchGroupView(LoginRequiredMixin, View):
 
         if query:
             if match_mode == "exact":
-                groups = groups.filter(Q(name__iexact=query) | Q(custom_id__iexact=query))
+                groups = groups.filter(
+                    Q(name__iexact=query) | Q(custom_id__iexact=query)
+                )
             else:
                 match_mode = "partial"
-                groups = groups.filter(Q(name__icontains=query) | Q(custom_id__icontains=query))
+                groups = groups.filter(
+                    Q(name__icontains=query) | Q(custom_id__icontains=query)
+                )
 
         if membership == "joined":
             groups = groups.filter(users=request.user)
@@ -1674,9 +1880,9 @@ class SearchGroupView(LoginRequiredMixin, View):
 
         group_ids = list(groups.values_list("id", flat=True))
         requested_ids = set(
-            JoinRequest.objects.filter(user=request.user, group_id__in=group_ids).values_list(
-                "group_id", flat=True
-            )
+            JoinRequest.objects.filter(
+                user=request.user, group_id__in=group_ids
+            ).values_list("group_id", flat=True)
         )
 
         for group in groups:
@@ -1714,7 +1920,9 @@ class SearchProductsView(LoginRequiredMixin, View):
         category_main = (request.GET.get("category_main") or "").strip()
         category_sub = (request.GET.get("category_sub") or "").strip()
 
-        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by(
+            "name", "custom_id"
+        )
         page = request.GET.get("page", 1)
 
         category_main_options = []
@@ -1785,7 +1993,9 @@ class SearchProductsView(LoginRequiredMixin, View):
                 if match_mode == "exact":
                     posts = posts.filter(product__category_main__iexact=category_main)
                 else:
-                    posts = posts.filter(product__category_main__icontains=category_main)
+                    posts = posts.filter(
+                        product__category_main__icontains=category_main
+                    )
 
             if category_sub:
                 if match_mode == "exact":
@@ -1795,10 +2005,14 @@ class SearchProductsView(LoginRequiredMixin, View):
 
             if query:
                 if match_mode == "exact":
-                    qf = Q(product__product_code__iexact=query) | Q(product__name__iexact=query)
+                    qf = Q(product__product_code__iexact=query) | Q(
+                        product__name__iexact=query
+                    )
                 else:
                     match_mode = "partial"
-                    qf = Q(product__product_code__icontains=query) | Q(product__name__icontains=query)
+                    qf = Q(product__product_code__icontains=query) | Q(
+                        product__name__icontains=query
+                    )
                 posts = posts.filter(qf)
 
         paginator = Paginator(posts, 5)
@@ -1852,7 +2066,9 @@ class SearchProductsView(LoginRequiredMixin, View):
             post.delete()
             messages.success(request, "投稿を削除しました。")
             next_url = (request.POST.get("next") or "").strip()
-            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
                 return redirect(next_url)
             return redirect("mysfa:search_products")
 
@@ -1867,7 +2083,9 @@ class SearchCustomersView(LoginRequiredMixin, View):
         selected_group_custom_id = (request.GET.get("group") or "").strip()
         legacy_group_pk = (request.GET.get("custom_id") or "").strip()
 
-        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by(
+            "name", "custom_id"
+        )
         page = request.GET.get("page", 1)
 
         date_error = None
@@ -1899,7 +2117,9 @@ class SearchCustomersView(LoginRequiredMixin, View):
             )
 
             if selected_group_custom_id:
-                customers = customers.filter(group__group__custom_id=selected_group_custom_id)
+                customers = customers.filter(
+                    group__group__custom_id=selected_group_custom_id
+                )
 
             if start_date:
                 customers = customers.filter(created_at__date__gte=start_date)
@@ -1956,7 +2176,9 @@ class SearchCustomersView(LoginRequiredMixin, View):
             post.delete()
             messages.success(request, "投稿を削除しました。")
             next_url = (request.POST.get("next") or "").strip()
-            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
                 return redirect(next_url)
             return redirect("mysfa:search_customers")
 
@@ -1968,8 +2190,13 @@ class SearchUsersView(LoginRequiredMixin, View):
         selected_group_custom_id = (request.GET.get("group") or "").strip()
         page = request.GET.get("page", 1)
 
-        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by("name", "custom_id")
-        if selected_group_custom_id and not user_groups.filter(custom_id=selected_group_custom_id).exists():
+        user_groups = Group.objects.filter(users=request.user, is_active=True).order_by(
+            "name", "custom_id"
+        )
+        if (
+            selected_group_custom_id
+            and not user_groups.filter(custom_id=selected_group_custom_id).exists()
+        ):
             selected_group_custom_id = ""
 
         do_search = bool(query or selected_group_custom_id)
@@ -1978,14 +2205,22 @@ class SearchUsersView(LoginRequiredMixin, View):
             users = CustomUser.objects.all()
 
             if selected_group_custom_id:
-                users = users.filter(user_groups__custom_id=selected_group_custom_id, user_groups__is_active=True)
+                users = users.filter(
+                    user_groups__custom_id=selected_group_custom_id,
+                    user_groups__is_active=True,
+                )
 
             if query:
                 if match_mode == "exact":
-                    users = users.filter(Q(username__iexact=query) | Q(custom_user_id__iexact=query))
+                    users = users.filter(
+                        Q(username__iexact=query) | Q(custom_user_id__iexact=query)
+                    )
                 else:
                     match_mode = "partial"
-                    users = users.filter(Q(username__icontains=query) | Q(custom_user_id__icontains=query))
+                    users = users.filter(
+                        Q(username__icontains=query)
+                        | Q(custom_user_id__icontains=query)
+                    )
 
             users = users.distinct().order_by("username", "custom_user_id")
 
@@ -2055,7 +2290,11 @@ class PostCommentCreateView(View):
         form = PostCommentForm(request.POST)
         if not form.is_valid():
             messages.error(request, "コメント内容を入力してください。")
-            next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+            next_url = (
+                request.GET.get("next")
+                or request.META.get("HTTP_REFERER")
+                or reverse("mysfa:timeline")
+            )
             return redirect(next_url)
 
         PostComment.objects.create(
@@ -2065,7 +2304,11 @@ class PostCommentCreateView(View):
         )
         messages.success(request, "コメントしました。")
 
-        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+        next_url = (
+            request.GET.get("next")
+            or request.META.get("HTTP_REFERER")
+            or reverse("mysfa:timeline")
+        )
         return redirect(next_url)
 
 
@@ -2093,10 +2336,14 @@ class PostCommentDeleteView(View):
         comment.delete()
         messages.success(request, "コメントを削除しました。")
 
-        next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or reverse("mysfa:timeline")
+        next_url = (
+            request.GET.get("next")
+            or request.META.get("HTTP_REFERER")
+            or reverse("mysfa:timeline")
+        )
         return redirect(next_url)
 
-        
+
 @method_decorator(login_required, name="dispatch")
 class SalesReportView(View):
     def get(self, request, user_id=None, group_id=None):
@@ -2137,7 +2384,9 @@ class SalesReportView(View):
 
                 if selected_group_id:
                     try:
-                        selected_group = Group.objects.get(custom_id=selected_group_id, is_active=True)
+                        selected_group = Group.objects.get(
+                            custom_id=selected_group_id, is_active=True
+                        )
                         posts = Post.objects.filter(
                             user=user,
                             group=selected_group,
@@ -2145,7 +2394,9 @@ class SalesReportView(View):
                             created_at__date__lte=end_date,
                         ).select_related("product", "industry")
                     except Group.DoesNotExist:
-                        return JsonResponse({"error": "選択されたグループが見つかりません"}, status=404)
+                        return JsonResponse(
+                            {"error": "選択されたグループが見つかりません"}, status=404
+                        )
                 else:
                     user_groups = Group.objects.filter(users=user, is_active=True)
                     posts = Post.objects.filter(
@@ -2157,7 +2408,6 @@ class SalesReportView(View):
             except CustomUser.DoesNotExist:
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
-        posts_all = posts
         posts = posts.filter(status__in=[Post.Status.ADOPTED])
         product_data = list(
             posts.filter(product__isnull=False)
@@ -2181,14 +2431,22 @@ class SalesReportView(View):
             }
             for x in product_data
         ]
-        customer_data = [{"customer_category": x["industry__name"], "count": x["count"]} for x in customer_data]
+        customer_data = [
+            {"customer_category": x["industry__name"], "count": x["count"]}
+            for x in customer_data
+        ]
 
         if len(product_data) > 5:
             top_products = product_data[:5]
             other_count = sum(item["count"] for item in product_data[5:])
             if other_count > 0:
                 top_products.append(
-                    {"product_name": "その他", "product_code": "", "label": "その他", "count": other_count}
+                    {
+                        "product_name": "その他",
+                        "product_code": "",
+                        "label": "その他",
+                        "count": other_count,
+                    }
                 )
             product_data = top_products
 
@@ -2196,7 +2454,9 @@ class SalesReportView(View):
             top_customers = customer_data[:5]
             other_count = sum(item["count"] for item in customer_data[5:])
             if other_count > 0:
-                top_customers.append({"customer_category": "その他", "count": other_count})
+                top_customers.append(
+                    {"customer_category": "その他", "count": other_count}
+                )
             customer_data = top_customers
 
         response_data = {

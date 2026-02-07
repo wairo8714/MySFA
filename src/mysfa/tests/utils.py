@@ -30,8 +30,12 @@ def create_user(
     )
 
 
-def create_group(*, name: str = "G1", creator, is_active: bool = True, is_locked: bool = False):
-    g = Group.objects.create(name=name, creator=creator, is_active=is_active, is_locked=is_locked)
+def create_group(
+    *, name: str = "G1", creator, is_active: bool = True, is_locked: bool = False
+):
+    g = Group.objects.create(
+        name=name, creator=creator, is_active=is_active, is_locked=is_locked
+    )
     g.users.add(creator)
     GroupMembership.objects.get_or_create(
         group=g,
@@ -96,4 +100,3 @@ def create_post(
         Post.objects.filter(pk=post.pk).update(created_at=created_at)
         post.refresh_from_db()
     return post
-

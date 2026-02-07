@@ -11,7 +11,9 @@ class TrialExpiryMiddleware(MiddlewareMixin):
             return None
 
         custom_user_id = getattr(request.user, "custom_user_id", "")
-        is_trial = bool(getattr(request.user, "is_trial", False)) or custom_user_id.startswith("trial")
+        is_trial = bool(
+            getattr(request.user, "is_trial", False)
+        ) or custom_user_id.startswith("trial")
         if not custom_user_id or not is_trial:
             return None
 
@@ -42,7 +44,11 @@ class TrialExpiryMiddleware(MiddlewareMixin):
         try:
             user = getattr(request, "user", None)
             custom_user_id = getattr(user, "custom_user_id", "") if user else ""
-            if user and getattr(user, "is_authenticated", False) and custom_user_id.startswith("trial"):
+            if (
+                user
+                and getattr(user, "is_authenticated", False)
+                and custom_user_id.startswith("trial")
+            ):
                 trial_user_pk = user.pk
         except Exception:
             trial_user_pk = None

@@ -28,7 +28,9 @@ class SalesReportViewTests(TestCase):
     def test_group_sales_report_counts_only_adopted_and_aggregates_other(self):
         products = []
         for i in range(1, 8):
-            products.append(create_product(group=self.g, product_code=f"P{i:03d}", name=f"Prod{i}"))
+            products.append(
+                create_product(group=self.g, product_code=f"P{i:03d}", name=f"Prod{i}")
+            )
 
         counts = [6, 5, 4, 3, 2, 1, 1]
         for prod, n in zip(products, counts, strict=True):
@@ -52,7 +54,9 @@ class SalesReportViewTests(TestCase):
         )
 
         url = reverse("mysfa:group_sales_report", kwargs={"group_id": self.g.custom_id})
-        res = self.client.get(url, {"start_date": "2026-02-01", "end_date": "2026-02-10"})
+        res = self.client.get(
+            url, {"start_date": "2026-02-01", "end_date": "2026-02-10"}
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
 
@@ -75,6 +79,7 @@ class SalesReportViewTests(TestCase):
             created_at=datetime(2026, 2, 2, 10, 0, 0),
         )
         url = reverse("mysfa:group_sales_report", kwargs={"group_id": self.g.custom_id})
-        res = self.client.get(url, {"start_date": "2026/02/01", "end_date": "2026/02/10"})
+        res = self.client.get(
+            url, {"start_date": "2026/02/01", "end_date": "2026/02/10"}
+        )
         self.assertEqual(res.status_code, 200)
-

@@ -36,17 +36,46 @@ class ProductCategoryOptionsApiTests(TestCase):
     def test_requires_membership(self):
         other = create_user(custom_user_id="U311", username="u311")
         other_group = create_group(name="G311", creator=other)
-        url = reverse("mysfa:product_category_options_api", kwargs={"custom_id": other_group.custom_id})
+        url = reverse(
+            "mysfa:product_category_options_api",
+            kwargs={"custom_id": other_group.custom_id},
+        )
         res = self.client.get(url)
         self.assertEqual(res.status_code, 404)
 
     def test_returns_distinct_sorted_categories(self):
-        create_product(group=self.g, product_code="P1", name="n1", category_main="飲料", category_sub="炭酸")
-        create_product(group=self.g, product_code="P2", name="n2", category_main="飲料", category_sub="水")
-        create_product(group=self.g, product_code="P3", name="n3", category_main="菓子", category_sub="")
-        create_product(group=self.g, product_code="P4", name="n4", category_main=None, category_sub=None)
+        create_product(
+            group=self.g,
+            product_code="P1",
+            name="n1",
+            category_main="飲料",
+            category_sub="炭酸",
+        )
+        create_product(
+            group=self.g,
+            product_code="P2",
+            name="n2",
+            category_main="飲料",
+            category_sub="水",
+        )
+        create_product(
+            group=self.g,
+            product_code="P3",
+            name="n3",
+            category_main="菓子",
+            category_sub="",
+        )
+        create_product(
+            group=self.g,
+            product_code="P4",
+            name="n4",
+            category_main=None,
+            category_sub=None,
+        )
 
-        url = reverse("mysfa:product_category_options_api", kwargs={"custom_id": self.g.custom_id})
+        url = reverse(
+            "mysfa:product_category_options_api", kwargs={"custom_id": self.g.custom_id}
+        )
         res = self.client.get(url)
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -66,7 +95,9 @@ class MasterSearchApiTests(TestCase):
         create_industry(group=self.g, name="カフェ")
 
     def test_product_master_search_api_filters_by_q(self):
-        url = reverse("mysfa:product_master_api", kwargs={"custom_id": self.g.custom_id})
+        url = reverse(
+            "mysfa:product_master_api", kwargs={"custom_id": self.g.custom_id}
+        )
         res = self.client.get(url, {"q": "AA", "limit": 50})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -75,7 +106,9 @@ class MasterSearchApiTests(TestCase):
         self.assertFalse(any("BBB" in s for s in labels))
 
     def test_industry_master_search_api_filters_by_q(self):
-        url = reverse("mysfa:industry_master_api", kwargs={"custom_id": self.g.custom_id})
+        url = reverse(
+            "mysfa:industry_master_api", kwargs={"custom_id": self.g.custom_id}
+        )
         res = self.client.get(url, {"q": "カ", "limit": 50})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -86,7 +119,8 @@ class MasterSearchApiTests(TestCase):
     def test_search_api_requires_membership(self):
         other = create_user(custom_user_id="U321", username="u321")
         other_group = create_group(name="G321", creator=other)
-        url = reverse("mysfa:product_master_api", kwargs={"custom_id": other_group.custom_id})
+        url = reverse(
+            "mysfa:product_master_api", kwargs={"custom_id": other_group.custom_id}
+        )
         res = self.client.get(url)
         self.assertEqual(res.status_code, 404)
-

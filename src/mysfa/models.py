@@ -20,7 +20,7 @@ class Post(models.Model):
         default=Status.NEGOTIATING,
         db_index=True,
     )
-    
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="投稿者", on_delete=models.CASCADE
     )
@@ -76,7 +76,9 @@ class Post(models.Model):
 
 class PostComment(models.Model):
     post = models.ForeignKey("Post", on_delete=models.CASCADE, related_name="comments")
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_comments")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_comments"
+    )
     body = models.TextField(max_length=2000)
     parent = models.ForeignKey(
         "self",
@@ -160,9 +162,13 @@ class ProductMaster(models.Model):
     product_code = models.CharField(max_length=50, verbose_name="商品コード")
     name = models.CharField(max_length=50, verbose_name="商品名")
 
-    category_main = models.CharField(max_length=50, null=True, blank=True, verbose_name="大分類")
-    category_sub = models.CharField(max_length=50, null=True, blank=True, verbose_name="小分類")
-    
+    category_main = models.CharField(
+        max_length=50, null=True, blank=True, verbose_name="大分類"
+    )
+    category_sub = models.CharField(
+        max_length=50, null=True, blank=True, verbose_name="小分類"
+    )
+
     custom_text_1 = models.CharField(
         max_length=255, null=True, blank=True, verbose_name="自由項目（文字1）"
     )
@@ -173,10 +179,16 @@ class ProductMaster(models.Model):
         max_length=255, null=True, blank=True, verbose_name="自由項目（文字3）"
     )
 
-    custom_int_1 = models.IntegerField(null=True, blank=True, verbose_name="自由項目（数値1）")
-    custom_int_2 = models.IntegerField(null=True, blank=True, verbose_name="自由項目（数値2）")
+    custom_int_1 = models.IntegerField(
+        null=True, blank=True, verbose_name="自由項目（数値1）"
+    )
+    custom_int_2 = models.IntegerField(
+        null=True, blank=True, verbose_name="自由項目（数値2）"
+    )
 
-    custom_date_1 = models.DateField(null=True, blank=True, verbose_name="自由項目（日付1）")
+    custom_date_1 = models.DateField(
+        null=True, blank=True, verbose_name="自由項目（日付1）"
+    )
 
     description = models.TextField(null=True, blank=True, verbose_name="自由記入")
 
@@ -229,7 +241,9 @@ class GroupMembership(models.Model):
         ADMIN = "ADMIN", "管理者"
         MEMBER = "MEMBER", "メンバー"
 
-    group = models.ForeignKey("Group", on_delete=models.CASCADE, related_name="memberships")
+    group = models.ForeignKey(
+        "Group", on_delete=models.CASCADE, related_name="memberships"
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -241,7 +255,9 @@ class GroupMembership(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["group", "user"], name="uq_group_membership_group_user"),
+            models.UniqueConstraint(
+                fields=["group", "user"], name="uq_group_membership_group_user"
+            ),
         ]
         indexes = [
             models.Index(fields=["group", "role", "is_active"]),
@@ -299,12 +315,16 @@ class ChangeRequest(models.Model):
         verbose_name="承認者",
     )
 
-    title = models.CharField(max_length=100, blank=True, default="", verbose_name="タイトル")
+    title = models.CharField(
+        max_length=100, blank=True, default="", verbose_name="タイトル"
+    )
     note = models.TextField(blank=True, default="", verbose_name="メモ")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")
     submitted_at = models.DateTimeField(null=True, blank=True, verbose_name="依頼日時")
-    decided_at = models.DateTimeField(null=True, blank=True, verbose_name="承認/却下日時")
+    decided_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="承認/却下日時"
+    )
 
     def __str__(self):
         return f"{self.group_id} {self.kind} {self.status} ({self.id})"
@@ -342,8 +362,12 @@ class ChangeRequestRow(models.Model):
     name = models.CharField(max_length=50, blank=True, default="", verbose_name="名称")
 
     is_valid = models.BooleanField(default=True, verbose_name="取込可能")
-    error_code = models.CharField(max_length=50, blank=True, default="", verbose_name="エラーコード")
-    error_message = models.TextField(blank=True, default="", verbose_name="エラーメッセージ")
+    error_code = models.CharField(
+        max_length=50, blank=True, default="", verbose_name="エラーコード"
+    )
+    error_message = models.TextField(
+        blank=True, default="", verbose_name="エラーメッセージ"
+    )
 
     diff_json = models.JSONField(null=True, blank=True, verbose_name="差分(JSON)")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="作成日時")

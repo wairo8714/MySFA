@@ -34,4 +34,3 @@ class BasicViewAuthTests(TestCase):
         res = self.client.post(url, {"name": "New Group"})
         self.assertEqual(res.status_code, 302)
         self.assertTrue(Group.objects.filter(name="New Group").exists())
-

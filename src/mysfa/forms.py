@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.models import CustomUser
 
-from .models import Group, Post, ProductMaster, IndustryMaster, PostComment
+from .models import Group, IndustryMaster, Post, PostComment, ProductMaster
 
 
 class GroupForm(forms.ModelForm):
@@ -19,6 +19,7 @@ class GroupForm(forms.ModelForm):
                 }
             )
         }
+
 
 class ProductMasterForm(forms.ModelForm):
     class Meta:
@@ -42,6 +43,7 @@ class IndustryMasterForm(forms.ModelForm):
     class Meta:
         model = IndustryMaster
         fields = ["name"]
+
 
 class PostForm(forms.ModelForm):
     class Meta:
@@ -110,7 +112,9 @@ class PostForm(forms.ModelForm):
         # デフォルトの "---------" をわかりやすい文言にする
         self.fields["group"].empty_label = "グループを選択してください"
         if user:
-            self.fields["group"].queryset = Group.objects.filter(users=user, is_active=True)
+            self.fields["group"].queryset = Group.objects.filter(
+                users=user, is_active=True
+            )
 
         # グループ未選択の間は商品/業態を選べないようにする
         group = None

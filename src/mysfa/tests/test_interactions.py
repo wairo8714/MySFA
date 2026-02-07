@@ -44,7 +44,9 @@ class LikeAndCommentTests(TestCase):
 
     def test_comment_delete_allowed_for_author_or_post_owner(self):
         self.client.force_login(self.member)
-        create_url = reverse("mysfa:post_comment_create", kwargs={"post_id": self.post.id})
+        create_url = reverse(
+            "mysfa:post_comment_create", kwargs={"post_id": self.post.id}
+        )
         res = self.client.post(create_url, {"body": "hello"}, follow=True)
         self.assertEqual(res.status_code, 200)
 
@@ -63,4 +65,3 @@ class LikeAndCommentTests(TestCase):
         res3 = self.client.post(delete_url)
         self.assertEqual(res3.status_code, 302)
         self.assertFalse(PostComment.objects.filter(pk=c.pk).exists())
-

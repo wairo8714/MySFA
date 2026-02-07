@@ -3,11 +3,9 @@ import uuid
 
 from django.contrib.auth.hashers import identify_hasher, make_password
 from django.contrib.auth.models import AbstractUser
-from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator
 from django.db import models
-from django.utils import timezone
 
 
 class CustomUser(AbstractUser):
@@ -15,7 +13,7 @@ class CustomUser(AbstractUser):
 
     USERNAME_FIELD = "custom_user_id"
     REQUIRED_FIELDS = ["username"]
-    
+
     custom_user_id = models.CharField(
         primary_key=True,
         max_length=15,

@@ -22,7 +22,18 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = (
         (None, {"fields": ("custom_user_id", "password")}),
         ("基本情報", {"fields": ("username", "email", "profile_image")}),
-        ("権限", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
+        (
+            "権限",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
+        ),
         ("重要な日時", {"fields": ("last_login", "date_joined")}),
         ("秘密の質問", {"fields": ("question", "answer")}),
     )
@@ -49,4 +60,3 @@ class CustomUserAdmin(UserAdmin):
             },
         ),
     )
-

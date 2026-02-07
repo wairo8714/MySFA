@@ -13,4 +13,3 @@ class HealthCheckTests(TestCase):
     def test_api_health_endpoint(self):
         res = self.client.get(reverse("api_health"))
         self.assertEqual(res.status_code, 200)
-

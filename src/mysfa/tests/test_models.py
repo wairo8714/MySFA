@@ -35,8 +35,14 @@ class MasterConstraintsTests(TestCase):
 
     def test_group_membership_unique(self):
         u2 = create_user(custom_user_id="U201", username="u201")
-        GroupMembership.objects.create(group=self.g, user=u2, role=GroupMembership.Role.MEMBER, is_active=True)
+        GroupMembership.objects.create(
+            group=self.g, user=u2, role=GroupMembership.Role.MEMBER, is_active=True
+        )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                GroupMembership.objects.create(group=self.g, user=u2, role=GroupMembership.Role.MEMBER, is_active=True)
-
+                GroupMembership.objects.create(
+                    group=self.g,
+                    user=u2,
+                    role=GroupMembership.Role.MEMBER,
+                    is_active=True,
+                )

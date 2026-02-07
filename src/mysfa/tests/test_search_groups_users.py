@@ -11,12 +11,20 @@ class SearchGroupViewTests(TestCase):
         self.u = create_user(custom_user_id="U700", username="u700")
         self.client.force_login(self.u)
 
-        self.joined_open = create_group(name="JoinedOpen", creator=self.u, is_locked=False)
-        self.joined_locked = create_group(name="JoinedLocked", creator=self.u, is_locked=True)
+        self.joined_open = create_group(
+            name="JoinedOpen", creator=self.u, is_locked=False
+        )
+        self.joined_locked = create_group(
+            name="JoinedLocked", creator=self.u, is_locked=True
+        )
 
         other = create_user(custom_user_id="U701", username="u701")
-        self.not_joined_open = create_group(name="OtherOpen", creator=other, is_locked=False)
-        self.not_joined_locked = create_group(name="OtherLocked", creator=other, is_locked=True)
+        self.not_joined_open = create_group(
+            name="OtherOpen", creator=other, is_locked=False
+        )
+        self.not_joined_locked = create_group(
+            name="OtherLocked", creator=other, is_locked=True
+        )
 
     def test_membership_filters(self):
         url = reverse("mysfa:search_group")
@@ -78,4 +86,3 @@ class SearchUsersViewTests(TestCase):
         res = self.client.get(url, {"group": "nope"})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.context["selected_group_custom_id"], "")
-

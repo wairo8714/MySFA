@@ -1,1 +1,1 @@
-
+"""config tests package."""

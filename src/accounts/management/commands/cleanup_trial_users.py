@@ -38,14 +38,19 @@ class Command(BaseCommand):
         if not delete_all:
             now = timezone.now()
             # If expires_at is missing, treat as expired (legacy leftovers)
-            qs = qs.filter(Q(trial_expires_at__isnull=True) | Q(trial_expires_at__lte=now))
+            qs = qs.filter(
+                Q(trial_expires_at__isnull=True) | Q(trial_expires_at__lte=now)
+            )
 
         count = qs.count()
         if dry_run:
-            self.stdout.write(self.style.WARNING(f"[dry-run] would delete: {count} trial users"))
+            self.stdout.write(
+                self.style.WARNING(f"[dry-run] would delete: {count} trial users")
+            )
             return
 
         deleted = qs.delete()
         # deleted is (num_deleted, per_model_dict)
-        self.stdout.write(self.style.SUCCESS(f"deleted trial users: {count} (details={deleted[1]})"))
-
+        self.stdout.write(
+            self.style.SUCCESS(f"deleted trial users: {count} (details={deleted[1]})")
+        )

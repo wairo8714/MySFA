@@ -18,4 +18,3 @@ class CustomUserModelTests(TestCase):
         )
         self.assertNotEqual(u.answer, "secret-answer")
         self.assertTrue(check_password("secret-answer", u.answer))
-

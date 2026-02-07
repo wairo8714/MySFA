@@ -1,1 +1,1 @@
-
+"""accounts.management.commands package."""

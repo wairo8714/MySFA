@@ -22,7 +22,7 @@ class CustomUserCreationForm(UserCreationForm):
         },
     )
 
-    #パスワード再設定時に使用 質問に対する正しい回答(answer)で再設定
+    # パスワード再設定時に使用 質問に対する正しい回答(answer)で再設定
     question = forms.CharField(
         label="質問",
         max_length=20,
@@ -46,7 +46,7 @@ class CustomUserCreationForm(UserCreationForm):
                 regex=r"^(?=.*[A-Za-z])(?=.*\d).+$",
                 message="パスワードは英字と数字をそれぞれ1文字以上含めてください。",
                 code="invalid_password_format",
-            ) 
+            )
         ],
         widget=forms.PasswordInput(
             attrs={
