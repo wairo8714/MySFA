@@ -566,12 +566,14 @@ class ProductCategoryOptionsApiView(LoginRequiredMixin, View):
         mains = list(
             qs.exclude(category_main__isnull=True)
             .exclude(category_main="")
+            .order_by()
             .values_list("category_main", flat=True)
             .distinct()
         )
         subs = list(
             qs.exclude(category_sub__isnull=True)
             .exclude(category_sub="")
+            .order_by()
             .values_list("category_sub", flat=True)
             .distinct()
         )
