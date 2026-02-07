@@ -51,7 +51,7 @@ class ProductCategoryOptionsApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["category_main"], ["菓子", "飲料"])
-        self.assertEqual(data["category_sub"], ["炭酸", "水"])
+        self.assertEqual(data["category_sub"], ["水", "炭酸"])
 
 
 class MasterSearchApiTests(TestCase):
