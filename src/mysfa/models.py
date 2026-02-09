@@ -68,7 +68,14 @@ class Post(models.Model):
 
     @property
     def product_name(self) -> str:
+        return self.product.name if self.product_id else ""
+
+    @property
+    def industry_name(self) -> str:
         return self.industry.name if self.industry_id else ""
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
 
     def __str__(self):
         return self.product_name
