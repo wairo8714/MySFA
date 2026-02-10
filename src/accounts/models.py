@@ -33,6 +33,7 @@ class CustomUser(AbstractUser):
     answer = models.CharField(max_length=128, blank=False, verbose_name="答え")
 
     def user_profile_image_path(self, filename):
+        # ファイル名をユニークにして上書き事故防止
         _, ext = os.path.splitext(filename)
         suffix = (ext or "").lower()
         unique_filename = f"{self.custom_user_id}_{uuid.uuid4()}{suffix}"
@@ -45,7 +46,6 @@ class CustomUser(AbstractUser):
         null=True,
     )
 
-    # trial / demo login support
     is_trial = models.BooleanField(default=False, db_index=True)
     trial_started_at = models.DateTimeField(null=True, blank=True)
     trial_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
