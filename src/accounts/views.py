@@ -2,7 +2,7 @@ import logging
 import re
 
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import logout, get_user_model
 from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -234,10 +234,21 @@ class DeleteAccountView(View):
                 {"user": fresh_user},
             )
 
-        from mysfa.models import Group
+        from mysfa.models import Group, GroupMembership
+
+        User = get_user_model()
 
         for group in Group.objects.filter(creator=fresh_user):
-            members = group.users.exclude(pk=fresh_user.pk).order_by("custom_user_id")
+            members = (
+                User.objects.filter(
+                    groupmembership__group=group,
+                    groupmembership__is_active=True,
+                )
+                .exclude(pk=fresh_user.pk)
+                .order_by("custom_user_id")
+                .distinct()
+            )
+
             if members.exists():
                 group.creator = members.first()
                 group.is_active = True
@@ -247,11 +258,20 @@ class DeleteAccountView(View):
                 group.is_active = False
                 group.save(update_fields=["creator", "is_active"])
 
-        for group in Group.objects.filter(users=fresh_user):
-            group.users.remove(fresh_user)
-            fresh_user.groups.remove(group)
+        for group in (
+            Group.objects.filter(
+                memberships__user=fresh_user,
+                memberships__is_active=True,
+            )
+            .distinct()
+        ):
+            GroupMembership.objects.filter(
+                group=group,
+                user=fresh_user,
+                is_active=True,
+            ).update(is_active=False)
 
-            if group.users.count() == 0:
+            if not GroupMembership.objects.filter(group=group, is_active=True).exists():
                 group.creator = None
                 group.is_active = False
                 group.save(update_fields=["creator", "is_active"])
@@ -261,3 +281,4 @@ class DeleteAccountView(View):
         logout(request)
         messages.success(request, "アカウントが削除されました。")
         return redirect("home")
+        
