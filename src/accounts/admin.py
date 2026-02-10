@@ -17,11 +17,11 @@ class CustomUserAdmin(UserAdmin):
         "date_joined",
     )
     list_filter = ("is_active", "is_staff", "is_superuser")
-    search_fields = ("custom_user_id", "username", "email")
+    search_fields = ("custom_user_id", "username")
 
     fieldsets = (
         (None, {"fields": ("custom_user_id", "password")}),
-        ("基本情報", {"fields": ("username", "email", "profile_image")}),
+        ("基本情報", {"fields": ("username", "profile_image")}),
         (
             "権限",
             {
@@ -34,7 +34,7 @@ class CustomUserAdmin(UserAdmin):
                 )
             },
         ),
-        ("重要な日時", {"fields": ("last_login", "date_joined")}),
+        ("日時", {"fields": ("last_login", "date_joined")}),
         ("秘密の質問", {"fields": ("question", "answer")}),
     )
     readonly_fields = ("last_login", "date_joined")
