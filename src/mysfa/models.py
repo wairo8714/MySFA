@@ -118,6 +118,7 @@ class Group(AuthGroup):
     is_active = models.BooleanField(default=True, verbose_name="有効フラグ")
     users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
+        through="GroupMembership",
         related_name="user_groups",
         verbose_name="グループメンバー",
     )
