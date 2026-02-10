@@ -20,17 +20,7 @@ class SignUpView(generic.CreateView):
     success_url = reverse_lazy("login")
     template_name = "registration/signup.html"
 
-    def form_valid(self, form):
-        user_id = form.cleaned_data.get("custom_user_id")
-        logger.info(f"Received user ID: {user_id}")
-        return super().form_valid(form)
 
-    def form_invalid(self, form):
-        logger.error(f"Form errors: {form.errors}")
-        return super().form_invalid(form)
-
-
-# パスワードリセット用のセッションキー
 PW_RESET_USER_ID_KEY = "pw_reset_user_id"
 PW_RESET_VERIFIED_KEY = "pw_reset_verified"
 
@@ -61,7 +51,7 @@ class ForgotPasswordView(View):
                 {"secret_question": user.question},
             )
         except CustomUser.DoesNotExist:
-            messages.error(request, "ユーザーIDが見つかりません。")
+            messages.error(request, "入力内容をご確認下さい。")
             return render(request, "forgot_password.html")
 
 
