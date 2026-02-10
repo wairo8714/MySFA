@@ -10,7 +10,6 @@ class AccountsBasicTest(TestCase):
         self.user = User.objects.create_user(
             username="TEST001",
             custom_user_id="TEST001",
-            email="test@example.com",
             password="testpass123",
             question="テスト質問",
             answer="テスト回答",
