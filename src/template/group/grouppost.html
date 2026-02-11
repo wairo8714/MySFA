@@ -309,17 +309,17 @@
 <div class="pagination">
     <span class="step-links">
         {% if object_list.has_previous %}
-            <a href="{% url 'mysfa:grouppost' %}?page=1{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">&laquo; 最初</a>
-            <a href="{% url 'mysfa:grouppost' %}?page={{ object_list.previous_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">前</a>
+            <a href="{% url 'mysfa:group_posts' group.custom_id %}?page=1">&laquo; 最初</a>
+            <a href="{% url 'mysfa:group_posts' group.custom_id %}?page={{ object_list.previous_page_number }}">前</a>
         {% endif %}
 
         {% for page_num in object_list.paginator.page_range %}
             {% if page_num == object_list.number %}
                 <span class="page-number current">{{ page_num }}</span>
             {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
-                <a href="{% url 'mysfa:grouppost' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                <a href="{% url 'mysfa:group_posts' group.custom_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
             {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
-                <a href="{% url 'mysfa:grouppost' %}?page={{ page_num }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}" class="page-number">{{ page_num }}</a>
+                <a href="{% url 'mysfa:group_posts' group.custom_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
             {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
                 <span class="page-ellipsis">...</span>
             {% endif %}
@@ -328,8 +328,8 @@
         {% endfor %}
 
         {% if object_list.has_next %}
-            <a href="{% url 'mysfa:grouppost' %}?page={{ object_list.next_page_number }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">次</a>
-            <a href="{% url 'mysfa:grouppost' %}?page={{ object_list.paginator.num_pages }}{% if selected_group_id %}&custom_id={{ selected_group_id }}{% endif %}">最後 &raquo;</a>
+            <a href="{% url 'mysfa:group_posts' group.custom_id %}?page={{ object_list.next_page_number }}">次</a>
+            <a href="{% url 'mysfa:group_posts' group.custom_id %}?page={{ object_list.paginator.num_pages }}">最後 &raquo;</a>
         {% endif %}
     </span>
 </div>
