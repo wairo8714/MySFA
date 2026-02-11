@@ -9,7 +9,7 @@
         </video>
     </div>
 
-    <div class="content">
+    <div class="content{% if not user.is_authenticated %} content--landing{% endif %}">
         {% if user.is_authenticated %}
         <div class="home-explanation">
           <p id="home-explanation-title">ようこそ、{{ user.username }}さん</p>
@@ -33,7 +33,7 @@
                                 <p id="subtitle">- SNS sales assistant -</p>
                                 <a href="{% url 'login' %}" class="guide-button" id="guide-login">ログイン</a>
                                 <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration">新規登録</a>
-                                <form method="post" action="{% url 'mysfa:trial_start' %}" style="display:block; width:70%; margin:30px auto;">
+                                <form method="post" action="{% url 'mysfa:trial_start' %}" class="home-trial-form">
                                     {% csrf_token %}
                                     <button type="submit" class="guide-button guide-button--trial" id="guide-trial" style="width:100%; margin:0;">お試しログイン</button>
                                 </form>
@@ -44,38 +44,74 @@
                 <div class="index-feature">
                     <div class="index-feature-inner">
                         <h2 id="what-is-MySFA">MySFA<span> でできること</span></h2>
-    
-                        <figure class="features" id="feature1">
-                            <figcaption>タイムラインに営業成果を投稿したり、閲覧することができます。<br>チーム間の営業成果の共有を、もっとかんたんに。もっとみじかに。</figcaption>
-                            <img src="{% static 'images/login/チームイラスト.png' %}"
-                                 srcset="{% static 'images/login/チームイラスト.png' %} 1x,
-                                         {% static 'images/login/チームイラスト@2x.png' %} 2x,
-                                         {% static 'images/login/チームイラスト@3x.png' %} 3x"
-                                 alt="イラスト1">
-                        </figure>
-                        <figure class="features" id="feature2">
-                            <figcaption>商品別、業態別など、詳細検索機能を搭載。<br>いつ、どこで、どんなふうに？MySFAならいつでも照会できます。</figcaption>
-                            <img src="{% static 'images/888.png' %}"
-                                 srcset="{% static 'images/login/888.png' %} 1x,
-                                         {% static 'images/login/888@2x.png' %} 2x,
-                                         {% static 'images/login/888@3x.png' %} 3x"
-                                 alt="イラスト2">
-                        </figure>
-                        <figure class="features" id="feature3">
-                            <figcaption>スマホでも、PCでも場所を選ばず利用可能。<br>お使いのデバイスが営業データベースに早変わりします。</figcaption>
-                            <img src="{% static 'images/login/0758.png' %}"
-                                 srcset="{% static 'images/login/0758.png' %} 1x,
-                                         {% static 'images/login/0758@2x.png' %} 2x,
-                                         {% static 'images/login/0758@3x.png' %} 3x"
-                                 alt="イラスト3">
-                        </figure>
+
+                        <p class="index-feature-lead">
+                            MySFAは、日々の営業活動から生まれる成果と工夫を、チームの資産として自然に蓄積できるSNS型SFAです。
+                        </p>
+
+                        <div class="index-story">
+                            <div class="index-story__problems">
+                                <h3 class="index-story__title">こんな困りごと、ありませんか？</h3>
+                                <div class="index-problem-grid">
+                                    <div class="index-problem">
+                                        <div class="index-problem__badge">課題 01</div>
+                                        <div class="index-problem__text">トップセールスの勝ちパターンが共有されず、属人化してしまう。</div>
+                                    </div>
+                                    <div class="index-problem">
+                                        <div class="index-problem__badge">課題 02</div>
+                                        <div class="index-problem__text">「どの商品を」「どの業態に」提案すべきかが、感覚頼りになりがち。</div>
+                                    </div>
+                                    <div class="index-problem">
+                                        <div class="index-problem__badge">課題 03</div>
+                                        <div class="index-problem__text">日々の活動が流れていき、振り返りや再現ができない。</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="index-story__solutions">
+                                <h3 class="index-story__title">MySFAなら、こう変わる</h3>
+
+                                <div class="index-solution">
+                                    <div class="index-solution__media">
+                                        <img src="{% static 'img/app-view/timeline2.png' %}?v=20260211_2" alt="タイムライン画面">
+                                    </div>
+                                    <div class="index-solution__body">
+                                        <div class="index-solution__badge">解決 01</div>
+                                        <h4 class="index-solution__heading">成功事例が、チームに自然に回る</h4>
+                                        <p class="index-solution__text">タイムラインに成果を投稿。いいね・コメントで「なぜ勝てたか」を短いコミュニケーションで残せます。</p>
+                                    </div>
+                                </div>
+
+                                <div class="index-solution index-solution--reverse">
+                                    <div class="index-solution__media">
+                                        <img src="{% static 'img/app-view/search.png' %}?v=20260211_2" alt="投稿検索ページ">
+                                    </div>
+                                    <div class="index-solution__body">
+                                        <div class="index-solution__badge">解決 02</div>
+                                        <h4 class="index-solution__heading">提案のヒントが、すぐ引ける</h4>
+                                        <p class="index-solution__text">商品・業態・期間・一致条件などで検索。目的の投稿に素早くアクセスできます。</p>
+                                    </div>
+                                </div>
+
+                                <div class="index-solution">
+                                    <div class="index-solution__media">
+                                        <img src="{% static 'img/app-view/report.png' %}?v=20260211_2" alt="営業成果レポート">
+                                    </div>
+                                    <div class="index-solution__body">
+                                        <div class="index-solution__badge">解決 03</div>
+                                        <h4 class="index-solution__heading">成果が見えるから、改善が回る</h4>
+                                        <p class="index-solution__text">レポートで採用実績を振り返り。チームの傾向を掴んで、次の打ち手に繋げられます。</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-guide">
                     <div class="form-guide-inner">
                         <a href="{% url 'login' %}" class="guide-button" id="guide-login2">ログイン</a>
                         <a href="{% url 'accounts:signup' %}" class="guide-button" id="guide-registration2">新規登録</a>
-                        <form method="post" action="{% url 'mysfa:trial_start' %}" style="display:block; width:30%;">
+                        <form method="post" action="{% url 'mysfa:trial_start' %}" class="form-guide-trial-form">
                             {% csrf_token %}
                             <button type="submit" class="guide-button guide-button--trial" id="guide-trial2" style="width:100%; margin:0;">お試しログイン</button>
                         </form>

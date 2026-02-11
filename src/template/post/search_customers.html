@@ -176,8 +176,8 @@
             <div class="pagination">
                 <span class="step-links">
                     {% if object_list.has_previous %}
-                        <a href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page=1">&laquo; 最初</a>
-                        <a href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.previous_page_number }}">前</a>
+                        <a class="page-number" href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page=1" aria-label="最初のページ">&laquo;</a>
+                        <a class="page-number" href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.previous_page_number }}" aria-label="前のページ">‹</a>
                     {% endif %}
 
                     {% for page_num in object_list.paginator.page_range %}
@@ -193,8 +193,8 @@
                     {% endfor %}
 
                     {% if object_list.has_next %}
-                        <a href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.next_page_number }}">次</a>
-                        <a href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.paginator.num_pages }}">最後 &raquo;</a>
+                        <a class="page-number" href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.next_page_number }}" aria-label="次のページ">›</a>
+                        <a class="page-number" href="{% url 'mysfa:search_customers' %}?{% if query_params %}{{ query_params }}&{% endif %}page={{ object_list.paginator.num_pages }}" aria-label="最後のページ">&raquo;</a>
                     {% endif %}
                 </span>
             </div>

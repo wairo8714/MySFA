@@ -470,9 +470,7 @@ class TrialStartView(View):
             request,
             format_html(
                 "お試しログインへようこそ！<br><br>"
-                "以下の機能を除いて、MySFAの機能をお試しいただけます。<br>"
-                "・グループの作成・削除<br>"
-                "・アカウント削除"
+                "このモードでは、ログアウト時 または 30分経過時 に全ての編集データが削除されます。"
             ),
         )
         return redirect("home")
