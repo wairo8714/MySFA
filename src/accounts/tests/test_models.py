@@ -11,7 +11,6 @@ class CustomUserModelTests(TestCase):
         u = User.objects.create_user(
             custom_user_id="U900",
             username="u900",
-            email="u900@example.com",
             password="pass12345",
             question="q",
             answer="secret-answer",
