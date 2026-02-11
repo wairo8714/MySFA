@@ -1,2 +1,1 @@
 """mysfa.management package."""
-
