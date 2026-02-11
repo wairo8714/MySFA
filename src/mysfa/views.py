@@ -313,7 +313,12 @@ def ensure_membership(user, group):
     if not group or not getattr(group, "pk", None):
         return None
 
-    is_member = Group.objects.filter(pk=group.pk, users=user, is_active=True).exists()
+    is_member = GroupMembership.objects.filter(
+        group=group,
+        user=user,
+        is_active=True,
+        user__is_active=True,
+    ).exists()
     if not is_member:
         return None
 
@@ -431,7 +436,6 @@ class TrialStartView(View):
                         demo_group.save(update_fields=["creator"])
 
                     user.groups.add(demo_group)
-                    demo_group.users.add(user)
 
                     GroupMembership.objects.get_or_create(
                         group=demo_group,
@@ -1013,7 +1017,6 @@ class JoinGroupView(View):
                     group = g
 
         request.user.groups.add(group)
-        group.users.add(request.user)
 
         GroupMembership.objects.get_or_create(
             group=group,
@@ -1029,7 +1032,12 @@ class JoinGroupRequestView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
 
-        if request.user in group.users.all():
+        if GroupMembership.objects.filter(
+            group=group,
+            user=request.user,
+            is_active=True,
+            user__is_active=True,
+        ).exists():
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
         if group.custom_id == "72014332" and group.creator_id is None:
@@ -1045,7 +1053,6 @@ class JoinGroupRequestView(View):
                     group = g
 
             request.user.groups.add(group)
-            group.users.add(request.user)
             ensure_membership(request.user, group)
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
@@ -1055,7 +1062,6 @@ class JoinGroupRequestView(View):
             return redirect("mysfa:group_posts", custom_id=group.custom_id)
 
         request.user.groups.add(group)
-        group.users.add(request.user)
 
         GroupMembership.objects.get_or_create(
             group=group,
@@ -1074,7 +1080,6 @@ class ApproveJoinRequestView(View):
         join_request = get_object_or_404(
             JoinRequest, user__custom_user_id=request_id, group=group
         )
-        group.users.add(join_request.user)
         join_request.user.groups.add(group)
 
         GroupMembership.objects.get_or_create(
@@ -1104,17 +1109,21 @@ class LeaveGroupView(View):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
         was_creator = group.creator_id == request.user.pk
         request.user.groups.remove(group)
-        group.users.remove(request.user)
 
-        if was_creator or group.users.count() == 0:
-            with transaction.atomic():
+        with transaction.atomic():
+            # Remove membership (no history)
+            GroupMembership.objects.filter(
+                group=group,
+                user=request.user,
+            ).delete()
+
+            remaining_count = GroupMembership.objects.filter(
+                group=group,
+                is_active=True,
+                user__is_active=True,
+            ).count()
+            if was_creator or remaining_count == 0:
                 _transfer_creator_or_archive(group)
-
-        GroupMembership.objects.filter(
-            group=group,
-            user=request.user,
-            is_active=True,
-        ).update(is_active=False)
 
         return redirect("home")
 
@@ -1144,12 +1153,14 @@ class RemoveMemberView(LoginRequiredMixin, View):
             )
             return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
-        if user_to_remove in group.users.all():
+        if GroupMembership.objects.filter(
+            group=group,
+            user=user_to_remove,
+            is_active=True,
+            user__is_active=True,
+        ).exists():
             user_to_remove.groups.remove(group)
-            group.users.remove(user_to_remove)
-            GroupMembership.objects.filter(
-                group=group, user=user_to_remove, is_active=True
-            ).update(is_active=False)
+            GroupMembership.objects.filter(group=group, user=user_to_remove).delete()
             messages.success(
                 request, f"{user_to_remove.username}をグループから退会させました。"
             )
@@ -1828,7 +1839,6 @@ class CreateGroupView(LoginRequiredMixin, View):
             group.is_locked = request.POST.get("is_locked") == "on"
             group.creator = request.user
             group.save()
-            group.users.add(request.user)
             request.user.groups.add(group)
 
             GroupMembership.objects.get_or_create(
@@ -1904,7 +1914,11 @@ class SearchGroupView(LoginRequiredMixin, View):
     def post(self, request, custom_id):
         group = Group.objects.get(custom_id=custom_id, is_active=True)
         request.user.groups.add(group)
-        group.users.add(request.user)
+        GroupMembership.objects.get_or_create(
+            group=group,
+            user=request.user,
+            defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
+        )
         return redirect("mysfa:timeline")
 
 

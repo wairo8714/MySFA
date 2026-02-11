@@ -36,7 +36,6 @@ def create_group(
     g = Group.objects.create(
         name=name, creator=creator, is_active=is_active, is_locked=is_locked
     )
-    g.users.add(creator)
     GroupMembership.objects.get_or_create(
         group=g,
         user=creator,
@@ -46,7 +45,6 @@ def create_group(
 
 
 def add_member(*, group: Group, user, role: str = GroupMembership.Role.MEMBER):
-    group.users.add(user)
     m, _ = GroupMembership.objects.update_or_create(
         group=group,
         user=user,
