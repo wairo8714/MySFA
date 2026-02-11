@@ -2,7 +2,7 @@ import logging
 import re
 
 from django.contrib import messages
-from django.contrib.auth import logout, get_user_model
+from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
