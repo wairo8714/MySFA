@@ -234,7 +234,7 @@ class DeleteAccountView(View):
                 {"user": fresh_user},
             )
 
-        #グループのcreatorが削除された際は、別のグループメンバーに権限を委譲する
+        # グループのcreatorが削除された際は、別のグループメンバーに権限を委譲する
         from mysfa.models import Group, GroupMembership
 
         User = get_user_model()
@@ -282,4 +282,3 @@ class DeleteAccountView(View):
         logout(request)
         messages.success(request, "アカウントが削除されました。")
         return redirect("home")
-        
