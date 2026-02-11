@@ -259,13 +259,10 @@ class DeleteAccountView(View):
                 group.is_active = False
                 group.save(update_fields=["creator", "is_active"])
 
-        for group in (
-            Group.objects.filter(
-                memberships__user=fresh_user,
-                memberships__is_active=True,
-            )
-            .distinct()
-        ):
+        for group in Group.objects.filter(
+            memberships__user=fresh_user,
+            memberships__is_active=True,
+        ).distinct():
             GroupMembership.objects.filter(
                 group=group,
                 user=fresh_user,

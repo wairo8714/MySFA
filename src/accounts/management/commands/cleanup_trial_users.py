@@ -44,12 +44,8 @@ class Command(BaseCommand):
 
         count = qs.count()
         if dry_run:
-            self.stdout.write(
-                self.style.WARNING(f"[dry-run] 削除対象: {count} 件")
-            )
+            self.stdout.write(self.style.WARNING(f"[dry-run] 削除対象: {count} 件"))
             return
 
         deleted = qs.delete()
-        self.stdout.write(
-            self.style.SUCCESS(f": {count} 件 (内訳={deleted[1]})")
-        )
+        self.stdout.write(self.style.SUCCESS(f": {count} 件 (内訳={deleted[1]})"))
