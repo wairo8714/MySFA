@@ -312,6 +312,7 @@ def _transfer_creator_or_archive(group):
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
 
+
 # OWNER と creator を一致させたい (creator廃止に伴い要改修)
 def ensure_membership(user, group):
     if not user or not getattr(user, "pk", None):
@@ -2435,7 +2436,12 @@ class SalesReportView(View):
                 count=Count("id"),
                 last_created_at=Max("created_at"),
             )
-            .order_by("-count", "-last_created_at", "product__product_code", "product__name")
+            .order_by(
+                "-count",
+                "-last_created_at",
+                "product__product_code",
+                "product__name",
+            )
         )
         customer_rows = list(
             posts.filter(industry__isnull=False)
@@ -2481,7 +2487,11 @@ class SalesReportView(View):
                     "label": "その他",
                     "count": other_product_count,
                     "last_created_at": max(
-                        (item["last_created_at"] for item in other_products if item.get("last_created_at")),
+                        (
+                            item["last_created_at"]
+                            for item in other_products
+                            if item.get("last_created_at")
+                        ),
                         default=None,
                     ),
                 }
@@ -2496,7 +2506,11 @@ class SalesReportView(View):
                     "customer_category": "その他",
                     "count": other_customer_count,
                     "last_created_at": max(
-                        (item["last_created_at"] for item in other_customers if item.get("last_created_at")),
+                        (
+                            item["last_created_at"]
+                            for item in other_customers
+                            if item.get("last_created_at")
+                        ),
                         default=None,
                     ),
                 }
