@@ -288,6 +288,7 @@ def _transfer_creator_or_archive(group):
             .first()
         )
 
+    # creatorとOWNERで二重管理状態になっている OWNERを正とした構成に変更予定
     if candidate:
         qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(
             role=GroupMembership.Role.ADMIN
@@ -301,6 +302,8 @@ def _transfer_creator_or_archive(group):
         return
 
     group.creator = None
+    # id:72014332 = demo用グループ(アーカイブ化させないため)
+    # Groupにis_demoフラグを追加し、ハードコーディング回避の設定予定
     if getattr(group, "custom_id", None) == "72014332":
         group.is_active = True
         group.save(update_fields=["creator", "is_active"])
@@ -309,7 +312,7 @@ def _transfer_creator_or_archive(group):
     group.is_active = False
     group.save(update_fields=["creator", "is_active"])
 
-
+# OWNER と creator を一致させたい (creator廃止に伴い要改修)
 def ensure_membership(user, group):
     if not user or not getattr(user, "pk", None):
         return None
