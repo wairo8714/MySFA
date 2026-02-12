@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",
+    BASE_DIR.parent / "docs",
 ]
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-replace-with-your-own-key")
