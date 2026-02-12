@@ -11,7 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -2427,59 +2427,86 @@ class SalesReportView(View):
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
         posts = posts.filter(status__in=[Post.Status.ADOPTED])
-        product_data = list(
+
+        product_rows = list(
             posts.filter(product__isnull=False)
             .values("product__product_code", "product__name")
-            .annotate(count=Count("id"))
-            .order_by("-count")
+            .annotate(
+                count=Count("id"),
+                last_created_at=Max("created_at"),
+            )
+            .order_by("-count", "-last_created_at", "product__product_code", "product__name")
         )
-        customer_data = list(
+        customer_rows = list(
             posts.filter(industry__isnull=False)
             .values("industry__name")
-            .annotate(count=Count("id"))
-            .order_by("-count")
+            .annotate(
+                count=Count("id"),
+                last_created_at=Max("created_at"),
+            )
+            .order_by("-count", "-last_created_at", "industry__name")
         )
 
-        product_data = [
+        product_breakdown = [
             {
                 "product_name": x["product__name"],
                 "product_code": x["product__product_code"],
                 "label": x["product__name"],
                 "count": x["count"],
+                "last_created_at": x["last_created_at"].isoformat()
+                if x.get("last_created_at")
+                else None,
             }
-            for x in product_data
+            for x in product_rows
         ]
-        customer_data = [
-            {"customer_category": x["industry__name"], "count": x["count"]}
-            for x in customer_data
+        customer_breakdown = [
+            {
+                "customer_category": x["industry__name"],
+                "count": x["count"],
+                "last_created_at": x["last_created_at"].isoformat()
+                if x.get("last_created_at")
+                else None,
+            }
+            for x in customer_rows
         ]
 
-        if len(product_data) > 5:
-            top_products = product_data[:5]
-            other_count = sum(item["count"] for item in product_data[5:])
-            if other_count > 0:
-                top_products.append(
-                    {
-                        "product_name": "その他",
-                        "product_code": "",
-                        "label": "その他",
-                        "count": other_count,
-                    }
-                )
-            product_data = top_products
+        top_products = product_breakdown[:5]
+        other_products = product_breakdown[5:]
+        other_product_count = sum(item["count"] for item in other_products)
+        if other_product_count > 0:
+            top_products = top_products + [
+                {
+                    "product_name": "その他",
+                    "product_code": "",
+                    "label": "その他",
+                    "count": other_product_count,
+                    "last_created_at": max(
+                        (item["last_created_at"] for item in other_products if item.get("last_created_at")),
+                        default=None,
+                    ),
+                }
+            ]
 
-        if len(customer_data) > 5:
-            top_customers = customer_data[:5]
-            other_count = sum(item["count"] for item in customer_data[5:])
-            if other_count > 0:
-                top_customers.append(
-                    {"customer_category": "その他", "count": other_count}
-                )
-            customer_data = top_customers
+        top_customers = customer_breakdown[:5]
+        other_customers = customer_breakdown[5:]
+        other_customer_count = sum(item["count"] for item in other_customers)
+        if other_customer_count > 0:
+            top_customers = top_customers + [
+                {
+                    "customer_category": "その他",
+                    "count": other_customer_count,
+                    "last_created_at": max(
+                        (item["last_created_at"] for item in other_customers if item.get("last_created_at")),
+                        default=None,
+                    ),
+                }
+            ]
 
         response_data = {
-            "product_data": product_data,
-            "customer_data": customer_data,
+            "product_data": top_products,
+            "customer_data": top_customers,
+            "product_other_breakdown": other_products,
+            "customer_other_breakdown": other_customers,
             "start_date": start_date_str,
             "end_date": end_date_str,
             "total_posts": posts.count(),

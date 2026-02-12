@@ -1,6 +1,16 @@
 let productChart = null;
 let customerChart = null;
 
+function getReportGroupCustomId() {
+  const path = window.location.pathname || "";
+  const m2 = path.match(/^\/mysfa\/group\/([^/]+)\/?/);
+  if (m2 && m2[1]) return m2[1];
+
+  const params = new URLSearchParams(window.location.search || "");
+  const customId = params.get("custom_id");
+  return customId || "";
+}
+
 function getSalesReportEmptyImageUrl() {
   const el = document.querySelector(".sales-report-assets[data-sales-report-empty-image]");
   const url = el?.getAttribute?.("data-sales-report-empty-image");
@@ -64,12 +74,16 @@ function clearCharts() {
 
 function getSalesReportUrl(startDate, endDate) {
   const path = window.location.pathname || "";
+  const params = new URLSearchParams(window.location.search || "");
+  const selectedGroupCustomId = params.get("custom_id") || "";
 
   const m1 = path.match(/^\/mysfa\/mypost\/([^/]+)\/?/);
   if (m1 && m1[1]) {
     return `/mysfa/sales-report/${encodeURIComponent(m1[1])}/?start_date=${encodeURIComponent(
       startDate
-    )}&end_date=${encodeURIComponent(endDate)}`;
+    )}&end_date=${encodeURIComponent(endDate)}${
+      selectedGroupCustomId ? `&custom_id=${encodeURIComponent(selectedGroupCustomId)}` : ""
+    }`;
   }
 
   const m2 = path.match(/^\/mysfa\/group\/([^/]+)\/?/);
@@ -128,6 +142,12 @@ function loadSalesReport() {
 
       const productData = Array.isArray(data.product_data) ? data.product_data : [];
       const customerData = Array.isArray(data.customer_data) ? data.customer_data : [];
+      const productOther = Array.isArray(data.product_other_breakdown)
+        ? data.product_other_breakdown
+        : [];
+      const customerOther = Array.isArray(data.customer_other_breakdown)
+        ? data.customer_other_breakdown
+        : [];
 
       const normalizeProductName = (s) => {
         const raw = String(s || "").trim();
@@ -148,12 +168,14 @@ function loadSalesReport() {
 
       if (!normalized.labels.length && !normalized.customer_labels.length) {
         clearCharts();
+        renderBreakdowns([], []);
         setSalesReportEmptyMessage(true);
         return;
       }
 
       setSalesReportEmptyMessage(false);
       updateCharts(normalized);
+      renderBreakdowns(productOther, customerOther);
     })
     .catch(() => {});
 }
@@ -173,11 +195,11 @@ function updateCharts(data) {
   if (customerChart) customerChart.destroy();
 
   const colors = ["#2FBFD6", "#18ABCC", "#1399CF", "#1081C7", "#084F8C"];
-  const makeColors = (n) => {
-    const base = colors.slice(0, Math.max(0, n));
-    if (base.length >= n) return base;
-    return base.concat(Array.from({ length: n - base.length }, () => colors[colors.length - 1]));
-  };
+  const otherColor = "#94a3b8";
+  const makeColorsForLabels = (labels) =>
+    (labels || []).map((label, i) =>
+      String(label || "") === "その他" ? otherColor : colors[i % colors.length]
+    );
 
   // 商品別
   productChart = new Chart(productCtx, {
@@ -188,7 +210,7 @@ function updateCharts(data) {
         {
           label: "商品別売上",
           data: data.values,
-          backgroundColor: makeColors((data.labels || []).length),
+          backgroundColor: makeColorsForLabels(data.labels || []),
         },
       ],
     },
@@ -209,7 +231,7 @@ function updateCharts(data) {
         {
           label: "業態別売上",
           data: data.customer_values || [],
-          backgroundColor: makeColors((data.customer_labels || []).length),
+          backgroundColor: makeColorsForLabels(data.customer_labels || []),
         },
       ],
     },
@@ -225,6 +247,138 @@ function updateCharts(data) {
   if (chartsContainer) chartsContainer.style.display = "";
   const section = document.querySelector(".sales-report-section");
   if (section) section.classList.remove("is-empty");
+}
+
+function renderBreakdowns(productOther, customerOther) {
+  const groupCustomId = getReportGroupCustomId();
+
+  const ensureDetails = (wrapper, kind) => {
+    if (!wrapper) return null;
+    const id = `sales-report-breakdown-${kind}`;
+    let el = wrapper.querySelector(`#${id}`);
+    if (!el) {
+      el = document.createElement("details");
+      el.id = id;
+      el.className = "sales-report-breakdown";
+      el.open = false;
+
+      const summary = document.createElement("summary");
+      summary.className = "sales-report-breakdown__summary";
+      summary.textContent = "その他の内訳";
+      el.appendChild(summary);
+
+      const ul = document.createElement("ul");
+      ul.className = "sales-report-breakdown__list";
+      el.appendChild(ul);
+
+      wrapper.appendChild(el);
+    }
+    return el;
+  };
+
+  const renderList = (detailsEl, items, makeRow) => {
+    if (!detailsEl) return;
+    const ul = detailsEl.querySelector(".sales-report-breakdown__list");
+    const summary = detailsEl.querySelector(".sales-report-breakdown__summary");
+    if (!ul || !summary) return;
+
+    ul.innerHTML = "";
+
+    if (!items || !items.length) {
+      detailsEl.style.display = "none";
+      return;
+    }
+
+    detailsEl.style.display = "";
+    const total = items.reduce((acc, x) => acc + (Number(x?.count) || 0), 0);
+    summary.textContent = `その他の内訳（${items.length}件 / 合計${total}）`;
+
+    items.forEach((x) => {
+      const li = makeRow(x);
+      if (li) ul.appendChild(li);
+    });
+  };
+
+  const productWrapper = document.getElementById("product-chart")?.closest(".chart-wrapper");
+  const customerWrapper = document.getElementById("customer-chart")?.closest(".chart-wrapper");
+
+  const productDetails = ensureDetails(productWrapper, "product");
+  renderList(productDetails, productOther, (x) => {
+    const name = String(x?.product_name || x?.label || "").trim();
+    const code = String(x?.product_code || "").trim();
+    const count = Number(x?.count) || 0;
+    if (!name) return null;
+
+    const q = (code ? `${code} ${name}` : name).trim();
+    const params = new URLSearchParams();
+    params.set("q", q);
+    params.set("match", "exact");
+    if (groupCustomId) params.set("group", groupCustomId);
+
+    const li = document.createElement("li");
+    li.className = "sales-report-breakdown__item";
+
+    const left = document.createElement("div");
+    left.className = "sales-report-breakdown__left";
+    left.textContent = code ? `${code} ${name}` : name;
+
+    const right = document.createElement("div");
+    right.className = "sales-report-breakdown__right";
+
+    const badge = document.createElement("span");
+    badge.className = "sales-report-breakdown__count";
+    badge.textContent = String(count);
+
+    const link = document.createElement("a");
+    link.className = "sales-report-breakdown__link";
+    link.href = `/mysfa/search_products/?${params.toString()}`;
+    link.textContent = "見る";
+
+    right.appendChild(badge);
+    right.appendChild(link);
+
+    li.appendChild(left);
+    li.appendChild(right);
+    return li;
+  });
+
+  const customerDetails = ensureDetails(customerWrapper, "customer");
+  renderList(customerDetails, customerOther, (x) => {
+    const name = String(x?.customer_category || "").trim();
+    const count = Number(x?.count) || 0;
+    if (!name) return null;
+
+    const params = new URLSearchParams();
+    params.set("q", name);
+    params.set("match", "exact");
+    if (groupCustomId) params.set("group", groupCustomId);
+
+    const li = document.createElement("li");
+    li.className = "sales-report-breakdown__item";
+
+    const left = document.createElement("div");
+    left.className = "sales-report-breakdown__left";
+    left.textContent = name;
+
+    const right = document.createElement("div");
+    right.className = "sales-report-breakdown__right";
+
+    const badge = document.createElement("span");
+    badge.className = "sales-report-breakdown__count";
+    badge.textContent = String(count);
+
+    const link = document.createElement("a");
+    link.className = "sales-report-breakdown__link";
+    link.href = `/mysfa/search_customers/?${params.toString()}`;
+    link.textContent = "見る";
+
+    right.appendChild(badge);
+    right.appendChild(link);
+
+    li.appendChild(left);
+    li.appendChild(right);
+    return li;
+  });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
