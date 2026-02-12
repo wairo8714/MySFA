@@ -82,6 +82,7 @@ def _validate_product_csv(group, file_obj):
     import io
     import unicodedata
 
+    # アップロードされたcsvファイルを一度 bytes のまま受ける
     raw = file_obj.read()
 
     def _decode_bytes(b: bytes) -> str:
@@ -136,6 +137,8 @@ def _validate_product_csv(group, file_obj):
 
     headers = PRODUCT_CSV_HEADERS
     reader = (
+        # 列番号依存解消/可読性を上げる為、CSV行を「ヘッダー名→値」の辞書に変換
+        # NULL列の空欄保管/余剰列の切り捨てでエラー防止
         dict(zip(headers, (row + [""] * len(headers))[: len(headers)]))
         for row in csv_reader
     )
@@ -145,6 +148,7 @@ def _validate_product_csv(group, file_obj):
     seen_codes = set()
     total = 0
 
+    # csv2行目からエラー行探索させる(1行目はヘッダー)
     for i, row in enumerate(reader, start=2):
         if not row or all((v or "").strip() == "" for v in row.values()):
             continue
@@ -218,7 +222,6 @@ def _validate_product_csv(group, file_obj):
             ).values_list("product_code", flat=True)
         )
         if active_exists:
-            # codesに紐付く各行にエラー付け
             for idx, p in enumerate(valid_payloads):
                 if p["product_code"] in active_exists:
                     errors.append(
