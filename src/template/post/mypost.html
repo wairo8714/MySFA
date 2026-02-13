@@ -69,12 +69,35 @@
 <div class="sales-report-section">
     <h2>営業成果レポート</h2>
     <div class="sales-report-assets" data-sales-report-empty-image="{% static 'images/error.png' %}" hidden></div>
-    <div class="date-range-selector">
-        <label for="start-date">開始日:</label>
-        <input type="date" id="start-date" name="start-date">
-        <label for="end-date">終了日:</label>
-        <input type="date" id="end-date" name="end-date">
-        <button id="update-report" class="btn btn-primary">更新</button>
+    <div class="date-range-selector sales-report-controls">
+        <label for="start-date" class="sales-report-controls__label">期間</label>
+        <div class="sales-report-controls__range">
+            <input type="date" id="start-date" name="start-date">
+            <span class="sales-report-controls__range-sep">〜</span>
+            <input type="date" id="end-date" name="end-date">
+        </div>
+        <label for="report-status" class="sr-only">ステータス</label>
+        <select id="report-status" name="report-status">
+            <option value="" {% if not request.GET.report_status %}selected{% endif %}>採用</option>
+            <option value="all" {% if request.GET.report_status == "all" %}selected{% endif %}>全て</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if request.GET.report_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <label for="report-top-n" class="sr-only">表示件数</label>
+        <select id="report-top-n" name="report-top-n">
+            <option value="" {% if not request.GET.report_top_n %}selected{% endif %}>上位5</option>
+            <option value="10" {% if request.GET.report_top_n == "10" %}selected{% endif %}>上位10</option>
+            <option value="15" {% if request.GET.report_top_n == "15" %}selected{% endif %}>上位15</option>
+            <option value="20" {% if request.GET.report_top_n == "20" %}selected{% endif %}>上位20</option>
+        </select>
+        <label for="report-sort" class="sr-only">並び順</label>
+        <select id="report-sort" name="report-sort">
+            <option value="" {% if not request.GET.report_sort %}selected{% endif %}>投稿数が多い順</option>
+            <option value="new" {% if request.GET.report_sort == "new" %}selected{% endif %}>新しい順</option>
+            <option value="old" {% if request.GET.report_sort == "old" %}selected{% endif %}>古い順</option>
+        </select>
+        <button id="update-report" class="btn btn-primary sales-report-controls__btn">更新</button>
     </div>
     <div class="charts-container">
         <div class="chart-wrapper">
@@ -90,19 +113,29 @@
 
 <div class="post-list">
     <h2>{{ displayed_user.username }}さんの投稿一覧</h2>
-    {% if current_user == displayed_user %}
     <div class="filter-form" id="filter-form-in-mypost">
         <form method="get" action="{% url 'mysfa:mypost' displayed_user.custom_user_id %}">
-            <label for="group">グループで絞り込む:</label>
+            <label for="group" class="sr-only">グループ</label>
             <select name="custom_id" id="group" onchange="this.form.submit()">
                 <option value="">全てのグループ</option>
                 {% for group in user_groups %}
                     <option value="{{ group.custom_id }}" {% if group.custom_id == request.GET.custom_id %}selected{% endif %}>{{ group.name }}</option>
                 {% endfor %}
             </select>
+            <label for="status">ステータス:</label>
+            <select name="status" id="status" onchange="this.form.submit()">
+                <option value="" {% if not selected_status %}selected{% endif %}>全て</option>
+                {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if value == selected_status %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <label for="sort" class="sr-only">並び順</label>
+            <select name="sort" id="sort" onchange="this.form.submit()">
+                <option value="" {% if not selected_sort %}selected{% endif %}>新しい順</option>
+                <option value="group" {% if selected_sort == "group" %}selected{% endif %}>所属グループ順</option>
+            </select>
         </form>
     </div>
-    {% endif %}
     <div class="timeline-container" style="margin-top: 20px;">
         {% if object_list %}
             {% for post in object_list %}
@@ -220,25 +253,25 @@
 <div class="pagination">
     <span class="step-links">
         {% if object_list.has_previous %}
-            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page=1" aria-label="最初のページ">&laquo;</a>
-            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.previous_page_number }}" aria-label="前のページ">‹</a>
+            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page=1{% if query_params %}&{{ query_params }}{% endif %}" aria-label="最初のページ">&laquo;</a>
+            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="前のページ">‹</a>
         {% endif %}
 
         {% for page_num in object_list.paginator.page_range %}
             {% if page_num == object_list.number %}
                 <span class="page-number current">{{ page_num }}</span>
             {% elif page_num > object_list.number|add:'-3' and page_num < object_list.number|add:'3' %}
-                <a href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
+                <a href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ page_num }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number">{{ page_num }}</a>
             {% elif page_num == 1 or page_num == object_list.paginator.num_pages %}
-                <a href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ page_num }}" class="page-number">{{ page_num }}</a>
+                <a href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ page_num }}{% if query_params %}&{{ query_params }}{% endif %}" class="page-number">{{ page_num }}</a>
             {% elif page_num == object_list.number|add:'-3' or page_num == object_list.number|add:'3' %}
                 <span class="page-ellipsis">...</span>
             {% endif %}
         {% endfor %}
 
         {% if object_list.has_next %}
-            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.next_page_number }}" aria-label="次のページ">›</a>
-            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.paginator.num_pages }}" aria-label="最後のページ">&raquo;</a>
+            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="次のページ">›</a>
+            <a class="page-number" href="{% url 'mysfa:mypost' displayed_user.custom_user_id %}?page={{ object_list.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="最後のページ">&raquo;</a>
         {% endif %}
     </span>
 </div>

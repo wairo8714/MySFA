@@ -1740,6 +1740,13 @@
         outline: none;
     }
 
+    .filter-form form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px 14px;
+    }
+
     .timeline-container {
         width: 80%; 
         max-width: 920px;
@@ -4952,6 +4959,22 @@
         cursor: pointer;
     }
 
+    .date-range-selector select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .date-range-selector select:hover,
+    .date-range-selector select:focus {
+        border-color: #39AEC8;
+        box-shadow: 0 0 0 3px rgba(57, 174, 200, 0.18);
+        outline: none;
+    }
+
     .date-range-selector button {
         padding: 8px 20px;
         background-color: #3AADC8;
@@ -4967,6 +4990,51 @@
 
     .date-range-selector button:hover {
         background-color: #2d8ba3;
+    }
+
+    .sales-report-controls {
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .sales-report-controls__label {
+        font-weight: 900;
+        color: #0f172a;
+        margin-right: 2px;
+        white-space: nowrap;
+    }
+
+    .sales-report-controls__range {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sales-report-controls__range-sep {
+        font-weight: 900;
+        color: #64748b;
+        user-select: none;
+        white-space: nowrap;
+    }
+
+    .sales-report-controls input[type="date"],
+    .sales-report-controls select,
+    .sales-report-controls__btn {
+        height: 36px;
+    }
+
+    .sales-report-controls input[type="date"],
+    .sales-report-controls select {
+        padding: 6px 10px;
+        border-radius: 9999px;
+        font-size: 13px;
+    }
+
+    .sales-report-controls__btn {
+        padding: 0 16px;
+        border-radius: 9999px;
+        font-size: 13px;
+        min-width: auto;
     }
 
     .charts-container {
@@ -4988,11 +5056,10 @@
         margin: 15px;
         text-align: center;
         min-height: 400px;
-        max-height: 500px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        overflow: hidden;
+        overflow: visible;
     }
 
     .chart-wrapper h3 {
@@ -5045,6 +5112,14 @@
         gap: 6px;
     }
 
+    .sales-report-breakdown--toplist .sales-report-breakdown__list {
+        max-height: 460px;
+        overflow-y: auto;
+        padding-right: 6px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: stable;
+    }
+
     .sales-report-breakdown__item {
         display: flex;
         align-items: center;
@@ -5063,18 +5138,69 @@
         white-space: nowrap;
     }
 
+    .sales-report-breakdown__name-link {
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        gap: 0;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+    }
+
+    .sales-report-breakdown__name-link:hover {
+        opacity: 0.78;
+    }
+
+    .sales-report-breakdown__name-link:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(57, 174, 200, 0.18);
+        border-radius: 10px;
+    }
+
+    .sales-report-breakdown__swatch {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 9999px;
+        flex: 0 0 auto;
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
+        margin-right: 8px;
+        transform: translateY(1px);
+    }
+
+    .sales-report-breakdown__tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 22px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 900;
+        color: #475569;
+        background: rgba(148, 163, 184, 0.22);
+        border: 1px solid rgba(148, 163, 184, 0.34);
+        white-space: nowrap;
+    }
+
+    .sales-report-breakdown--toplist .sales-report-breakdown__summary {
+        text-align: center;
+    }
+
     .sales-report-breakdown__right {
         display: inline-flex;
         align-items: center;
         gap: 8px;
         flex-shrink: 0;
+        justify-content: flex-end;
     }
 
     .sales-report-breakdown__count {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 34px;
+        min-width: 44px;
         height: 26px;
         padding: 0 10px;
         border-radius: 999px;
