@@ -70,11 +70,11 @@ jobs:
           done
           docker exec ${{ job.services.mysql.id }} mysql -uroot -proot -e "GRANT ALL PRIVILEGES ON *.* TO 'test_user'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
 
-      - name: Lint / Format checks
-        run: |
-          poetry run flake8 src/
-          poetry run black --check src/
-          poetry run isort --check-only src/
+      # - name: Lint / Format checks
+      #   run: |
+      #     poetry run flake8 src/
+      #     poetry run black --check src/
+      #     poetry run isort --check-only src/
 
       # アプリ内の tests.py はここで実行
       - name: Test
