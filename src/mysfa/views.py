@@ -11,7 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -82,6 +82,7 @@ def _validate_product_csv(group, file_obj):
     import io
     import unicodedata
 
+    # アップロードされたcsvファイルを一度 bytes のまま受ける
     raw = file_obj.read()
 
     def _decode_bytes(b: bytes) -> str:
@@ -136,6 +137,8 @@ def _validate_product_csv(group, file_obj):
 
     headers = PRODUCT_CSV_HEADERS
     reader = (
+        # 列番号依存解消/可読性を上げる為、CSV行を「ヘッダー名→値」の辞書に変換
+        # NULL列の空欄保管/余剰列の切り捨てでエラー防止
         dict(zip(headers, (row + [""] * len(headers))[: len(headers)]))
         for row in csv_reader
     )
@@ -145,6 +148,7 @@ def _validate_product_csv(group, file_obj):
     seen_codes = set()
     total = 0
 
+    # csv2行目からエラー行探索させる(1行目はヘッダー)
     for i, row in enumerate(reader, start=2):
         if not row or all((v or "").strip() == "" for v in row.values()):
             continue
@@ -218,7 +222,6 @@ def _validate_product_csv(group, file_obj):
             ).values_list("product_code", flat=True)
         )
         if active_exists:
-            # codesに紐付く各行にエラー付け
             for idx, p in enumerate(valid_payloads):
                 if p["product_code"] in active_exists:
                     errors.append(
@@ -285,6 +288,7 @@ def _transfer_creator_or_archive(group):
             .first()
         )
 
+    # creatorとOWNERで二重管理状態になっている OWNERを正とした構成に変更予定
     if candidate:
         qs.filter(role=GroupMembership.Role.OWNER).exclude(id=candidate.id).update(
             role=GroupMembership.Role.ADMIN
@@ -298,6 +302,8 @@ def _transfer_creator_or_archive(group):
         return
 
     group.creator = None
+    # id:72014332 = demo用グループ(アーカイブ化させないため)
+    # Groupにis_demoフラグを追加し、ハードコーディング回避の設定予定
     if getattr(group, "custom_id", None) == "72014332":
         group.is_active = True
         group.save(update_fields=["creator", "is_active"])
@@ -307,6 +313,7 @@ def _transfer_creator_or_archive(group):
     group.save(update_fields=["creator", "is_active"])
 
 
+# OWNER と creator を一致させたい (creator廃止に伴い要改修)
 def ensure_membership(user, group):
     if not user or not getattr(user, "pk", None):
         return None
@@ -685,11 +692,25 @@ class MyPost(LoginRequiredMixin, ListView):
 
         custom_id = self.request.GET.get("custom_id")
         if custom_id:
-            try:
-                group = Group.objects.get(custom_id=custom_id, is_active=True)
-                queryset = queryset.filter(group=group)
-            except Group.DoesNotExist:
-                queryset = Post.objects.none()
+            group = Group.objects.filter(
+                custom_id=custom_id,
+                is_active=True,
+                users=user,
+            ).first()
+            if not group:
+                return Post.objects.none()
+            queryset = queryset.filter(group=group)
+
+        status = (self.request.GET.get("status") or "").strip()
+        allowed_statuses = {s for s, _label in Post.Status.choices}
+        if status and status in allowed_statuses:
+            queryset = queryset.filter(status=status)
+
+        sort = (self.request.GET.get("sort") or "").strip()
+        if sort == "group":
+            queryset = queryset.order_by("group__name", "-created_at", "-id")
+        else:
+            queryset = queryset.order_by("-created_at", "-id")
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -709,6 +730,9 @@ class MyPost(LoginRequiredMixin, ListView):
             users=context["displayed_user"], is_active=True
         )
         context["user_groups"] = user_groups
+        context["status_choices"] = list(Post.Status.choices)
+        context["selected_status"] = (self.request.GET.get("status") or "").strip()
+        context["selected_sort"] = (self.request.GET.get("sort") or "").strip()
 
         queryset = self.get_queryset()
         paginator = Paginator(queryset, self.paginate_by)
@@ -722,6 +746,12 @@ class MyPost(LoginRequiredMixin, ListView):
 
         context["object_list"] = object_list
         context["object_list_class_name"] = object_list.__class__.__name__
+        context["posts"] = object_list
+
+        params = self.request.GET.copy()
+        if "page" in params:
+            params.pop("page")
+        context["query_params"] = params.urlencode()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -780,12 +810,24 @@ class GroupPost(LoginRequiredMixin, ListView):
         group = get_object_or_404(
             Group, custom_id=self.kwargs["custom_id"], is_active=True
         )
-        return (
+        qs = (
             Post.objects.filter(group=group)
             .select_related("user", "group", "product", "industry")
             .prefetch_related("comments__author")
             .distinct()
         )
+
+        status = (self.request.GET.get("status") or "").strip()
+        allowed_statuses = {s for s, _label in Post.Status.choices}
+        if status and status in allowed_statuses:
+            qs = qs.filter(status=status)
+
+        sort = (self.request.GET.get("sort") or "").strip()
+        if sort == "member":
+            qs = qs.order_by("user__username", "-created_at", "-id")
+        else:
+            qs = qs.order_by("-created_at", "-id")
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -826,6 +868,9 @@ class GroupPost(LoginRequiredMixin, ListView):
             user=user, group=group
         ).exists()
         context["join_requests"] = JoinRequest.objects.filter(group=group)
+        context["status_choices"] = list(Post.Status.choices)
+        context["selected_status"] = (self.request.GET.get("status") or "").strip()
+        context["selected_sort"] = (self.request.GET.get("sort") or "").strip()
 
         queryset = self.get_queryset()
         paginator = Paginator(queryset, self.paginate_by)
@@ -839,6 +884,12 @@ class GroupPost(LoginRequiredMixin, ListView):
 
         context["object_list"] = object_list
         context["object_list_class_name"] = object_list.__class__.__name__
+        context["posts"] = object_list
+
+        params = self.request.GET.copy()
+        if "page" in params:
+            params.pop("page")
+        context["query_params"] = params.urlencode()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -2357,11 +2408,15 @@ class PostCommentDeleteView(View):
 
 
 @method_decorator(login_required, name="dispatch")
-class SalesReportView(View):
+class SalesReportView(LoginRequiredMixin, View):
     def get(self, request, user_id=None, group_id=None):
         start_date_str = request.GET.get("start_date")
         end_date_str = request.GET.get("end_date")
         selected_group_id = request.GET.get("custom_id")
+        report_status_raw = (request.GET.get("report_status") or "").strip()
+        status_fallback = (request.GET.get("status") or "").strip()
+        report_sort = (request.GET.get("report_sort") or "").strip()
+        report_top_n_raw = (request.GET.get("report_top_n") or "").strip()
 
         if not start_date_str or not end_date_str:
             return JsonResponse({"error": "開始日と終了日が必要です"}, status=400)
@@ -2383,6 +2438,9 @@ class SalesReportView(View):
         if group_id:
             try:
                 group = Group.objects.get(custom_id=group_id, is_active=True)
+                is_member = group.users.filter(pk=request.user.pk).exists()
+                if group.is_locked and not is_member:
+                    return JsonResponse({"error": "権限がありません"}, status=403)
                 posts = Post.objects.filter(
                     group=group,
                     created_at__date__gte=start_date,
@@ -2397,7 +2455,9 @@ class SalesReportView(View):
                 if selected_group_id:
                     try:
                         selected_group = Group.objects.get(
-                            custom_id=selected_group_id, is_active=True
+                            custom_id=selected_group_id,
+                            is_active=True,
+                            users=user,
                         )
                         posts = Post.objects.filter(
                             user=user,
@@ -2412,6 +2472,7 @@ class SalesReportView(View):
                 else:
                     user_groups = Group.objects.filter(users=user, is_active=True)
                     posts = Post.objects.filter(
+                        user=user,
                         group__in=user_groups,
                         created_at__date__gte=start_date,
                         created_at__date__lte=end_date,
@@ -2420,60 +2481,153 @@ class SalesReportView(View):
             except CustomUser.DoesNotExist:
                 return JsonResponse({"error": "ユーザーが見つかりません"}, status=404)
 
-        posts = posts.filter(status__in=[Post.Status.ADOPTED])
-        product_data = list(
+        allowed_statuses = {s for s, _label in Post.Status.choices}
+        effective_status = report_status_raw or status_fallback
+        if effective_status == "all":
+            pass
+        elif effective_status and effective_status in allowed_statuses:
+            posts = posts.filter(status=effective_status)
+        else:
+            posts = posts.filter(status__in=[Post.Status.ADOPTED])
+
+        try:
+            report_top_n = int(report_top_n_raw) if report_top_n_raw else 5
+        except (TypeError, ValueError):
+            report_top_n = 5
+        report_top_n = max(3, min(report_top_n, 20))
+
+        product_qs = (
             posts.filter(product__isnull=False)
             .values("product__product_code", "product__name")
-            .annotate(count=Count("id"))
-            .order_by("-count")
+            .annotate(
+                count=Count("id"),
+                last_created_at=Max("created_at"),
+            )
+            .order_by()
         )
-        customer_data = list(
+        customer_qs = (
             posts.filter(industry__isnull=False)
             .values("industry__name")
-            .annotate(count=Count("id"))
-            .order_by("-count")
+            .annotate(
+                count=Count("id"),
+                last_created_at=Max("created_at"),
+            )
+            .order_by()
         )
 
-        product_data = [
+        if report_sort == "new":
+            product_qs = product_qs.order_by(
+                "-last_created_at",
+                "-count",
+                "product__product_code",
+                "product__name",
+            )
+            customer_qs = customer_qs.order_by(
+                "-last_created_at",
+                "-count",
+                "industry__name",
+            )
+        elif report_sort == "old":
+            product_qs = product_qs.order_by(
+                "last_created_at",
+                "-count",
+                "product__product_code",
+                "product__name",
+            )
+            customer_qs = customer_qs.order_by(
+                "last_created_at",
+                "-count",
+                "industry__name",
+            )
+        else:
+            product_qs = product_qs.order_by(
+                "-count",
+                "-last_created_at",
+                "product__product_code",
+                "product__name",
+            )
+            customer_qs = customer_qs.order_by(
+                "-count",
+                "-last_created_at",
+                "industry__name",
+            )
+
+        product_rows = list(product_qs)
+        customer_rows = list(customer_qs)
+
+        product_breakdown = [
             {
                 "product_name": x["product__name"],
                 "product_code": x["product__product_code"],
                 "label": x["product__name"],
                 "count": x["count"],
+                "last_created_at": (
+                    x["last_created_at"].isoformat()
+                    if x.get("last_created_at")
+                    else None
+                ),
             }
-            for x in product_data
+            for x in product_rows
         ]
-        customer_data = [
-            {"customer_category": x["industry__name"], "count": x["count"]}
-            for x in customer_data
+        customer_breakdown = [
+            {
+                "customer_category": x["industry__name"],
+                "count": x["count"],
+                "last_created_at": (
+                    x["last_created_at"].isoformat()
+                    if x.get("last_created_at")
+                    else None
+                ),
+            }
+            for x in customer_rows
         ]
 
-        if len(product_data) > 5:
-            top_products = product_data[:5]
-            other_count = sum(item["count"] for item in product_data[5:])
-            if other_count > 0:
-                top_products.append(
-                    {
-                        "product_name": "その他",
-                        "product_code": "",
-                        "label": "その他",
-                        "count": other_count,
-                    }
-                )
-            product_data = top_products
+        top_products = product_breakdown[:report_top_n]
+        other_products = product_breakdown[report_top_n:]
+        other_product_count = sum(item["count"] for item in other_products)
+        if other_product_count > 0:
+            top_products = top_products + [
+                {
+                    "product_name": "その他",
+                    "product_code": "",
+                    "label": "その他",
+                    "count": other_product_count,
+                    "last_created_at": max(
+                        (
+                            item["last_created_at"]
+                            for item in other_products
+                            if item.get("last_created_at")
+                        ),
+                        default=None,
+                    ),
+                }
+            ]
 
-        if len(customer_data) > 5:
-            top_customers = customer_data[:5]
-            other_count = sum(item["count"] for item in customer_data[5:])
-            if other_count > 0:
-                top_customers.append(
-                    {"customer_category": "その他", "count": other_count}
-                )
-            customer_data = top_customers
+        top_customers = customer_breakdown[:report_top_n]
+        other_customers = customer_breakdown[report_top_n:]
+        other_customer_count = sum(item["count"] for item in other_customers)
+        if other_customer_count > 0:
+            top_customers = top_customers + [
+                {
+                    "customer_category": "その他",
+                    "count": other_customer_count,
+                    "last_created_at": max(
+                        (
+                            item["last_created_at"]
+                            for item in other_customers
+                            if item.get("last_created_at")
+                        ),
+                        default=None,
+                    ),
+                }
+            ]
 
         response_data = {
-            "product_data": product_data,
-            "customer_data": customer_data,
+            "product_data": top_products,
+            "customer_data": top_customers,
+            "product_other_breakdown": other_products,
+            "customer_other_breakdown": other_customers,
+            "report_top_n": report_top_n,
             "start_date": start_date_str,
             "end_date": end_date_str,
             "total_posts": posts.count(),
