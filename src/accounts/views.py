@@ -4,6 +4,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.hashers import check_password
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -239,42 +240,44 @@ class DeleteAccountView(View):
 
         User = get_user_model()
 
-        for group in Group.objects.filter(creator=fresh_user):
-            members = (
-                User.objects.filter(
-                    groupmembership__group=group,
-                    groupmembership__is_active=True,
+        with transaction.atomic():
+            for group in Group.objects.filter(creator=fresh_user):
+                members = (
+                    User.objects.filter(
+                        group_memberships__group=group,
+                        group_memberships__is_active=True,
+                    )
+                    .exclude(pk=fresh_user.pk)
+                    .order_by("custom_user_id")
+                    .distinct()
                 )
-                .exclude(pk=fresh_user.pk)
-                .order_by("custom_user_id")
-                .distinct()
-            )
 
-            if members.exists():
-                group.creator = members.first()
-                group.is_active = True
-                group.save(update_fields=["creator", "is_active"])
-            else:
-                group.creator = None
-                group.is_active = False
-                group.save(update_fields=["creator", "is_active"])
+                if members.exists():
+                    group.creator = members.first()
+                    group.is_active = True
+                    group.save(update_fields=["creator", "is_active"])
+                else:
+                    group.creator = None
+                    group.is_active = False
+                    group.save(update_fields=["creator", "is_active"])
 
-        for group in Group.objects.filter(
-            memberships__user=fresh_user,
-            memberships__is_active=True,
-        ).distinct():
-            GroupMembership.objects.filter(
-                group=group,
-                user=fresh_user,
-                is_active=True,
-            ).update(is_active=False)
+            for group in Group.objects.filter(
+                memberships__user=fresh_user,
+                memberships__is_active=True,
+            ).distinct():
+                GroupMembership.objects.filter(
+                    group=group,
+                    user=fresh_user,
+                    is_active=True,
+                ).update(is_active=False)
 
-            if not GroupMembership.objects.filter(group=group, is_active=True).exists():
-                group.creator = None
-                group.is_active = False
-                group.save(update_fields=["creator", "is_active"])
+                if not GroupMembership.objects.filter(group=group, is_active=True).exists():
+                    group.creator = None
+                    group.is_active = False
+                    group.save(update_fields=["creator", "is_active"])
 
-        fresh_user.delete()
+            fresh_user.delete()
+
         request.session.flush()
         logout(request)
         messages.success(request, "アカウントが削除されました。")
