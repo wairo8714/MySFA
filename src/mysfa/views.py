@@ -82,7 +82,8 @@ def _validate_product_csv(group, file_obj):
     import io
     import unicodedata
 
-    # アップロードされたcsvファイルを一度 bytes のまま受ける
+    # アップロードされたcsvファイルは文字コードがユーザーによりバラバラ
+    # 一度 bytes のまま受けとり、utf-8,cp932でデコード
     raw = file_obj.read()
 
     def _decode_bytes(b: bytes) -> str:
@@ -138,7 +139,7 @@ def _validate_product_csv(group, file_obj):
     headers = PRODUCT_CSV_HEADERS
     reader = (
         # 列番号依存解消/可読性を上げる為、CSV行を「ヘッダー名→値」の辞書に変換
-        # NULL列の空欄保管/余剰列の切り捨てでエラー防止
+        # NULL列の空欄補完/余剰列の切り捨てでエラー防止
         dict(zip(headers, (row + [""] * len(headers))[: len(headers)]))
         for row in csv_reader
     )
@@ -914,7 +915,7 @@ class GroupAdminView(LoginRequiredMixin, View):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         require_group_admin(request.user, group)
 
-        # 旧データ救済：Group.users にいるのに membership が無いユーザーを作る
+        # 旧データ救済：Group.usersにいるのにmembershipが無いユーザーを作る
         members = group.users.all().select_related()
         existing = {
             (m.user_id): m
@@ -1160,7 +1161,7 @@ class LeaveGroupView(View):
         request.user.groups.remove(group)
 
         with transaction.atomic():
-            # Remove membership (no history)
+            # 退会履歴を保持せず、その場でレコード削除
             GroupMembership.objects.filter(
                 group=group,
                 user=request.user,
@@ -1587,7 +1588,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
                         if not obj:
                             obj = ProductMaster(group=group, product_code=code)
 
-                        # apply payload (ignore unknown keys)
+                        # 受け取ったペイロードを反映するが、
                         for key, value in data.items():
                             if key in (
                                 "_target_pk",
