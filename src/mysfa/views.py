@@ -487,6 +487,7 @@ class TrialStartView(View):
 class Timeline(LoginRequiredMixin, ListView):
     model = Post
     template_name = "post/timeline.html"
+    # TODO: デフォルト名をわざわざ指定してしまっている → "post"に変更の上、該当template参照箇所も同時に修正
     context_object_name = "object_list"
     paginate_by = 10
 
