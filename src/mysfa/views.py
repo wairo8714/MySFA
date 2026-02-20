@@ -504,14 +504,12 @@ class Timeline(LoginRequiredMixin, ListView):
                 Post.objects.filter(group=group)
                 .select_related("user", "group", "product", "industry")
                 .prefetch_related("comments__author")
-                .distinct()
             )
         else:
             queryset = (
                 Post.objects.filter(group__in=user_groups)
                 .select_related("user", "group", "product", "industry")
                 .prefetch_related("comments__author")
-                .distinct()
             )
         return queryset
 
