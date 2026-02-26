@@ -1053,6 +1053,8 @@ class JoinGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
 
+        # "72014332" = デモ用グループ
+        # デモユーザーは自動削除されるので、管理者不在の事故防止
         if group.custom_id == "72014332" and group.creator_id is None:
             with transaction.atomic():
                 g = (
@@ -1072,7 +1074,7 @@ class JoinGroupView(View):
             user=request.user,
             defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
         )
-
+        # OENER権限も付与する
         ensure_membership(request.user, group)
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
