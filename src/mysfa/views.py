@@ -1589,7 +1589,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
                         if not obj:
                             obj = ProductMaster(group=group, product_code=code)
 
-                        # 受け取ったペイロードを反映するが、
+                        # 反映させたくないキーは予め除外
                         for key, value in data.items():
                             if key in (
                                 "_target_pk",
