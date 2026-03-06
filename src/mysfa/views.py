@@ -82,7 +82,8 @@ def _validate_product_csv(group, file_obj):
     import io
     import unicodedata
 
-    # アップロードされたcsvファイルを一度 bytes のまま受ける
+    # アップロードされたcsvファイルは文字コードがユーザーによりバラバラ
+    # 一度 bytes のまま受けとり、utf-8,cp932でデコード
     raw = file_obj.read()
 
     def _decode_bytes(b: bytes) -> str:
@@ -138,7 +139,7 @@ def _validate_product_csv(group, file_obj):
     headers = PRODUCT_CSV_HEADERS
     reader = (
         # 列番号依存解消/可読性を上げる為、CSV行を「ヘッダー名→値」の辞書に変換
-        # NULL列の空欄保管/余剰列の切り捨てでエラー防止
+        # NULL列の空欄補完/余剰列の切り捨てでエラー防止
         dict(zip(headers, (row + [""] * len(headers))[: len(headers)]))
         for row in csv_reader
     )
@@ -486,6 +487,7 @@ class TrialStartView(View):
 class Timeline(LoginRequiredMixin, ListView):
     model = Post
     template_name = "post/timeline.html"
+    # TODO: デフォルト名をわざわざ指定してしまっている → "post"に変更の上、該当template参照箇所も同時に修正
     context_object_name = "object_list"
     paginate_by = 10
 
@@ -502,14 +504,12 @@ class Timeline(LoginRequiredMixin, ListView):
                 Post.objects.filter(group=group)
                 .select_related("user", "group", "product", "industry")
                 .prefetch_related("comments__author")
-                .distinct()
             )
         else:
             queryset = (
                 Post.objects.filter(group__in=user_groups)
                 .select_related("user", "group", "product", "industry")
                 .prefetch_related("comments__author")
-                .distinct()
             )
         return queryset
 
@@ -914,7 +914,7 @@ class GroupAdminView(LoginRequiredMixin, View):
         group = get_object_or_404(Group, custom_id=custom_id, is_active=True)
         require_group_admin(request.user, group)
 
-        # 旧データ救済：Group.users にいるのに membership が無いユーザーを作る
+        # 旧データ救済：Group.usersにいるのにmembershipが無いユーザーを作る
         members = group.users.all().select_related()
         existing = {
             (m.user_id): m
@@ -1053,6 +1053,8 @@ class JoinGroupView(View):
     def post(self, request, *args, **kwargs):
         group = get_object_or_404(Group, custom_id=kwargs["custom_id"], is_active=True)
 
+        # "72014332" = デモ用グループ
+        # デモユーザーは自動削除されるので、管理者不在の事故防止
         if group.custom_id == "72014332" and group.creator_id is None:
             with transaction.atomic():
                 g = (
@@ -1072,7 +1074,7 @@ class JoinGroupView(View):
             user=request.user,
             defaults={"role": GroupMembership.Role.MEMBER, "is_active": True},
         )
-
+        # OENER権限も付与する
         ensure_membership(request.user, group)
         return redirect("mysfa:group_posts", custom_id=kwargs["custom_id"])
 
@@ -1160,7 +1162,7 @@ class LeaveGroupView(View):
         request.user.groups.remove(group)
 
         with transaction.atomic():
-            # Remove membership (no history)
+            # 退会履歴を保持せず、その場でレコード削除
             GroupMembership.objects.filter(
                 group=group,
                 user=request.user,
@@ -1587,7 +1589,7 @@ class ProductChangeRequestDecideView(LoginRequiredMixin, View):
                         if not obj:
                             obj = ProductMaster(group=group, product_code=code)
 
-                        # apply payload (ignore unknown keys)
+                        # 反映させたくないキーは予め除外
                         for key, value in data.items():
                             if key in (
                                 "_target_pk",
