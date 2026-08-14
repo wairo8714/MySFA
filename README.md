@@ -60,6 +60,26 @@ docker compose down -v
 ```
 <br />
 
+## テストの実行方法
+
+### 前提
+- 「ローカルでの起動方法」のセットアップが完了し、コンテナが起動していること
+
+### テスト用DBの権限付与（初回のみ）
+Django のテストランナーは `test_<MYSQL_DATABASE>` という専用のDBを作成しますが、`.env` の `MYSQL_USER` にはその作成権限がありません。次のコマンドで権限を付与します。付与した権限はDBのボリュームに保存されるため、`docker compose down -v` でDBを初期化した場合は、再度実行してください。
+
+```bash
+docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "GRANT ALL PRIVILEGES ON *.* TO \"$MYSQL_USER\"@\"%\" WITH GRANT OPTION; FLUSH PRIVILEGES;"'
+```
+
+### テスト実行
+CI（`.github/workflows/ci.yml`）と同じ対象を実行します。
+
+```bash
+docker compose exec web poetry run python manage.py test mysfa accounts config
+```
+<br />
+
 ## サービスへの想い
 
 私は、営業職として日々「人と人」「商品とお客様」をつなぐ仕事に携わってきました。  
